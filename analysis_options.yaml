@@ -1,0 +1,46 @@
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  exclude:
+    - "**/*.g.dart"
+    - "**/*.freezed.dart"
+    - "lib/generated/**"
+  errors:
+    # Codegen hali ishlamagan bo'lsa loyiha butunlay qizarib ketmasin
+    uri_has_not_been_generated: warning
+    invalid_annotation_target: ignore
+  language:
+    strict-casts: true
+    strict-inference: true
+    strict-raw-types: true
+
+linter:
+  rules:
+    # ── Xatolarni oldini oluvchi ────────────────────────────────────────────
+    always_declare_return_types: true
+    avoid_dynamic_calls: true
+    avoid_slow_async_io: true
+    cancel_subscriptions: true
+    close_sinks: true
+    only_throw_errors: true
+    throw_in_finally: true
+    unawaited_futures: true
+    avoid_print: true
+
+    # ── Uslub / o'qilishi ───────────────────────────────────────────────────
+    prefer_single_quotes: true
+    prefer_final_locals: true
+    prefer_final_in_for_each: true
+    prefer_const_constructors: true
+    prefer_const_declarations: true
+    prefer_const_literals_to_create_immutables: true
+    require_trailing_commas: true
+    sort_constructors_first: true
+    unnecessary_parenthesis: true
+    use_super_parameters: true
+    directives_ordering: true
+
+    # Ataylab O'CHIRILGAN: konstruktorda ochiq nomli parametrni yopiq maydonga
+    # bog'lash (`required TokenStore tokenStore` → `_tokens`) shu loyihaning
+    # uslubi — chaqiruv joyi o'qilishi yaxshiroq bo'ladi.
+    prefer_initializing_formals: false

@@ -1,0 +1,122 @@
+name: beshkashtan_customer
+description: "Besh Kashtan marketplace mijoz ilovasi"
+publish_to: "none"
+
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.12.0 <4.0.0"
+  flutter: ">=3.44.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  # ── State ──────────────────────────────────────────────────────────────────
+  flutter_riverpod: ^3.4.1
+  # riverpod_annotation/_generator/_lint QO'SHILMAYDI: ular analyzer ^13 talab
+  # qiladi, freezed 3.2.x esa analyzer 10 da. Provider'lar qo'lda yoziladi
+  # (Riverpod 3 da bu har provider uchun bir satr). freezed analyzer 13 ga
+  # o'tgach codegen'ni qaytarish mumkin.
+
+  # ── Network ────────────────────────────────────────────────────────────────
+  dio: ^5.11.0
+  web_socket_channel: ^3.0.3
+  connectivity_plus: ^7.3.1
+
+  # ── Modellar (codegen) ─────────────────────────────────────────────────────
+  freezed_annotation: ^3.1.0
+  json_annotation: ^4.12.0
+
+  # ── Navigatsiya ────────────────────────────────────────────────────────────
+  go_router: ^17.3.0
+
+  # ── Saqlash ────────────────────────────────────────────────────────────────
+  flutter_secure_storage: ^10.3.1
+  shared_preferences: ^2.5.5
+
+  # ── Xarita (OpenStreetMap) ─────────────────────────────────────────────────
+  flutter_map: ^8.3.1
+  flutter_map_cancellable_tile_provider: ^3.1.1
+  latlong2: ^0.10.1
+  geolocator: ^14.0.3
+
+  # ── Push ───────────────────────────────────────────────────────────────────
+  firebase_core: ^4.12.1
+  firebase_crashlytics: ^5.3.0
+  firebase_messaging: ^16.4.3
+  flutter_local_notifications: ^22.2.0
+
+  # ── UI ─────────────────────────────────────────────────────────────────────
+  cached_network_image: ^3.4.1
+  # Video fayl keshi (cached_network_image allaqachon tortib keladi).
+  flutter_cache_manager: ^3.4.2
+  flutter_svg: ^2.3.0
+  shimmer: ^3.0.0
+  smooth_page_indicator: ^2.0.1
+  video_player: ^2.13.0
+  visibility_detector: ^0.4.0+2
+  url_launcher: ^6.3.2
+  image_picker: ^1.2.3
+  record: ^7.1.1
+  path_provider: ^2.1.6
+  intl: 0.20.2 # flutter_localizations SDK tomonidan qadalgan
+  cupertino_icons: ^1.0.8
+
+  # ── Diagnostika ────────────────────────────────────────────────────────────
+  package_info_plus: ^10.2.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  # riverpod_lint HOZIRCHA QO'SHILMAYDI: 3.1.x analyzer ^13 talab qiladi,
+  # freezed 3.2.x esa analyzer ^12 da. Ikkalasi birga yechilmaydi.
+  # freezed analyzer 13 ga o'tgach qaytariladi (faqat linter, build uchun shart emas).
+  build_runner: ">=2.4.0 <2.15.2"
+  freezed: ^3.2.5
+  json_serializable: ^6.14.0
+  mocktail: ^1.0.5
+  flutter_launcher_icons: ^0.14.4
+  flutter_native_splash: ^2.4.8
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "tool/launcher_icon.png"
+  # Legacy Android launcher ikonkasida Android tavsiya qilgan safe-area bor.
+  # Adaptive ikonka o'zining alohida foreground qatlamidan foydalanadi.
+  image_path_android: "tool/launcher_icon_adaptive_fg.png"
+  image_path_ios: "tool/launcher_icon.png"
+  remove_alpha_ios: true
+  # Adaptiv ikonka (Android 8+): busiz launcher kvadrat PNG'ni oq hoshiyali
+  # blob qilib ko'rsatadi. Monoxrom — Android 13+ mavzuli ikonkalar uchun.
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "tool/launcher_icon_adaptive_fg.png"
+  adaptive_icon_monochrome: "tool/launcher_icon_monochrome.png"
+  web:
+    generate: true
+    image_path: "tool/launcher_icon.png"
+    background_color: "#24C93B"
+    theme_color: "#24C93B"
+
+flutter:
+  uses-material-design: true
+  generate: true
+
+  assets:
+    - assets/brand/
+    - assets/l10n/
+    # Do'kon kartochkalari uchun rasmlar (store_type nomi bilan).
+    # Backend `image` maydonini to'ldirsa, u shulardan ustun bo'ladi.
+    - assets/stores/
+
+  fonts:
+    # Inter Variable — lotin + kirill qamrovi bitta faylda, barcha og'irliklar.
+    # google_fonts ataylab ishlatilmaydi: u runtime'da yuklaydi yoki butun oilani
+    # bundle qiladi (eski appdagi 61 MB APK sabablaridan biri).
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/InterVariable.ttf

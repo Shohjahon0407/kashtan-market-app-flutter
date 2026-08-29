@@ -1,0 +1,67 @@
+{
+  "project_info": {
+    "project_number": "541108190865",
+    "project_id": "kashtan-5feea",
+    "storage_bucket": "kashtan-5feea.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:541108190865:android:600152ab3cbe2cf7b90930",
+        "android_client_info": {
+          "package_name": "com.example.marketplace_app_modern"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA_RfkjnQ-wLRN8FNP2TnaAlLpFTZrJShE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:541108190865:android:caad39b38e1dc229b90930",
+        "android_client_info": {
+          "package_name": "uz.beshkashkan.courier"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA_RfkjnQ-wLRN8FNP2TnaAlLpFTZrJShE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:541108190865:android:04830000baee95d9b90930",
+        "android_client_info": {
+          "package_name": "uz.beshkashtan.customer"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA_RfkjnQ-wLRN8FNP2TnaAlLpFTZrJShE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

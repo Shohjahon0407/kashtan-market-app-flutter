@@ -1,0 +1,1 @@
+Besh Kashtan 1.0: do‘konlar katalogi, guest savat, OTP orqali checkout, xaritada manzil tanlash, buyurtma trackingi, bildirishnomalar va xavfsiz sharhlar.
