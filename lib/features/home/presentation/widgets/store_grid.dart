@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/store_scope/store_type.dart';
 import '../../../../core/ui/theme/app_dimens.dart';
+import '../../../../core/ui/theme/contrast.dart';
 import '../../data/home_models.dart';
 
 /// Backend tartibidagi ixcham, ikki ustunli do'kon kartalari.
@@ -192,10 +193,7 @@ class _StoreCard extends StatelessWidget {
     );
   }
 
-  static Color _onAccent(Color background) =>
-      background.computeLuminance() > 0.55
-      ? const Color(0xFF0F172A)
-      : Colors.white;
+  static Color _onAccent(Color background) => onAccent(background);
 }
 
 /// Rasm tanlash tartibi: server image -> mavjud lokal asset -> default ikon.
@@ -220,6 +218,8 @@ class _CardImage extends StatelessWidget {
     final url = item.imageUrl;
     if (url == null) return local();
     return CachedNetworkImage(
+      // To'liq o'lchamda dekod qilinmasin — ko'rsatiladigan kenglikka yaqin.
+      memCacheWidth: 480,
       imageUrl: url,
       fit: BoxFit.cover,
       placeholder: (_, _) => local(),

@@ -55,29 +55,33 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
   Widget build(BuildContext context) {
     final detail = ref.watch(productDetailProvider(widget.productId));
     final l10n = AppLocalizations.of(context);
-    return Scaffold(
-      appBar: AppBar(title: Text(l10n.catalogTitle)),
-      body: switch (detail) {
-        AsyncData(:final value)
-            when value.product.storeType != null &&
-                value.product.storeType != widget.storeType =>
-          StoreEmptyView(
-            icon: Icons.warning_amber_rounded,
-            title: l10n.unsupportedStoreMessage,
+    // Snackbar pastdagi "savatga qo'shish" panelini to'smasligi uchun —
+    // o'z Scaffold'i bo'yicha joylashadi (katalog ekranidagi kabi).
+    return ScaffoldMessenger(
+      child: Scaffold(
+        appBar: AppBar(title: Text(l10n.catalogTitle)),
+        body: switch (detail) {
+          AsyncData(:final value)
+              when value.product.storeType != null &&
+                  value.product.storeType != widget.storeType =>
+            StoreEmptyView(
+              icon: Icons.warning_amber_rounded,
+              title: l10n.unsupportedStoreMessage,
+            ),
+          AsyncData(:final value) => _buildDetail(context, value),
+          AsyncError(:final error) => StoreErrorView(
+            message: error is ApiFailure
+                ? error.localize(l10n)
+                : l10n.errorUnknown,
+            onRetry: () =>
+                ref.invalidate(productDetailProvider(widget.productId)),
           ),
-        AsyncData(:final value) => _buildDetail(context, value),
-        AsyncError(:final error) => StoreErrorView(
-          message: error is ApiFailure
-              ? error.localize(l10n)
-              : l10n.errorUnknown,
-          onRetry: () =>
-              ref.invalidate(productDetailProvider(widget.productId)),
-        ),
-        _ => const Center(child: CircularProgressIndicator()),
-      },
-      bottomNavigationBar: detail.value == null
-          ? null
-          : _buildBottomBar(context, detail.value!),
+          _ => const Center(child: CircularProgressIndicator()),
+        },
+        bottomNavigationBar: detail.value == null
+            ? null
+            : _buildBottomBar(context, detail.value!),
+      ),
     );
   }
 
@@ -127,22 +131,32 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                 ),
               ],
               const SizedBox(height: AppSpacing.sm),
+              // Uzun narx / katta shrift toshib ketmasin — ikkala matn ham
+              // Flexible, bir qatorda ellipsis bilan.
               Row(
                 children: [
-                  Text(
-                    Uzs.format(_selectedPrice(product)),
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      color: theme.colorScheme.primary,
-                      fontWeight: FontWeight.w800,
+                  Flexible(
+                    child: Text(
+                      Uzs.format(_selectedPrice(product)),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        color: theme.colorScheme.primary,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                   ),
                   if (product.oldPrice != null) ...[
                     const SizedBox(width: AppSpacing.sm),
-                    Text(
-                      Uzs.format(product.oldPrice),
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        decoration: TextDecoration.lineThrough,
-                        color: theme.colorScheme.outline,
+                    Flexible(
+                      child: Text(
+                        Uzs.format(product.oldPrice),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          decoration: TextDecoration.lineThrough,
+                          color: theme.colorScheme.outline,
+                        ),
                       ),
                     ),
                   ],
@@ -173,9 +187,11 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                     ),
                   ),
                 ),
-              ] else if (!product.isPurchasable) ...[
+              ] else if (!product.isPurchasable ||
+                  _isUnsatisfiable(detail)) ...[
                 const SizedBox(height: AppSpacing.md),
                 Card(
+                  key: const ValueKey('product-detail-unavailable'),
                   color: theme.colorScheme.errorContainer,
                   child: Padding(
                     padding: const EdgeInsets.all(AppSpacing.md),
@@ -188,7 +204,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                         const SizedBox(width: AppSpacing.sm),
                         Expanded(
                           child: Text(
-                            product.isSoldOut
+                            !product.isPurchasable && product.isSoldOut
                                 ? l10n.productSoldOutDetail
                                 : l10n.productUnavailable,
                             style: TextStyle(
@@ -212,7 +228,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                 const SizedBox(height: AppSpacing.sm),
                 Text(product.description),
               ],
-              if (product.variants.isNotEmpty) ...[
+              if (product.variants.any((variant) => variant.isActive)) ...[
                 const SizedBox(height: AppSpacing.xxl),
                 Text(
                   l10n.productVariant,
@@ -293,10 +309,8 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
       configuration,
       cartState?.cart.items ?? const <CartItem>[],
     );
-    final addBusy = cartState?.isBusy(configuration.identity) ?? false;
-    final itemBusy = line == null
-        ? false
-        : cartState?.isBusy('item:${line.id}') ?? false;
+    final addBusy = cartState?.busyKeys.isNotEmpty ?? false;
+    final itemBusy = addBusy;
     final waitingForCart = cartAsync.isLoading && cartState == null;
     final controller = ref.read(
       cartControllerProvider(widget.storeType).notifier,
@@ -319,6 +333,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                   onPressed:
                       _inReview(detail) ||
                           !detail.product.isPurchasable ||
+                          _isUnsatisfiable(detail) ||
                           waitingForCart ||
                           cartAsync.hasError ||
                           addBusy
@@ -347,15 +362,16 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                     const SizedBox(width: AppSpacing.md),
                     Expanded(
                       flex: 10,
-                      child: FilledButton.tonalIcon(
+                      // Ikonkasiz — tor ekranda "Перейти в корзину" yorlig'i
+                      // ikonka bilan sig'may qisqarib qolardi.
+                      child: FilledButton.tonal(
                         key: const ValueKey('product-detail-go-to-cart'),
                         onPressed: () => goToStoreTab(
                           context,
                           widget.storeType,
                           StoreTab.cart,
                         ),
-                        icon: const Icon(Icons.shopping_bag_outlined),
-                        label: Text(l10n.productGoToCart),
+                        child: Text(l10n.productGoToCart),
                       ),
                     ),
                   ],
@@ -399,6 +415,25 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
       selected.add(option.id);
     }
     setState(() => _selectedAddons[group.id] = selected);
+  }
+
+  /// UI faqat mavjud optsiyalar (`isAvailable`) va faol variantlarni
+  /// (`isActive`) chizadi. Majburiy guruhda yetarli mavjud optsiya bo'lmasa
+  /// yoki variantlar bor-u, faoli yo'q bo'lsa — mahsulotni to'plab bo'lmaydi:
+  /// "kamida bittasini tanlang" deyish o'rniga tugma o'chiriladi.
+  bool _isUnsatisfiable(ProductDetail detail) {
+    final product = detail.product;
+    if (product.variants.isNotEmpty &&
+        !product.variants.any((variant) => variant.isActive)) {
+      return true;
+    }
+    for (final group in detail.addonGroups) {
+      final minimum = math.max(group.minSelect, group.isRequired ? 1 : 0);
+      if (minimum == 0) continue;
+      final available = group.options.where((option) => option.isAvailable);
+      if (available.length < minimum) return true;
+    }
+    return false;
   }
 
   bool _isValid(ProductDetail detail) {

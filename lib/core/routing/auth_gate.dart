@@ -39,20 +39,27 @@ class AuthPromptCoordinator {
       // Modal/sheet context route state'ga ega bo'lmasligi mumkin.
     }
 
-    unawaited(
-      context
-          .push<bool>(Routes.authPhoneFor(returnTo: returnTo, modal: true))
-          .then((result) {
-            // Success PhoneScreen tomonidan route pop bo'lgandan keyingi
-            // frame'da yakunlanadi; aks holda continuation yangi route'ni
-            // pop animatsiyasining oldiga chiqarib yuborishi mumkin.
-            if (result == true) return;
-            _completeIfCurrent(
-              prompt,
-              _ref.read(authControllerProvider).isAuthenticated,
-            );
-          }),
-    );
+    try {
+      unawaited(
+        context
+            .push<bool>(Routes.authPhoneFor(returnTo: returnTo, modal: true))
+            .then((result) {
+              // Success PhoneScreen tomonidan route pop bo'lgandan keyingi
+              // frame'da yakunlanadi; aks holda continuation yangi route'ni
+              // pop animatsiyasining oldiga chiqarib yuborishi mumkin.
+              if (result == true) return;
+              _completeIfCurrent(
+                prompt,
+                _ref.read(authControllerProvider).isAuthenticated,
+              );
+            }),
+      );
+    } on Object {
+      // Context o'lik (widget deactivated) — push tashladi. Completer ochiq
+      // qolsa keyingi BARCHA login so'rovlari shu o'lik future'ni kutib
+      // sessiya davomida osilib qolardi.
+      _completeIfCurrent(prompt, false);
+    }
   }
 
   void complete(bool authenticated) {

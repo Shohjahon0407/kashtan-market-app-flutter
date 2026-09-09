@@ -6,6 +6,7 @@ import '../../../core/config/app_config.dart';
 import '../../../core/localization/failure_l10n.dart';
 import '../../../core/network/api_failure.dart';
 import '../../../core/routing/auth_gate.dart';
+import '../../../core/ui/theme/app_buttons.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../data/ugc_api.dart';
 import '../data/ugc_models.dart';
@@ -101,6 +102,7 @@ Future<bool> blockUgcUser(
           child: Text(l10n.commonCancel),
         ),
         FilledButton(
+          style: AppButtons.dialogAction,
           onPressed: () => Navigator.pop(context, true),
           child: Text(l10n.ugcBlock),
         ),
@@ -204,6 +206,7 @@ class _UgcPolicyDialogState extends State<_UgcPolicyDialog> {
             child: Text(l10n.commonCancel),
           ),
           FilledButton(
+            style: AppButtons.dialogAction,
             onPressed: _checked ? () => Navigator.pop(context, true) : null,
             child: Text(l10n.ugcAccept),
           ),

@@ -1,3 +1,4 @@
+import 'package:beshkashtan_customer/core/network/api_failure.dart';
 import 'package:beshkashtan_customer/core/store_scope/store_type.dart';
 import 'package:beshkashtan_customer/features/cart/data/cart_api.dart';
 import 'package:beshkashtan_customer/features/cart/data/cart_models.dart';
@@ -98,6 +99,51 @@ const _cart = CartData(
 );
 
 void main() {
+  testWidgets(
+    'failed checkout preparation shows retry, never empty-cart or submit',
+    (tester) async {
+      final cartApi = _MockCartApi();
+      var fail = true;
+      when(() => cartApi.mergeGuestCart()).thenAnswer((_) async {
+        if (fail) throw const NetworkFailure('offline');
+        return false;
+      });
+      final checkoutApi = _MockCheckoutApi();
+      when(
+        () => checkoutApi.fetchBranches('store-1'),
+      ).thenAnswer((_) async => []);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            cartApiProvider.overrideWithValue(cartApi),
+            checkoutApiProvider.overrideWithValue(checkoutApi),
+            cartControllerProvider.overrideWith2(_TestCartController.new),
+            addressesControllerProvider.overrideWith(
+              _TestAddressesController.new,
+            ),
+          ],
+          child: const MaterialApp(
+            locale: Locale('uz'),
+            supportedLocales: AppLocalizations.supportedLocales,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            home: CheckoutScreen(storeType: StoreType.household),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final l10n = AppLocalizations.of(
+        tester.element(find.byType(CheckoutScreen)),
+      );
+      expect(find.text(l10n.checkoutEmptyCart), findsNothing);
+      expect(find.text(l10n.checkoutSubmit), findsNothing);
+      expect(find.text(l10n.commonRetry), findsOneWidget);
+      fail = false;
+      await tester.tap(find.text(l10n.commonRetry));
+      await tester.pumpAndSettle();
+      expect(find.text('Yetkazish joylashuvini tanlang'), findsOneWidget);
+    },
+  );
+
   testWidgets(
     'checkout eski defaultni avtomatik tanlamaydi va user tanlovini kutadi',
     (tester) async {

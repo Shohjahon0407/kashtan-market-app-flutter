@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/localization/failure_l10n.dart';
 import '../../../../core/network/api_failure.dart';
+import '../../../../core/ui/theme/app_buttons.dart';
 import '../../../../core/ui/theme/app_dimens.dart';
 import '../../../../generated/l10n/app_localizations.dart';
 import '../../../auth/domain/auth_controller.dart';
@@ -217,24 +218,39 @@ class _ReviewDialogState extends State<_ReviewDialog> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return AlertDialog(
+      // Klaviatura ochilganda kontent siqilmasin — o'zi skroll bo'ladi.
+      scrollable: true,
       title: Text(l10n.productReviewWrite),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              for (var value = 1; value <= 5; value++)
-                IconButton(
-                  onPressed: () => setState(() => _rating = value),
-                  icon: Icon(
-                    value <= _rating
-                        ? Icons.star_rounded
-                        : Icons.star_border_rounded,
-                    color: Colors.amber.shade700,
+          // 5 ta odatiy (48dp) IconButton tor ekranda (≤360dp) dialog
+          // kengligiga sig'maydi — yulduzlar ixcham (40dp), zarurat bo'lsa
+          // FittedBox butun qatorni kichraytiradi.
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (var value = 1; value <= 5; value++)
+                  IconButton(
+                    key: ValueKey('product-review-star-$value'),
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints.tightFor(
+                      width: 40,
+                      height: 40,
+                    ),
+                    onPressed: () => setState(() => _rating = value),
+                    icon: Icon(
+                      value <= _rating
+                          ? Icons.star_rounded
+                          : Icons.star_border_rounded,
+                      color: Colors.amber.shade700,
+                    ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
           TextField(
             controller: _comment,
@@ -252,6 +268,7 @@ class _ReviewDialogState extends State<_ReviewDialog> {
           child: Text(l10n.commonCancel),
         ),
         FilledButton(
+          style: AppButtons.dialogAction,
           onPressed: () => Navigator.pop(
             context,
             _ReviewDraft(_rating, _comment.text.trim()),

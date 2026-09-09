@@ -99,6 +99,12 @@ abstract class AppLocalizations {
     Locale('ru'),
   ];
 
+  /// No description provided for @addressLocationUnavailable.
+  ///
+  /// In uz, this message translates to:
+  /// **'Lokatsiyani aniqlab bo‘lmadi. GPS’ni tekshiring yoki xaritada nuqtani qo‘lda tanlang.'**
+  String get addressLocationUnavailable;
+
   /// Ilova nomi
   ///
   /// In uz, this message translates to:
@@ -176,6 +182,12 @@ abstract class AppLocalizations {
   /// In uz, this message translates to:
   /// **'Offline rejim'**
   String get offlineBanner;
+
+  /// No description provided for @connectionServerUnavailable.
+  ///
+  /// In uz, this message translates to:
+  /// **'Serverga ulanib bo‘lmadi'**
+  String get connectionServerUnavailable;
 
   /// No description provided for @offlineStaleData.
   ///
@@ -290,6 +302,36 @@ abstract class AppLocalizations {
   /// In uz, this message translates to:
   /// **'Kod {seconds} soniyadan keyin eskiradi'**
   String authOtpExpiresIn(int seconds);
+
+  /// No description provided for @authConsentPrefix.
+  ///
+  /// In uz, this message translates to:
+  /// **'Davom etish orqali siz '**
+  String get authConsentPrefix;
+
+  /// No description provided for @authConsentTerms.
+  ///
+  /// In uz, this message translates to:
+  /// **'Foydalanish shartlari'**
+  String get authConsentTerms;
+
+  /// No description provided for @authConsentAnd.
+  ///
+  /// In uz, this message translates to:
+  /// **' va '**
+  String get authConsentAnd;
+
+  /// No description provided for @authConsentPrivacy.
+  ///
+  /// In uz, this message translates to:
+  /// **'Maxfiylik siyosati'**
+  String get authConsentPrivacy;
+
+  /// No description provided for @authConsentSuffix.
+  ///
+  /// In uz, this message translates to:
+  /// **'ga rozilik bildirasiz.'**
+  String get authConsentSuffix;
 
   /// No description provided for @authLogout.
   ///
@@ -1424,6 +1466,18 @@ abstract class AppLocalizations {
   /// In uz, this message translates to:
   /// **'Bosh sahifaga qaytish'**
   String get unsupportedStoreBack;
+
+  /// No description provided for @routeNotFoundTitle.
+  ///
+  /// In uz, this message translates to:
+  /// **'Sahifa topilmadi'**
+  String get routeNotFoundTitle;
+
+  /// No description provided for @routeNotFoundMessage.
+  ///
+  /// In uz, this message translates to:
+  /// **'Bu havola eskirgan yoki ilovaning yangi versiyasini talab qiladi.'**
+  String get routeNotFoundMessage;
 
   /// No description provided for @supportCenterTitle.
   ///

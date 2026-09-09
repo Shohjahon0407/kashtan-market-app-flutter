@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/localization/failure_l10n.dart';
 import '../../../core/network/api_failure.dart';
 import '../../../core/routing/routes.dart';
+import '../../../core/ui/theme/app_buttons.dart';
 import '../../../core/ui/theme/app_dimens.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../../store/presentation/widgets/store_state_views.dart';
@@ -99,6 +100,7 @@ class AddressesScreen extends ConsumerWidget {
             child: Text(l10n.commonCancel),
           ),
           FilledButton(
+            style: AppButtons.dialogAction,
             onPressed: () => Navigator.pop(context, true),
             child: Text(l10n.commonDelete),
           ),

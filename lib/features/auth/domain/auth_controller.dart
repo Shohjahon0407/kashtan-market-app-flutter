@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/localization/locale_controller.dart';
@@ -23,6 +24,19 @@ final authControllerProvider = NotifierProvider<AuthController, AuthState>(
 
 /// Push device kabi authenticated resurslarni token o'chirilishidan oldin
 /// deaktivatsiya qilish hook'i. Root container concrete implementatsiya beradi.
+/// Chiqish jarayoni ketyaptimi — profil tugmasi o'chiq turadi va spinner
+/// ko'rsatadi (AuthState'da ataylab copyWith yo'q, shuning uchun alohida).
+final logoutBusyProvider = NotifierProvider<LogoutBusyController, bool>(
+  LogoutBusyController.new,
+);
+
+class LogoutBusyController extends Notifier<bool> {
+  @override
+  bool build() => false;
+
+  void set(bool value) => state = value;
+}
+
 final onBeforeLogoutProvider = Provider<Future<void> Function()>(
   (ref) => () async {},
 );
@@ -38,6 +52,7 @@ final onAfterLoginProvider = Provider<Future<void> Function()>(
 /// redirect orqali o'zi yo'naltiradi (faqat deklarativ navigatsiya).
 class AuthController extends Notifier<AuthState> {
   static const String _kUserJson = 'auth.user_json';
+  int _sessionRevision = 0;
 
   @override
   AuthState build() {
@@ -59,12 +74,14 @@ class AuthController extends Notifier<AuthState> {
   static const _checkingTimeout = Duration(seconds: 3);
 
   Future<void> restoreSession() async {
+    final revision = ++_sessionRevision;
     // `main()` bu metodni runApp'dan oldin chaqiradi. Holatni birinchi awaitdan
     // OLDIN o'zgartirish router va startup intro guest Home'ga muddatidan oldin
     // o'tib ketmasligini kafolatlaydi.
     state = const AuthState.checking();
     final access = await _tokens.readAccess();
     final refresh = await _tokens.readRefresh();
+    if (!ref.mounted || revision != _sessionRevision) return;
     if (access == null ||
         access.isEmpty ||
         refresh == null ||
@@ -86,7 +103,9 @@ class AuthController extends Notifier<AuthState> {
     Timer? checkingTimer;
     if (cached == null) {
       checkingTimer = Timer(_checkingTimeout, () {
-        if (state.isCheckingSession) {
+        if (ref.mounted &&
+            revision == _sessionRevision &&
+            state.isCheckingSession) {
           state = const AuthState.unauthenticated();
         }
       });
@@ -95,6 +114,7 @@ class AuthController extends Notifier<AuthState> {
     try {
       final user = await _api.me();
       checkingTimer?.cancel();
+      if (!ref.mounted || revision != _sessionRevision) return;
       await _saveCachedUser(user);
       try {
         await ref.read(onAfterLoginProvider)();
@@ -103,14 +123,17 @@ class AuthController extends Notifier<AuthState> {
         // noodatiy xato valid JWT sessiyasini bekor qilmasligi kerak.
         // Token saqlanadi va startup/resume/checkout oldidan qayta uriniladi.
       }
+      if (!ref.mounted || revision != _sessionRevision) return;
       state = AuthState.authenticated(user);
     } on UnauthorizedFailure {
+      if (!ref.mounted || revision != _sessionRevision) return;
       // Transient refresh endi NetworkFailure/ServerFailure sifatida keladi.
       // Bu branch faqat refresh token yoki yangilangan access aniq rad
       // etilganda ishlaydi.
       await _clearLocal();
       state = const AuthState.unauthenticated();
     } on ApiFailure {
+      if (!ref.mounted || revision != _sessionRevision) return;
       // Offline / 5xx — sessiya saqlanadi.
       if (cached != null) {
         state = AuthState.authenticated(cached);
@@ -119,6 +142,8 @@ class AuthController extends Notifier<AuthState> {
         // ehtiyotkor yo'l: sessiyani saqlab, keshsiz authenticated bo'lmaymiz.
         state = const AuthState.unauthenticated();
       }
+    } finally {
+      checkingTimer?.cancel();
     }
   }
 
@@ -179,6 +204,7 @@ class AuthController extends Notifier<AuthState> {
   }
 
   Future<void> verifyCode(String code) async {
+    _sessionRevision++;
     final phone = state.phone;
     if (!UzbekPhone.isNormalized(phone) ||
         code.length != OtpPolicy.codeLength) {
@@ -209,12 +235,40 @@ class AuthController extends Notifier<AuthState> {
 
   // ── Chiqish ────────────────────────────────────────────────────────────────
 
+  bool _loggingOut = false;
+
   Future<void> logout() async {
-    await ref.read(onBeforeLogoutProvider)();
-    final refresh = await _tokens.readRefresh();
-    await _api.logout(refresh); // xatoni yutadi
-    await _clearLocal();
-    state = const AuthState.unauthenticated();
+    // Qayta bosishlar parallel logout ochmasin.
+    if (_loggingOut) return;
+    _loggingOut = true;
+    ref.read(logoutBusyProvider.notifier).set(true);
+    _sessionRevision++;
+    try {
+      // Push tokenini bekor qilish access token'ni talab qiladi — shuning
+      // uchun lokal tozalashdan OLDIN, lekin vaqt chegarasi bilan: server
+      // sekin bo'lsa foydalanuvchi 45 s "hech narsa bo'lmayapti" deb
+      // o'tirmasin. Ikkalasi ham best-effort.
+      await _bestEffort(ref.read(onBeforeLogoutProvider)());
+      final refresh = await _tokens.readRefresh();
+      await _bestEffort(_api.logout(refresh));
+      await _clearLocal();
+      state = const AuthState.unauthenticated();
+    } finally {
+      _loggingOut = false;
+      if (ref.mounted) ref.read(logoutBusyProvider.notifier).set(false);
+    }
+  }
+
+  /// Har bir tarmoq qadami uchun chegara; testda qisqartiriladi.
+  @visibleForTesting
+  static Duration logoutStepTimeout = const Duration(seconds: 5);
+
+  static Future<void> _bestEffort(Future<void> future) async {
+    try {
+      await future.timeout(logoutStepTimeout);
+    } on Object {
+      // Chiqish baribir lokal tozalash bilan yakunlanadi.
+    }
   }
 
   // ── Hisobni o'chirish ──────────────────────────────────────────────────────
@@ -231,6 +285,7 @@ class AuthController extends Notifier<AuthState> {
   /// hisobida qoladi va qayta urinishi mumkin.
   Future<void> deleteAccount(String otpCode) async {
     await _api.deleteAccount(otpCode);
+    _sessionRevision++;
 
     // Shu nuqtadan keyin hisob serverda o'chirilgan — lokal iz qolmasin.
     try {
@@ -262,6 +317,7 @@ class AuthController extends Notifier<AuthState> {
   /// Refresh ham o'lganda `AuthInterceptor` dan chaqiriladi.
   Future<void> expireSession() async {
     if (!state.isAuthenticated && !state.isCheckingSession) return;
+    _sessionRevision++;
     await _clearLocal();
     state = const AuthState.unauthenticated();
   }

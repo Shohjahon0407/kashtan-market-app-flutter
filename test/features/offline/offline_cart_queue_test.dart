@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:beshkashtan_customer/core/localization/locale_controller.dart';
 import 'package:beshkashtan_customer/core/network/api_failure.dart';
+import 'package:beshkashtan_customer/core/storage/account_scope.dart';
 import 'package:beshkashtan_customer/core/storage/prefs_store.dart';
 import 'package:beshkashtan_customer/features/cart/data/cart_api.dart';
 import 'package:beshkashtan_customer/features/cart/data/cart_models.dart';
@@ -11,6 +14,14 @@ import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class _MockCartApi extends Mock implements CartApi {}
+
+final _ownerProvider = NotifierProvider<_Owner, String>(_Owner.new);
+
+class _Owner extends Notifier<String> {
+  @override
+  String build() => 'user_A';
+  void change(String value) => state = value;
+}
 
 Future<(ProviderContainer, _MockCartApi, PrefsStore)> _setup([
   Map<String, Object> initial = const {},
@@ -31,6 +42,79 @@ Future<(ProviderContainer, _MockCartApi, PrefsStore)> _setup([
 const _configuration = CartConfiguration(productId: 'p1', note: 'tez');
 
 void main() {
+  test(
+    'enqueue during flush is preserved and acknowledged by operation ID',
+    () async {
+      final (container, api, _) = await _setup();
+      final queue = container.read(offlineCartQueueProvider);
+      final pending = Completer<void>();
+      when(
+        () => api.updateQuantity('first', 2),
+      ).thenAnswer((_) => pending.future);
+      when(
+        () => api.updateQuantity('second', 3),
+      ).thenThrow(const ServerFailure('retry', 503));
+      await queue.enqueueSetQuantity('first', 2);
+      final flushing = queue.flush();
+      await Future<void>.delayed(Duration.zero);
+      await queue.enqueueSetQuantity('second', 3);
+      pending.complete();
+      await flushing;
+      expect(queue.isEmpty, isFalse);
+      when(() => api.updateQuantity('second', 3)).thenAnswer((_) async {});
+      await queue.flush();
+      expect(queue.isEmpty, isTrue);
+      verify(() => api.updateQuantity('first', 2)).called(1);
+      verify(() => api.updateQuantity('second', 3)).called(2);
+    },
+  );
+
+  test('429/500/auth failures retain queued intents', () async {
+    final (container, api, _) = await _setup();
+    final queue = container.read(offlineCartQueueProvider);
+    await queue.enqueueSetQuantity('item', 2);
+    for (final failure in [
+      const ThrottledFailure('retry'),
+      const ServerFailure('', 500),
+      const UnauthorizedFailure(),
+    ]) {
+      when(() => api.updateQuantity('item', 2)).thenThrow(failure);
+      await queue.flush();
+      expect(queue.isEmpty, isFalse);
+    }
+  });
+
+  test(
+    'account B cannot see or flush A intents; A can resume after login',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await PrefsStore.load();
+      final api = _MockCartApi();
+      final container = ProviderContainer(
+        overrides: [
+          prefsStoreProvider.overrideWithValue(prefs),
+          cartApiProvider.overrideWithValue(api),
+          accountScopeProvider.overrideWith((ref) => ref.watch(_ownerProvider)),
+        ],
+      );
+      addTearDown(container.dispose);
+      final a = container.read(offlineCartQueueProvider);
+      await a.enqueueSetQuantity('A-item', 2);
+      container.read(_ownerProvider.notifier).change('user_B');
+      await container.pump();
+      expect(container.read(offlineCartQueueProvider).isEmpty, isTrue);
+      await a.flush();
+      verifyNever(() => api.updateQuantity(any(), any()));
+      container.read(_ownerProvider.notifier).change('user_A');
+      await container.pump();
+      final restored = container.read(offlineCartQueueProvider);
+      expect(restored.isEmpty, isFalse);
+      when(() => api.updateQuantity('A-item', 2)).thenAnswer((_) async {});
+      await restored.flush();
+      expect(restored.isEmpty, isTrue);
+    },
+  );
+
   setUpAll(() {
     registerFallbackValue(_configuration);
   });

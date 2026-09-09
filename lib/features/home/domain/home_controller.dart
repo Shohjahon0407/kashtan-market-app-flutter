@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/localization/locale_controller.dart';
+import '../../../core/network/connectivity_controller.dart';
 import '../../../core/network/network_providers.dart';
 import '../../../core/storage/json_disk_cache.dart';
 import '../data/home_api.dart';
@@ -33,6 +34,9 @@ class HomeController extends AsyncNotifier<HomeData> {
 
   @override
   Future<HomeData> build() async {
+    listenForConnectionRecovery(ref, () async {
+      if (!state.isLoading) await refresh();
+    });
     ref.watch(apiLangProvider);
     ref.watch(uzScriptProvider);
     final revision = ++_buildRevision;

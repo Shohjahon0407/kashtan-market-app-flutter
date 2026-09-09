@@ -119,7 +119,13 @@ final class ServerFailure extends ApiFailure {
 
 /// Boshqa hech qaysi turga tushmagan holat.
 final class UnknownFailure extends ApiFailure {
-  const UnknownFailure([super.message = '']);
+  const UnknownFailure([super.message = '']) : isDiagnostic = false;
+
+  /// Ilova kutgan javob shakli kelmadi (dekod xatosi). Matn dasturchi uchun —
+  /// foydalanuvchiga umumiy xato ko'rsatiladi (debug'da matn qo'shiladi).
+  const UnknownFailure.malformed(super.message) : isDiagnostic = true;
+
+  final bool isDiagnostic;
 }
 
 /// So'rov bekor qilindi (masalan qidiruv matni o'zgardi).

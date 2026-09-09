@@ -1,5 +1,6 @@
 {
   "@@locale": "uz_Cyrl",
+  "addressLocationUnavailable": "Локацияни аниқлаб бўлмади. ГПСъни текширинг ёки харитада нуқтани қўлда танланг.",
   "appName": "Besh Kashtan",
   "@appName": {
     "description": "Ilova nomi"
@@ -16,6 +17,7 @@
   "commonYes": "Ҳа",
   "commonNo": "Йўқ",
   "offlineBanner": "Оффлине режим",
+  "connectionServerUnavailable": "Серверга уланиб бўлмади",
   "offlineStaleData": "эски маълумотлар",
   "errorNetwork": "Интернет алоқаси йўқ. Уланишни текширинг.",
   "@errorNetwork": {
@@ -59,6 +61,11 @@
       }
     }
   },
+  "authConsentPrefix": "Давом этиш орқали сиз ",
+  "authConsentTerms": "Фойдаланиш шартлари",
+  "authConsentAnd": " ва ",
+  "authConsentPrivacy": "Махфийлик сиёсати",
+  "authConsentSuffix": "га розилик билдирасиз.",
   "authLogout": "Чиқиш",
   "authErrorOtpCooldown": "Кодни қайта юбориш учун бироз кутинг.",
   "authErrorOtpHourLimit": "Бир соатда 5 мартадан кўп код сўраб бўлмайди.",
@@ -297,6 +304,8 @@
   "unsupportedStoreTitle": "Номаълум дўкон",
   "unsupportedStoreMessage": "Бу дўкон тури илова томонидан қўлланмайди.",
   "unsupportedStoreBack": "Бош саҳифага қайтиш",
+  "routeNotFoundTitle": "Саҳифа топилмади",
+  "routeNotFoundMessage": "Бу ҳавола эскирган ёки илованинг янги версиясини талаб қилади.",
   "supportCenterTitle": "Ёрдам ва мурожаатлар",
   "supportFormIntro": "Керакли маҳсулотни топмадингизми, таклифингиз ёки саволингиз борми? Матн, расм ёки овоз орқали юборинг.",
   "supportMissingProductTitle": "Йўқ товарлар учун заказ бериш",
@@ -418,6 +427,12 @@
   "ugcUserBlocked": "Фойдаланувчи блокланди. Унинг изоҳлари сизга кўринмайди.",
   "ugcBlockedUsers": "Блокланган фойдаланувчилар",
   "ugcBlockedUsersEmpty": "Блокланган фойдаланувчилар йўқ",
-  "ugcBlockConfirmation": "{name} фойдаланувчисини блоклайсизми? Унинг очиқ изоҳ ва шарҳлари сизга кўринмайди.",
-  "@ugcBlockConfirmation": {"placeholders": {"name": {"type": "String"}}}
+  "ugcBlockConfirmation": "{name} фойдаланувчисини блоклайсизми? Унинг публик изоҳ ва шарҳлари сизга кўринмайди.",
+  "@ugcBlockConfirmation": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  }
 }

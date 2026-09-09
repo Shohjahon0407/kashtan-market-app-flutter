@@ -110,11 +110,6 @@ abstract final class AppConfig {
   // Fayl yuklash (murojaat rasmi/ovozi) uzunroq bo'lishi mumkin.
   static const Duration sendTimeout = Duration(seconds: 30);
 
-  // ── Deep link ──────────────────────────────────────────────────────────────
-
-  static const String deepLinkScheme = 'marketplace';
-  static const String universalLinkHost = 'beshkashtan.uz';
-
   // ── Xarita (OpenStreetMap) ─────────────────────────────────────────────────
 
   /// Nominatim ishlatish shartlari identifikatsiyalovchi User-Agent talab qiladi.

@@ -56,6 +56,17 @@ class RetryInterceptor extends Interceptor {
   static bool _isRetryable(DioException err) {
     // Offline sababli yuborilmagan so'rovni qayta urinish ma'nosiz.
     if (err.error is OfflineShortCircuit) return false;
+    // A timeout may occur AFTER the server committed a mutation. Only safe
+    // reads and explicitly idempotent requests may be replayed automatically.
+    final request = err.requestOptions;
+    final safe = request.method == 'GET' || request.method == 'HEAD';
+    final idempotent = request.headers.entries.any(
+      (entry) =>
+          entry.key.toLowerCase() == 'idempotency-key' &&
+          entry.value != null &&
+          entry.value.toString().trim().isNotEmpty,
+    );
+    if (!safe && !idempotent) return false;
     return _isRetryableType(err);
   }
 

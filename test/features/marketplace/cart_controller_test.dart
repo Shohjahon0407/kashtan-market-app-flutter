@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:beshkashtan_customer/core/localization/locale_controller.dart';
 import 'package:beshkashtan_customer/core/network/api_failure.dart';
 import 'package:beshkashtan_customer/core/storage/prefs_store.dart';
@@ -5,6 +7,7 @@ import 'package:beshkashtan_customer/core/store_scope/store_type.dart';
 import 'package:beshkashtan_customer/features/cart/data/cart_api.dart';
 import 'package:beshkashtan_customer/features/cart/data/cart_models.dart';
 import 'package:beshkashtan_customer/features/cart/domain/cart_controller.dart';
+import 'package:beshkashtan_customer/features/cart/domain/offline_cart_queue.dart';
 import 'package:beshkashtan_customer/features/catalog/data/product_models.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -92,6 +95,81 @@ void main() {
     verify(() => api.fetch('restaurant')).called(1);
     verify(() => api.fetch('shashlik')).called(1);
   });
+
+  test(
+    'successful add followed by failed GET is NOT queued for another add',
+    () async {
+      final api = _MockCartApi();
+      var calls = 0;
+      when(() => api.fetch('household')).thenAnswer((_) async {
+        if (++calls > 1) throw const NetworkFailure();
+        return _cartWithQuantity(0);
+      });
+      when(
+        () => api.addItem(
+          storeType: 'household',
+          configuration: any(named: 'configuration'),
+          quantity: 1,
+        ),
+      ).thenAnswer((_) async {});
+      final container = await containerWith(api);
+      final provider = cartControllerProvider(StoreType.household);
+      final sub = container.listen(provider, (_, _) {});
+      addTearDown(sub.close);
+      await container.read(provider.future);
+      // Yozuv serverga yetdi — mahsulot savatda, shuning uchun `true`;
+      // lekin GET xato bergani uchun konfiguratsiya "tasdiqlanmagan" bo'lib,
+      // UI "Sotib olish"ni qayta ko'rsatmaydi (2 dona bo'lib qolmasin).
+      expect(
+        await container.read(provider.notifier).addProduct(_product),
+        isTrue,
+      );
+      expect(container.read(offlineCartQueueProvider).isEmpty, isTrue);
+      expect(container.read(provider).value!.busyKeys, isEmpty);
+      expect(
+        container.read(provider).value!.unconfirmedKeys,
+        contains(CartConfiguration(productId: _product.id).identity),
+      );
+      expect(
+        container.read(provider).value!.mutationFailure,
+        isA<NetworkFailure>(),
+      );
+      verify(
+        () => api.addItem(
+          storeType: 'household',
+          configuration: any(named: 'configuration'),
+          quantity: 1,
+        ),
+      ).called(1);
+    },
+  );
+
+  test(
+    'clear cannot race an in-flight quantity change in the same store',
+    () async {
+      final api = _MockCartApi();
+      final pending = Completer<void>();
+      when(
+        () => api.fetch('household'),
+      ).thenAnswer((_) async => _cartWithQuantity(1));
+      when(
+        () => api.updateQuantity('item-1', 2),
+      ).thenAnswer((_) => pending.future);
+      final container = await containerWith(api);
+      final provider = cartControllerProvider(StoreType.household);
+      final sub = container.listen(provider, (_, _) {});
+      addTearDown(sub.close);
+      final initial = await container.read(provider.future);
+      final changing = container
+          .read(provider.notifier)
+          .increment(initial.cart.items.single);
+      await container.read(provider.notifier).clear();
+      verifyNever(() => api.clear(any()));
+      pending.complete();
+      await changing;
+      expect(container.read(provider).value!.busyKeys, isEmpty);
+    },
+  );
 
   test(
     'bir xil konfiguratsiya duplicate line yaratmay, PATCH qiladi',

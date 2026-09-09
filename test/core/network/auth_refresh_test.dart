@@ -195,20 +195,23 @@ void main() {
     expect(await tokens.readRefresh(), isNull);
   });
 
-  test('yangilangandan keyingi 403 ham sessiyani tugatadi', () async {
-    final adapter = _ScriptedAdapter((options) {
-      final auth = options.headers['Authorization']?.toString() ?? '';
-      return auth == 'Bearer eski'
-          ? _json({'detail': 'token eskirgan'}, 401)
-          : _json({'detail': 'yangi token rad etildi'}, 403);
-    });
-    final client = buildClient(adapter, newAccess: 'yangi');
+  test(
+    'yangilangandan keyingi 403 ruxsat xatosi sessiyani tugatmaydi',
+    () async {
+      final adapter = _ScriptedAdapter((options) {
+        final auth = options.headers['Authorization']?.toString() ?? '';
+        return auth == 'Bearer eski'
+            ? _json({'detail': 'token eskirgan'}, 401)
+            : _json({'detail': 'yangi token rad etildi'}, 403);
+      });
+      final client = buildClient(adapter, newAccess: 'yangi');
 
-    await expectLater(client.get('/me/'), throwsA(isA<ForbiddenFailure>()));
-    expect(refreshCallCount, 1);
-    expect(sessionExpiredCount, 1);
-    expect(await tokens.readAccess(), isNull);
-  });
+      await expectLater(client.get('/me/'), throwsA(isA<ForbiddenFailure>()));
+      expect(refreshCallCount, 1);
+      expect(sessionExpiredCount, 0);
+      expect(await tokens.readAccess(), 'yangi');
+    },
+  );
 
   test('/auth/* endpointlarida refresh urinilmaydi', () async {
     final adapter = _ScriptedAdapter(

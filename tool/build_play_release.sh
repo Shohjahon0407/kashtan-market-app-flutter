@@ -29,8 +29,23 @@ done
 
 [[ "$BACKEND_ORIGIN_VALUE" == https://* ]] || \
   fail "BACKEND_ORIGIN must use HTTPS for a Play release."
-[[ "$MAPBOX_TOKEN_VALUE" == pk.* && ${#MAPBOX_TOKEN_VALUE} -ge 20 ]] || \
-  fail "Set a restricted public MAPBOX_ACCESS_TOKEN (pk.*) before building."
+# Mapbox token — production xarita uchun tavsiya etilgan yo'l. Token hali
+# olinmagan bo'lsa ALLOW_OSM_TILES=1 bilan ataylab OSM zaxirasida qurish
+# mumkin (ilova tokensiz o'zi OSM'ga tushadi). Bu VAQTINCHA: OSM tile-server
+# ommaviy ilovalarda ta'qiqlangan — foydalanuvchi ko'payganda bloklanadi.
+MAP_PROVIDER="Mapbox"
+if [[ "$MAPBOX_TOKEN_VALUE" == pk.* && ${#MAPBOX_TOKEN_VALUE} -ge 20 ]]; then
+  :
+elif [[ "${ALLOW_OSM_TILES:-}" == "1" ]]; then
+  # Release yozuvi haqiqatni ko'rsatsin: bu build OSM tile'lari bilan ketadi.
+  MAP_PROVIDER="OpenStreetMap (vaqtinchalik zaxira, Mapbox tokeni yo'q)"
+  printf 'WARNING: Building WITHOUT a Mapbox token — maps use the public OSM
+' >&2
+  printf 'WARNING: tile server (temporary; add MAPBOX_ACCESS_TOKEN before scale).
+' >&2
+else
+  fail "Set a restricted public MAPBOX_ACCESS_TOKEN (pk.*) before building, or pass ALLOW_OSM_TILES=1 to accept the temporary OSM fallback."
+fi
 
 cd "$PROJECT_DIR"
 
@@ -145,6 +160,9 @@ BUILD_DEFINES=(
   "--dart-define=MAPBOX_ACCESS_TOKEN=$MAPBOX_TOKEN_VALUE"
   "--dart-define=VERBOSE_NETWORK_LOG=false"
 )
+if [[ "${ALLOW_OSM_TILES:-}" == "1" ]]; then
+  BUILD_DEFINES+=("--dart-define=ALLOW_OSM_TILES=true")
+fi
 
 log "Signed release AAB"
 flutter build appbundle \
@@ -250,7 +268,7 @@ printf '%s\n' \
   "version_code=$VERSION_CODE" \
   "target_sdk=$TARGET_SDK" \
   'firebase_project=kashtan-5feea' \
-  'map_provider=Mapbox' \
+  "map_provider=$MAP_PROVIDER" \
   "backend_origin=$BACKEND_ORIGIN_VALUE" \
   > "$ARTIFACTS_DIR/release-manifest.txt"
 

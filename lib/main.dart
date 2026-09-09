@@ -20,7 +20,10 @@ import 'features/orders/domain/order_realtime_controller.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   registerCustomerPushBackgroundHandler();
-  await CrashReporting.initialize();
+  // Firebase/Crashlytics init birinchi kadrni ushlab turmasin: handlerlar
+  // bir necha yuz ms keyin o'rnatiladi, bu davrdagi crash yo'qolishi mumkin —
+  // bu sekin qurilmada oq ekranda kutishdan arzon.
+  unawaited(CrashReporting.initialize());
 
   // Faqat portret — iOS Info.plist da ham shunday cheklangan.
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
@@ -89,7 +92,21 @@ class _AuthenticatedRuntimeServices {
   void start() {
     if (_auth != null) return;
     _lifecycle ??= AppLifecycleListener(
+      onStateChange: (state) {
+        container
+            .read(connectivityControllerProvider.notifier)
+            .setForeground(state == AppLifecycleState.resumed);
+        // Fonda order socket heartbeat/watchdog/REST fallback batareya yeydi —
+        // to'xtatamiz; `onResume` (pastda) qayta tiklaydi.
+        final background =
+            state == AppLifecycleState.paused ||
+            state == AppLifecycleState.hidden;
+        if (background && _orders != null) {
+          container.read(orderRealtimeProvider.notifier).pause();
+        }
+      },
       onResume: () {
+        unawaited(container.read(offlineCartQueueProvider).flush());
         if (_orders != null) {
           container.read(orderRealtimeProvider.notifier).resume();
         }
@@ -104,6 +121,9 @@ class _AuthenticatedRuntimeServices {
 
   void _sync(AuthState auth) {
     if (auth.isAuthenticated) {
+      // Resume ONLY the signed-in account's persisted work, not the last
+      // account's queue. This also works without an offline→online transition.
+      unawaited(container.read(offlineCartQueueProvider).flush());
       _orders ??= container.listen<OrderRealtimeState>(
         orderRealtimeProvider,
         (_, _) {},

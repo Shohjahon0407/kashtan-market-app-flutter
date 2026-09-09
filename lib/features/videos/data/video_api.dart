@@ -22,7 +22,7 @@ class VideoApi {
         ? await _client.put(Api.videoLike(id))
         : await _client.delete(Api.videoLike(id));
     if (body is! Map<String, dynamic>) {
-      throw const UnknownFailure('video like javobi obyekt emas');
+      throw const UnknownFailure.malformed('video like javobi obyekt emas');
     }
     return (
       isLiked: JsonRead.boolean(body['is_liked']),
@@ -33,7 +33,9 @@ class VideoApi {
   Future<VideoProductRail> fetchProducts(String videoId) async {
     final data = await _client.get(Api.videoProducts(videoId));
     if (data is! Map<String, dynamic>) {
-      throw const UnknownFailure('video mahsulotlari javobi obyekt emas');
+      throw const UnknownFailure.malformed(
+        'video mahsulotlari javobi obyekt emas',
+      );
     }
     return VideoProductRail.fromJson(data);
   }
@@ -57,7 +59,7 @@ class VideoApi {
       body: {'text': text},
     );
     if (data is! Map<String, dynamic>) {
-      throw const UnknownFailure('video comment javobi obyekt emas');
+      throw const UnknownFailure.malformed('video comment javobi obyekt emas');
     }
     return VideoComment.fromJson(data);
   }

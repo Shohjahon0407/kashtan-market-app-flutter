@@ -63,7 +63,7 @@ class CartApi {
     final map = JsonRead.map(data);
     final token = JsonRead.string(map?['token']);
     if (token.isEmpty) {
-      throw const UnknownFailure('guest cart token javobda yo‘q');
+      throw const UnknownFailure.malformed('guest cart token javobda yo‘q');
     }
     await _tokens!.saveGuestCartToken(token);
     return token;
@@ -150,7 +150,7 @@ class CartApi {
   CartData _decodeCart(Object? data) {
     final map = JsonRead.map(data);
     if (map == null) {
-      throw const UnknownFailure('cart javobi obyekt emas');
+      throw const UnknownFailure.malformed('cart javobi obyekt emas');
     }
     return CartData.fromJson(map);
   }

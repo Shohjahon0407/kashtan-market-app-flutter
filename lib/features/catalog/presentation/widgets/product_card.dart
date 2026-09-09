@@ -6,6 +6,7 @@ import '../../../../core/routing/auth_gate.dart';
 import '../../../../core/routing/store_navigation.dart';
 import '../../../../core/store_scope/store_type.dart';
 import '../../../../core/ui/formatters/uzs.dart';
+import '../../../../core/ui/theme/app_buttons.dart';
 import '../../../../core/ui/theme/app_dimens.dart';
 import '../../../../generated/l10n/app_localizations.dart';
 import '../../../cart/data/cart_models.dart';
@@ -34,13 +35,31 @@ class ProductCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
-    final favorites = ref.watch(favoritesControllerProvider).value;
-    final favoriteBusy =
-        favorites?.busyProductIds.contains(product.id) ?? false;
-    final reportState = ref.watch(productReportControllerProvider);
+    // Faqat shu kartaga tegishli qismlar kuzatiladi — aks holda bitta "+"
+    // bosilganda grid'dagi ~40 karta ikki marta qayta quriladi.
+    final favoriteBusy = ref.watch(
+      favoritesControllerProvider.select(
+        (value) => value.value?.busyProductIds.isNotEmpty ?? false,
+      ),
+    );
+    final isFavorite = ref.watch(
+      favoritesControllerProvider.select(
+        (value) => value.value?.contains(product.id) == true,
+      ),
+    );
+    final reportBusy = ref.watch(
+      productReportControllerProvider.select(
+        (value) => value.isBusy(product.id),
+      ),
+    );
+    final reported = ref.watch(
+      productReportControllerProvider.select(
+        (value) => value.isReported(product.id),
+      ),
+    );
     // Server flagi yoki shu sessiyada hozirgina yuborilgani — ikkalasi ham
     // "Tekshiruvda" holati.
-    final inReview = product.inReview || reportState.isReported(product.id);
+    final inReview = product.inReview || reported;
     final showReportButton =
         !inReview && ref.watch(reportButtonEnabledProvider(storeType));
 
@@ -75,7 +94,7 @@ class ProductCard extends ConsumerWidget {
                           key: ValueKey('product-card-report-${product.id}'),
                           visualDensity: VisualDensity.compact,
                           tooltip: l10n.reportProductButton,
-                          onPressed: reportState.isBusy(product.id)
+                          onPressed: reportBusy
                               ? null
                               : () => _confirmAndReport(context, ref),
                           icon: Icon(
@@ -150,10 +169,8 @@ class ProductCard extends ConsumerWidget {
                                     .toggle(product);
                               },
                         icon: Icon(
-                          favorites?.contains(product.id) == true
-                              ? Icons.favorite
-                              : Icons.favorite_border,
-                          color: favorites?.contains(product.id) == true
+                          isFavorite ? Icons.favorite : Icons.favorite_border,
+                          color: isFavorite
                               ? theme.colorScheme.error
                               : theme.colorScheme.onSurfaceVariant,
                         ),
@@ -322,6 +339,7 @@ class ProductCard extends ConsumerWidget {
             child: Text(l10n.commonCancel),
           ),
           FilledButton(
+            style: AppButtons.dialogAction,
             onPressed: () => Navigator.of(dialogContext).pop(true),
             child: Text(l10n.reportProductConfirmAction),
           ),
@@ -371,16 +389,27 @@ class ProductCartControl extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     final colors = Theme.of(context).colorScheme;
     final provider = cartControllerProvider(storeType);
-    final cartAsync = ref.watch(provider);
-    final cartState = cartAsync.value;
-    final simpleLine = _simpleLine(cartState?.cart.items ?? const []);
+    // Butun CartState emas, faqat shu mahsulotga kerakli qismlar — savatdagi
+    // har bir o'zgarish grid'dagi barcha kartalarni qayta qurmasin.
+    final view = ref.watch(
+      provider.select(
+        (async) => (
+          line: _simpleLine(async.value?.cart.items ?? const []),
+          busy: async.value?.busyKeys.isNotEmpty ?? false,
+          unconfirmed:
+              async.value?.unconfirmedKeys.contains(_simpleIdentity) ?? false,
+          waiting: async.isLoading && async.value == null,
+          hasError: async.hasError,
+        ),
+      ),
+    );
+    final simpleLine = view.line;
     final controller = ref.read(provider.notifier);
-    final configuration = CartConfiguration(productId: product.id);
-    final addBusy = cartState?.isBusy(configuration.identity) ?? false;
-    final itemBusy = simpleLine == null
-        ? false
-        : cartState?.isBusy('item:${simpleLine.id}') ?? false;
-    final waitingForCart = cartAsync.isLoading && cartState == null;
+    // Serverga yozilgan, lekin hali ko'rinishda tasdiqlanmagan qo'shish —
+    // tugma spinner bo'lib turadi, qayta bosib 2 dona qilib bo'lmaydi.
+    final addBusy = view.busy || (simpleLine == null && view.unconfirmed);
+    final itemBusy = view.busy;
+    final waitingForCart = view.waiting;
     final height = inlineCompact
         ? 34.0
         : compact
@@ -463,7 +492,7 @@ class ProductCartControl extends ConsumerWidget {
         inReview ||
             !product.isPurchasable ||
             waitingForCart ||
-            cartAsync.hasError ||
+            view.hasError ||
             addBusy
         ? null
         : product.requiresConfiguration
@@ -500,6 +529,9 @@ class ProductCartControl extends ConsumerWidget {
             ),
     );
   }
+
+  String get _simpleIdentity =>
+      CartConfiguration(productId: product.id).identity;
 
   CartItem? _simpleLine(List<CartItem> items) {
     for (final item in items) {

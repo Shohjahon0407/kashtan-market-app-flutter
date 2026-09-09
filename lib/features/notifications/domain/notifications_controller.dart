@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/localization/locale_controller.dart';
 import '../../../core/network/api_failure.dart';
 import '../../../core/network/network_providers.dart';
-import '../../../core/storage/json_disk_cache.dart';
+import '../../../core/storage/account_scope.dart';
 import '../../auth/domain/auth_controller.dart';
 import '../data/notification_models.dart';
 import '../data/notifications_api.dart';
@@ -13,7 +13,7 @@ import '../data/notifications_api.dart';
 final notificationsApiProvider = Provider<NotificationsApi>(
   (ref) => NotificationsApi(
     ref.watch(apiClientProvider),
-    cache: ref.watch(jsonDiskCacheProvider),
+    cache: ref.watch(privateJsonCacheProvider),
     cacheKeySuffix: ref.watch(cacheKeySuffixProvider),
   ),
 );
@@ -59,8 +59,12 @@ final notificationsControllerProvider =
     >(NotificationsController.new);
 
 class NotificationsController extends AsyncNotifier<NotificationsState> {
+  int _generation = 0;
   @override
   Future<NotificationsState> build() async {
+    _generation++;
+    ref.watch(accountScopeProvider);
+    ref.onDispose(() => _generation++);
     ref.watch(apiLangProvider);
     final api = ref.watch(notificationsApiProvider);
     try {
@@ -77,11 +81,15 @@ class NotificationsController extends AsyncNotifier<NotificationsState> {
     }
   }
 
+  /// Yangilash ro'yxatni BO'SHATMAYDI (pull-to-refresh paytida eski ro'yxat
+  /// qoladi); spinner faqat hali hech narsa yo'q bo'lganda.
   Future<void> refresh() async {
+    final generation = _generation;
     final previous = state.value;
-    state = const AsyncLoading();
+    if (previous == null) state = const AsyncLoading();
     try {
       final page = await ref.read(notificationsApiProvider).fetch();
+      if (!ref.mounted || generation != _generation) return;
       state = AsyncData(
         NotificationsState(
           items: page.items,
@@ -91,11 +99,13 @@ class NotificationsController extends AsyncNotifier<NotificationsState> {
       );
       unawaited(ref.read(notificationUnreadCountProvider.notifier).refresh());
     } on Object catch (error, stack) {
+      if (!ref.mounted || generation != _generation) return;
       state = previous == null ? AsyncError(error, stack) : AsyncData(previous);
     }
   }
 
   Future<void> loadMore() async {
+    final generation = _generation;
     final current = state.value;
     if (current == null || !current.hasMore || current.isLoadingMore) return;
     state = AsyncData(
@@ -105,6 +115,7 @@ class NotificationsController extends AsyncNotifier<NotificationsState> {
       final page = await ref
           .read(notificationsApiProvider)
           .fetch(nextUrl: current.nextUrl);
+      if (!ref.mounted || generation != _generation) return;
       final existing = current.items.map((item) => item.id).toSet();
       state = AsyncData(
         current.copyWith(
@@ -118,6 +129,7 @@ class NotificationsController extends AsyncNotifier<NotificationsState> {
         ),
       );
     } on ApiFailure catch (failure) {
+      if (!ref.mounted || generation != _generation) return;
       state = AsyncData(
         current.copyWith(isLoadingMore: false, loadMoreFailure: () => failure),
       );
@@ -125,6 +137,7 @@ class NotificationsController extends AsyncNotifier<NotificationsState> {
   }
 
   Future<void> markRead(String id) async {
+    final generation = _generation;
     final current = state.value;
     if (current == null) return;
     final index = current.items.indexWhere((item) => item.id == id);
@@ -132,23 +145,41 @@ class NotificationsController extends AsyncNotifier<NotificationsState> {
     final optimistic = [...current.items];
     optimistic[index] = optimistic[index].copyWith(isRead: true);
     state = AsyncData(current.copyWith(items: optimistic));
-    ref.read(notificationUnreadCountProvider.notifier).decrement();
+    // Badge provider keepAlive — notifier'ni oldindan olamiz: ekran yopilib
+    // bu provider dispose bo'lsa ham xatoda kompensatsiya bajarilishi shart,
+    // aks holda badge serverdan doimiy bittaga kam qoladi.
+    final unread = ref.read(notificationUnreadCountProvider.notifier);
+    unread.decrement();
     try {
       final saved = await ref
           .read(notificationsApiProvider)
           .markRead(id, lang: ref.read(apiLangProvider));
-      final reconciled = [...(state.value?.items ?? optimistic)];
+      if (!ref.mounted || generation != _generation) return;
+      // Kutish paytida yuklangan sahifalar yo'qolmasligi uchun ENG SO'NGGI
+      // holat ustiga yoziladi (await'dan oldingi snapshot emas).
+      final latest = state.value ?? current;
+      final reconciled = [...latest.items];
       final savedIndex = reconciled.indexWhere((item) => item.id == id);
       if (savedIndex >= 0) reconciled[savedIndex] = saved;
-      state = AsyncData(current.copyWith(items: reconciled));
+      state = AsyncData(latest.copyWith(items: reconciled));
     } on Object {
-      state = AsyncData(current);
-      ref.read(notificationUnreadCountProvider.notifier).increment();
+      unread.increment();
+      if (!ref.mounted || generation != _generation) rethrow;
+      final latest = state.value ?? current;
+      state = AsyncData(
+        latest.copyWith(
+          items: [
+            for (final item in latest.items)
+              if (item.id == id) item.copyWith(isRead: false) else item,
+          ],
+        ),
+      );
       rethrow;
     }
   }
 
   Future<void> markAllRead() async {
+    final generation = _generation;
     final current = state.value;
     if (current == null || current.items.every((item) => item.isRead)) return;
     state = AsyncData(
@@ -161,6 +192,7 @@ class NotificationsController extends AsyncNotifier<NotificationsState> {
     try {
       await ref.read(notificationsApiProvider).markAllRead();
     } on Object {
+      if (!ref.mounted || generation != _generation) return;
       state = AsyncData(current);
       if (previousUnread != null) {
         ref
@@ -181,12 +213,17 @@ final notificationUnreadCountProvider =
 
 class NotificationUnreadCountController extends AsyncNotifier<int> {
   @override
-  Future<int> build() {
+  Future<int> build() async {
     if (!ref.watch(authControllerProvider).isAuthenticated) {
-      return Future.value(0);
+      return 0;
     }
     ref.watch(apiLangProvider);
-    return ref.watch(notificationsApiProvider).unreadCount();
+    // Account-scoped API/cache dependencies may have been invalidated by the
+    // login transition. Resolve them after this widget frame's build, so their
+    // refresh cannot mark the parent ProviderScope dirty during bell build.
+    await Future<void>.value();
+    if (!ref.mounted) return 0;
+    return ref.read(notificationsApiProvider).unreadCount();
   }
 
   Future<void> refresh() async {

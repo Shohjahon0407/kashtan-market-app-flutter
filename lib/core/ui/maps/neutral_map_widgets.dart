@@ -182,7 +182,15 @@ class MapCurrentLocationButton extends StatelessWidget {
             else
               const Icon(Icons.my_location_rounded, size: 20),
             const SizedBox(width: 8),
-            Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
+            // Katta shrift/kichik ekranda qator sinmasin — ellipsis.
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
           ],
         ),
       ),

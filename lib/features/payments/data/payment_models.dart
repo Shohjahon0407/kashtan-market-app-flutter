@@ -62,7 +62,7 @@ class PaymePaymentCreateResult {
   factory PaymePaymentCreateResult.fromJson(Map<String, dynamic> json) {
     final paymentUrl = JsonRead.string(json['payment_url']);
     if (paymentUrl.isEmpty) {
-      throw const UnknownFailure("Payme javobida payment_url yo'q");
+      throw const UnknownFailure.malformed("Payme javobida payment_url yo'q");
     }
     return PaymePaymentCreateResult(
       paymentId: JsonRead.string(json['payment_id']),

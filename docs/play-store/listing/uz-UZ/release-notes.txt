@@ -1,0 +1,6 @@
+Besh Kashtan 1.0.1 — barqarorlik yangilanishi.
+
+• Buyurtma berish, to‘lov va savatdagi kamdan-kam uchraydigan xatoliklar bartaraf etildi; sekin internetda buyurtma ikki marta yaratilishi ehtimoli yo‘qotildi.
+• Internet uzilib-ulanganda savat, ro‘yxatlar va bildirishnomalar yo‘qolmaydi.
+• Ilova fon rejimida batareyani sezilarli kam sarflaydi.
+• Narx va matnlar barcha tillarda to‘g‘ri ko‘rsatiladi; dialog va tugmalar kichik ekranlarda ham to‘g‘ri joylashadi.

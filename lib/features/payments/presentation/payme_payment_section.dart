@@ -37,7 +37,9 @@ class PaymePaymentSection extends ConsumerStatefulWidget {
 class _PaymePaymentSectionState extends ConsumerState<PaymePaymentSection> {
   AppLifecycleListener? _lifecycle;
 
-  /// Har bir ochilgan to'lov uchun resume'da FAQAT bitta avto-tekshiruv.
+  /// Payme'dan har bir qaytishda FAQAT bitta avto-tekshiruv. Tekshiruv
+  /// "hali kutilmoqda" desa (faza yana awaitingReturn'ga qaytadi) bayroq
+  /// build'dagi listener'da tiklanadi — keyingi qaytish ham tekshiriladi.
   bool _resumeCheckDone = false;
 
   /// Avtomatik urinishda xizmat mavjud bo'lmasa foydalanuvchini bezovta
@@ -87,6 +89,13 @@ class _PaymePaymentSectionState extends ConsumerState<PaymePaymentSection> {
     final state = ref.watch(paymePaymentControllerProvider(widget.order.id));
 
     ref.listen(paymePaymentControllerProvider(widget.order.id), (prev, next) {
+      // Faza awaitingReturn'ga QAYTA kirdi (checking → awaitingReturn):
+      // to'lov hali kutilmoqda, foydalanuvchi yana Payme'ga o'tishi mumkin —
+      // keyingi resume'da avto-tekshiruv yana ishlasin.
+      if (next.phase == PaymePhase.awaitingReturn &&
+          prev?.phase != PaymePhase.awaitingReturn) {
+        _resumeCheckDone = false;
+      }
       final failure = next.failure;
       if (failure == null || identical(failure, prev?.failure)) return;
       if (next.serviceUnavailable && _silenceUnavailable) {

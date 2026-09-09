@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:beshkashtan_customer/core/localization/locale_controller.dart';
 import 'package:beshkashtan_customer/core/network/api_failure.dart';
 import 'package:beshkashtan_customer/core/network/network_providers.dart';
@@ -54,6 +56,27 @@ void main() {
 
   AuthController notifier() => container.read(authControllerProvider.notifier);
   AuthState state() => container.read(authControllerProvider);
+
+  test(
+    'a late session restore cannot sign the user back in after logout',
+    () async {
+      await setUpContainer(access: 'old-access', refresh: 'old-refresh');
+      final pending = Completer<AuthUser>();
+      final requested = Completer<void>();
+      when(() => api.me()).thenAnswer((_) {
+        requested.complete();
+        return pending.future;
+      });
+      when(() => api.logout(any())).thenAnswer((_) async {});
+      final restoring = notifier().restoreSession();
+      await requested.future;
+      await notifier().logout();
+      pending.complete(_user);
+      await restoring;
+      expect(state().isAuthenticated, isFalse);
+      expect(await tokens.readAccess(), isNull);
+    },
+  );
 
   group('sendCode', () {
     test('muvaffaqiyat: codeSent + codeSentAt o‘rnatiladi', () async {

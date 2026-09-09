@@ -29,14 +29,20 @@ class VideoCache {
     }
   }
 
+  /// Ayni paytda yuklanayotgan URL'lar — bir video ikki marta yuklanmasin.
+  final _inFlight = <String>{};
+
   /// Ko'rilayotgan videoni fonda keshga tushiradi (stream'ga xalal bermaydi).
   void storeInBackground(String url) {
-    if (kIsWeb) return;
+    if (kIsWeb || !_inFlight.add(url)) return;
     try {
       // downloadFile o'zi keshga yozadi; xatosi bizni qiziqtirmaydi.
-      _manager.downloadFile(url).ignore();
+      _manager
+          .downloadFile(url)
+          .whenComplete(() => _inFlight.remove(url))
+          .ignore();
     } on Object {
-      // Kesh majburiy emas.
+      _inFlight.remove(url);
     }
   }
 }

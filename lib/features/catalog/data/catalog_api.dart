@@ -62,7 +62,7 @@ class CatalogApi {
   Future<ProductDetail> fetchDetail(String id) async {
     final data = await _client.get(Api.product(id));
     if (data is! Map<String, dynamic>) {
-      throw const UnknownFailure('product detail javobi obyekt emas');
+      throw const UnknownFailure.malformed('product detail javobi obyekt emas');
     }
     // Ko'rilgan mahsulot keshda qoladi — oflaynda ham ochiladi.
     final suffix = cacheKeySuffix?.call();
@@ -96,7 +96,7 @@ class CatalogApi {
       body: {'rating': rating, 'comment': comment.trim()},
     );
     if (data is! Map<String, dynamic>) {
-      throw const UnknownFailure('product review javobi obyekt emas');
+      throw const UnknownFailure.malformed('product review javobi obyekt emas');
     }
     return ProductReview.fromJson(data);
   }

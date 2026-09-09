@@ -39,7 +39,7 @@ class SupportApi {
       onSendProgress: onSendProgress,
     );
     if (data is! Map<String, dynamic>) {
-      throw const UnknownFailure('support ticket javobi obyekt emas');
+      throw const UnknownFailure.malformed('support ticket javobi obyekt emas');
     }
     return SupportTicket.fromJson(data);
   }

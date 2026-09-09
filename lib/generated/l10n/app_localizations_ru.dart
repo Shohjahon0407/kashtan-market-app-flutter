@@ -9,6 +9,10 @@ class AppLocalizationsRu extends AppLocalizations {
   AppLocalizationsRu([String locale = 'ru']) : super(locale);
 
   @override
+  String get addressLocationUnavailable =>
+      'Не удалось определить местоположение. Проверьте GPS или выберите точку на карте.';
+
+  @override
   String get appName => 'Besh Kashtan';
 
   @override
@@ -46,6 +50,9 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get offlineBanner => 'Офлайн режим';
+
+  @override
+  String get connectionServerUnavailable => 'Не удалось подключиться к серверу';
 
   @override
   String get offlineStaleData => 'устаревшие данные';
@@ -110,6 +117,21 @@ class AppLocalizationsRu extends AppLocalizations {
   String authOtpExpiresIn(int seconds) {
     return 'Код истечёт через $seconds сек.';
   }
+
+  @override
+  String get authConsentPrefix => 'Продолжая, вы соглашаетесь с ';
+
+  @override
+  String get authConsentTerms => 'Условиями использования';
+
+  @override
+  String get authConsentAnd => ' и ';
+
+  @override
+  String get authConsentPrivacy => 'Политикой конфиденциальности';
+
+  @override
+  String get authConsentSuffix => '.';
 
   @override
   String get authLogout => 'Выйти';
@@ -718,6 +740,13 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get unsupportedStoreBack => 'Вернуться на главную';
+
+  @override
+  String get routeNotFoundTitle => 'Страница не найдена';
+
+  @override
+  String get routeNotFoundMessage =>
+      'Ссылка устарела или требует новую версию приложения.';
 
   @override
   String get supportCenterTitle => 'Помощь и обращения';

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
@@ -55,23 +56,43 @@ class OrderRealtimeController extends Notifier<OrderRealtimeState> {
   var _attempt = 0;
   var _disposed = false;
   var _connecting = false;
+  var _paused = false;
   var _connectionGeneration = 0;
   DateTime? _lastServerMessageAt;
   final _random = Random();
 
+  /// Testlar uchun: `pause()` dan keyin hech qanday timer qolmaganini va
+  /// `resume()` ularni qayta tiklaganini tekshirish.
+  @visibleForTesting
+  bool get hasScheduledWork =>
+      (_heartbeat?.isActive ?? false) ||
+      (_watchdog?.isActive ?? false) ||
+      (_restFallback?.isActive ?? false) ||
+      (_reconnect?.isActive ?? false);
+
+  @visibleForTesting
+  bool get isPaused => _paused;
+
   @override
   OrderRealtimeState build() {
+    listenForConnectionRecovery(ref, _onConnectionRecovered);
     ref.onDispose(_dispose);
     scheduleMicrotask(_connect);
-    _restFallback = Timer.periodic(
-      const Duration(seconds: 30),
-      (_) => _reconcileRestState(),
-    );
+    _startRestFallback();
     return const OrderRealtimeState();
   }
 
+  /// Socket uzilib turganda ham ro'yxatlar 30 soniyada bir REST orqali
+  /// yangilanadi. Fonda (`pause`) to'xtaydi, `resume` qayta yoqadi.
+  void _startRestFallback() {
+    _restFallback ??= Timer.periodic(
+      const Duration(seconds: 30),
+      (_) => _reconcileRestState(),
+    );
+  }
+
   Future<void> _connect() async {
-    if (_disposed || _connecting || _channel != null) return;
+    if (_disposed || _paused || _connecting || _channel != null) return;
     if (_isOffline()) {
       // Oflaynda socket ochishga urinish besamar — keyingi rejalashtirilgan
       // urinishda (yoki online qaytganda) qayta ko'riladi.
@@ -219,7 +240,7 @@ class OrderRealtimeController extends Notifier<OrderRealtimeState> {
   }
 
   void _scheduleReconnect() {
-    if (_disposed || _reconnect?.isActive == true) return;
+    if (_disposed || _paused || _reconnect?.isActive == true) return;
     _attempt++;
     final seconds = switch (_attempt) {
       <= 1 => 1,
@@ -235,9 +256,12 @@ class OrderRealtimeController extends Notifier<OrderRealtimeState> {
   }
 
   /// Ilova foregroundga qaytganda socketni tekshiradi va REST source of
-  /// truth bilan darhol reconcile qiladi.
+  /// truth bilan darhol reconcile qiladi. `pause()` dan keyin REST fallback,
+  /// socket va heartbeat/watchdog'ni qayta tiklaydi. Idempotent.
   void resume() {
     if (_disposed) return;
+    _paused = false;
+    _startRestFallback();
     _reconcileRestState();
     if (_channel == null) {
       _reconnect?.cancel();
@@ -246,6 +270,46 @@ class OrderRealtimeController extends Notifier<OrderRealtimeState> {
     } else {
       _channel?.sink.add(jsonEncode({'type': 'ping'}));
     }
+  }
+
+  /// Ilova fonga tushganda (paused/hidden): heartbeat, watchdog va REST
+  /// fallback to'xtaydi, socket yopiladi, qayta ulanish rejalashtirilMAYDI —
+  /// fonda batareya/radio behuda ketmasin. `resume()` teskarisi. Idempotent.
+  void pause() {
+    if (_disposed || _paused) return;
+    _paused = true;
+    // Token kutayotgan uchayotgan _connect natijasi e'tiborsiz qoladi.
+    _connectionGeneration++;
+    _connecting = false;
+    _reconnect?.cancel();
+    _reconnect = null;
+    _restFallback?.cancel();
+    _restFallback = null;
+    _heartbeat?.cancel();
+    _heartbeat = null;
+    _watchdog?.cancel();
+    _watchdog = null;
+    // Avval subscription bekor qilinadi — sink.close() onDone orqali
+    // _onDisconnected/_scheduleReconnect'ni uyg'otmasin.
+    _subscription?.cancel();
+    _subscription = null;
+    final channel = _channel;
+    _channel = null;
+    channel?.sink.close();
+    state = OrderRealtimeState(
+      status: OrderSocketStatus.disconnected,
+      revision: state.revision,
+      lastOrderId: state.lastOrderId,
+      lastEventType: state.lastEventType,
+      lastMessageAt: state.lastMessageAt,
+    );
+  }
+
+  /// Internet qaytdi. Fonda bo'lsak hech narsa qilmaymiz — foregroundga
+  /// qaytganda `resume()` o'zi tiklaydi.
+  void _onConnectionRecovered() {
+    if (_paused) return;
+    resume();
   }
 
   void _forceReconnect() {

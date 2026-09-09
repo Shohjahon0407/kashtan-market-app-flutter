@@ -5,6 +5,7 @@ import '../../../core/localization/failure_l10n.dart';
 import '../../../core/network/api_failure.dart';
 import '../../../core/store_scope/store_type.dart';
 import '../../../core/ui/formatters/uzs.dart';
+import '../../../core/ui/theme/app_buttons.dart';
 import '../../../core/ui/theme/app_dimens.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../../catalog/presentation/widgets/product_image.dart';
@@ -39,7 +40,13 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    ref.watch(orderRealtimeProvider);
+    // Faqat SHU buyurtma hodisalarida qayta qurish — har WS pong/kuryer
+    // lokatsiya kadrida butun ekran (xarita bilan) rebuild bo'lmasin.
+    ref.watch(
+      orderRealtimeProvider.select(
+        (value) => value.lastOrderId == widget.orderId ? value.revision : 0,
+      ),
+    );
     final l10n = AppLocalizations.of(context);
     final detail = ref.watch(orderDetailProvider(widget.orderId));
     final tracking = ref.watch(orderTrackingControllerProvider(widget.orderId));
@@ -96,6 +103,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
             child: Text(l10n.commonNo),
           ),
           FilledButton(
+            style: AppButtons.dialogAction,
             onPressed: () => Navigator.pop(context, true),
             child: Text(l10n.commonYes),
           ),

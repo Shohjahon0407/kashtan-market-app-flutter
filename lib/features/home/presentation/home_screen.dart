@@ -61,8 +61,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final addresses = authenticated
         ? ref.watch(addressesControllerProvider)
         : const AsyncValue<List<UserAddress>>.data([]);
-    final reelCount =
-        ref.watch(videoFeedControllerProvider).value?.items.length ?? 0;
+    // Faqat soni — har like/komment yangilanishida butun Home rebuild bo'lmasin.
+    final reelCount = ref.watch(
+      videoFeedControllerProvider.select(
+        (value) => value.value?.items.length ?? 0,
+      ),
+    );
 
     return Scaffold(
       body: SafeArea(
@@ -636,7 +640,7 @@ class _HeaderIconButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Tooltip(
+    final visual = Tooltip(
       message: tooltip,
       child: Material(
         color: theme.colorScheme.surface,
@@ -660,6 +664,12 @@ class _HeaderIconButton extends StatelessWidget {
           ),
         ),
       ),
+    );
+    // Vizual 40 dp, bosish maydoni 48 dp (minimal tap target).
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: SizedBox(width: 48, height: 48, child: Center(child: visual)),
     );
   }
 }

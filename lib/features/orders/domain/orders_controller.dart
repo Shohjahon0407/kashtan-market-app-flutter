@@ -4,8 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/localization/locale_controller.dart';
 import '../../../core/network/api_failure.dart';
+import '../../../core/network/connectivity_controller.dart';
 import '../../../core/network/network_providers.dart';
-import '../../../core/storage/json_disk_cache.dart';
+import '../../../core/storage/account_scope.dart';
 import '../../../core/store_scope/store_type.dart';
 import '../data/order_models.dart';
 import '../data/orders_api.dart';
@@ -14,7 +15,7 @@ import 'order_realtime_controller.dart';
 final ordersApiProvider = Provider<OrdersApi>(
   (ref) => OrdersApi(
     ref.watch(apiClientProvider),
-    cache: ref.watch(jsonDiskCacheProvider),
+    cache: ref.watch(privateJsonCacheProvider),
     cacheKeySuffix: ref.watch(cacheKeySuffixProvider),
   ),
 );
@@ -105,10 +106,13 @@ class OrdersController extends AsyncNotifier<OrdersState> {
     }
   }
 
+  /// Yangilash ro'yxatni BO'SHATMAYDI: pull-to-refresh paytida eski ro'yxat
+  /// ekranda qoladi, xato bo'lsa ham. Spinner faqat hali hech narsa yo'q
+  /// bo'lganda (xatodan keyingi "qayta urinish") ko'rsatiladi.
   Future<void> refresh() async {
     final revision = ++_requestRevision;
     final previous = state.value;
-    state = const AsyncLoading();
+    if (previous == null) state = const AsyncLoading();
     try {
       final page = await ref
           .read(ordersApiProvider)
@@ -211,6 +215,15 @@ class OrderTrackingController extends AsyncNotifier<OrderTrackingData> {
       ),
     );
     ref.onDispose(() => _timer?.cancel());
+    // Fon rejimida poll to'xtaydi (batareya); ekranga qaytganda va internet
+    // tiklanganda bir marta yangilanib, taymer qaytadan quriladi.
+    ref.listen<bool>(
+      connectivityControllerProvider.select((value) => value.isForeground),
+      (previous, next) {
+        if (previous == false && next) unawaited(refresh());
+      },
+    );
+    listenForConnectionRecovery(ref, refresh);
     try {
       final tracking = await ref.watch(ordersApiProvider).tracking(orderId);
       _schedule(tracking.refreshInterval);
@@ -222,13 +235,17 @@ class OrderTrackingController extends AsyncNotifier<OrderTrackingData> {
   }
 
   Future<void> refresh() async {
-    if (_fetching) return;
+    if (_fetching || !ref.mounted) return;
     _fetching = true;
     try {
       final tracking = await ref.read(ordersApiProvider).tracking(orderId);
+      // Ekran yopilgan bo'lsa provider dispose bo'lgan — `state` ga tegib
+      // bo'lmaydi (UnmountedRefException).
+      if (!ref.mounted) return;
       state = AsyncData(tracking);
       _schedule(tracking.refreshInterval);
     } on Object catch (error, stack) {
+      if (!ref.mounted) return;
       if (!state.hasValue) state = AsyncError(error, stack);
       _schedule(const Duration(seconds: 10));
     } finally {
@@ -238,6 +255,11 @@ class OrderTrackingController extends AsyncNotifier<OrderTrackingData> {
 
   void _schedule(Duration after) {
     _timer?.cancel();
+    if (!ref.mounted) return;
+    final connectivity = ref.read(connectivityControllerProvider);
+    // Fon yoki oflayn: taymer qurilmaydi — resume/recovery listener'lari
+    // qayta boshlaydi.
+    if (!connectivity.isForeground || connectivity.isOffline) return;
     _timer = Timer(after, refresh);
   }
 }

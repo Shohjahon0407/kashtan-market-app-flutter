@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -61,18 +63,26 @@ class _OfflineBannerState extends ConsumerState<OfflineBanner>
           left: 0,
           right: 0,
           child: IgnorePointer(
+            ignoring: !connectivity.needsRecovery,
             child: AnimatedSlide(
-              offset: connectivity.isOffline
+              offset: connectivity.needsRecovery
                   ? Offset.zero
                   : const Offset(0, -1.2),
               duration: const Duration(milliseconds: 300),
               curve: Curves.easeOut,
               child: AnimatedOpacity(
-                opacity: connectivity.isOffline ? 1 : 0,
+                opacity: connectivity.needsRecovery ? 1 : 0,
                 duration: const Duration(milliseconds: 300),
                 child: _BannerBody(
                   pulse: _pulse,
-                  text: connectivity.isStale
+                  onRetry: () => unawaited(
+                    ref.read(connectivityControllerProvider.notifier).recheck(),
+                  ),
+                  isChecking: connectivity.isChecking,
+                  retryLabel: l10n.commonRetry,
+                  text: connectivity.isServerUnavailable
+                      ? l10n.connectionServerUnavailable
+                      : connectivity.isStale
                       ? '${l10n.offlineBanner} · ${l10n.offlineStaleData}'
                       : l10n.offlineBanner,
                 ),
@@ -86,10 +96,19 @@ class _OfflineBannerState extends ConsumerState<OfflineBanner>
 }
 
 class _BannerBody extends StatelessWidget {
-  const _BannerBody({required this.pulse, required this.text});
+  const _BannerBody({
+    required this.pulse,
+    required this.text,
+    required this.onRetry,
+    required this.isChecking,
+    required this.retryLabel,
+  });
 
   final AnimationController pulse;
   final String text;
+  final VoidCallback onRetry;
+  final bool isChecking;
+  final String retryLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -114,7 +133,7 @@ class _BannerBody extends StatelessWidget {
             );
           },
           child: Container(
-            margin: const EdgeInsets.only(top: 6),
+            margin: const EdgeInsets.fromLTRB(12, 6, 12, 0),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             decoration: BoxDecoration(
               color: const Color(0xCC1F2937),
@@ -130,14 +149,45 @@ class _BannerBody extends StatelessWidget {
                   color: Colors.white,
                 ),
                 const SizedBox(width: 6),
-                Text(
-                  text,
-                  textDirection: TextDirection.ltr,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w600,
-                    decoration: TextDecoration.none,
+                Flexible(
+                  child: Text(
+                    text,
+                    textDirection: TextDirection.ltr,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      decoration: TextDecoration.none,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Semantics(
+                  button: true,
+                  label: retryLabel,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: isChecking ? null : onRetry,
+                    child: SizedBox(
+                      width: 36,
+                      height: 36,
+                      child: Center(
+                        child: isChecking
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Icon(
+                                Icons.refresh,
+                                color: Colors.white,
+                                size: 20,
+                              ),
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -168,6 +218,7 @@ class OfflineGate {
   /// Amalni bajarish mumkinmi? Offline bo'lsa belgini "silkitadi".
   static bool check(WidgetRef ref) {
     if (!ref.read(isOfflineProvider)) return true;
+    unawaited(ref.read(connectivityControllerProvider.notifier).recheck());
     notify();
     return false;
   }

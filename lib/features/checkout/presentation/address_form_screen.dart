@@ -23,6 +23,9 @@ final addressLocationResolverProvider = Provider<AddressLocationResolver>(
 );
 
 Future<Position> _resolveDeviceLocation() async {
+  if (!await Geolocator.isLocationServiceEnabled()) {
+    throw StateError('location_service_disabled');
+  }
   var permission = await Geolocator.checkPermission();
   if (permission == LocationPermission.denied) {
     permission = await Geolocator.requestPermission();
@@ -32,7 +35,10 @@ Future<Position> _resolveDeviceLocation() async {
     throw StateError('location_permission_denied');
   }
   return Geolocator.getCurrentPosition(
-    locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+    locationSettings: const LocationSettings(
+      accuracy: LocationAccuracy.high,
+      timeLimit: Duration(seconds: 15),
+    ),
   );
 }
 
@@ -46,6 +52,12 @@ class AddressFormScreen extends ConsumerStatefulWidget {
 }
 
 class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
+  final _messengerKey = GlobalKey<ScaffoldMessengerState>();
+
+  /// Ichki messenger (asosiy Scaffold chizilgan bo'lsa), aks holda tashqisi.
+  ScaffoldMessengerState get _messenger =>
+      _messengerKey.currentState ?? ScaffoldMessenger.of(context);
+
   final _formKey = GlobalKey<FormState>();
   final _mapController = MapController();
   final _title = TextEditingController();
@@ -56,6 +68,7 @@ class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
   bool _saving = false;
   bool _locating = false;
   bool _permissionDenied = false;
+  int _locationRevision = 0;
 
   @override
   void initState() {
@@ -130,123 +143,131 @@ class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
       _latitude ?? AppConfig.defaultLatitude,
       _longitude ?? AppConfig.defaultLongitude,
     );
-    return Scaffold(
-      appBar: AppBar(title: Text(l10n.checkoutAddress)),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(AppSpacing.screenH),
-          children: [
-            Text(
-              l10n.addressChooseOnMap,
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(AppRadius.lg),
-              child: SizedBox(
-                height: 260,
-                child: Stack(
-                  children: [
-                    Positioned.fill(
-                      child: FlutterMap(
-                        mapController: _mapController,
-                        options: MapOptions(
-                          initialCenter: center,
-                          initialZoom: 14,
-                          minZoom: 3,
-                          maxZoom: 19,
-                          interactionOptions: const InteractionOptions(
-                            flags:
-                                InteractiveFlag.all & ~InteractiveFlag.rotate,
-                          ),
-                          onTap: (_, point) => setState(() {
-                            _latitude = point.latitude;
-                            _longitude = point.longitude;
-                            _permissionDenied = false;
-                          }),
-                        ),
-                        children: [
-                          NeutralMapTiles(
-                            urlTemplate: AppConfig.addressTileUrl,
-                            userAgentPackageName: 'uz.beshkashtan.customer',
+    // Ekran StoreShell ichida ham ochiladi: floating snackbar tashqi
+    // Scaffold'da (shell navbar ustida) emas, shu ekranning o'zida chiqsin.
+    return ScaffoldMessenger(
+      key: _messengerKey,
+      child: Scaffold(
+        appBar: AppBar(title: Text(l10n.checkoutAddress)),
+        body: Form(
+          key: _formKey,
+          child: ListView(
+            padding: const EdgeInsets.all(AppSpacing.screenH),
+            children: [
+              Text(
+                l10n.addressChooseOnMap,
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(AppRadius.lg),
+                child: SizedBox(
+                  height: 260,
+                  child: Stack(
+                    children: [
+                      Positioned.fill(
+                        child: FlutterMap(
+                          mapController: _mapController,
+                          options: MapOptions(
+                            initialCenter: center,
+                            initialZoom: 14,
+                            minZoom: 3,
                             maxZoom: 19,
-                          ),
-                          if (_latitude != null && _longitude != null)
-                            MarkerLayer(
-                              rotate: true,
-                              markers: [
-                                Marker(
-                                  point: LatLng(_latitude!, _longitude!),
-                                  width: 48,
-                                  height: 48,
-                                  child: Icon(
-                                    Icons.location_pin,
-                                    size: 44,
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.primary,
-                                  ),
-                                ),
-                              ],
+                            interactionOptions: const InteractionOptions(
+                              flags:
+                                  InteractiveFlag.all & ~InteractiveFlag.rotate,
                             ),
-                        ],
+                            onTap: (_, point) => setState(() {
+                              _locationRevision++;
+                              _latitude = point.latitude;
+                              _longitude = point.longitude;
+                              _permissionDenied = false;
+                            }),
+                          ),
+                          children: [
+                            NeutralMapTiles(
+                              urlTemplate: AppConfig.addressTileUrl,
+                              userAgentPackageName: 'uz.beshkashtan.customer',
+                              maxZoom: 19,
+                            ),
+                            if (_latitude != null && _longitude != null)
+                              MarkerLayer(
+                                rotate: true,
+                                markers: [
+                                  Marker(
+                                    point: LatLng(_latitude!, _longitude!),
+                                    width: 48,
+                                    height: 48,
+                                    child: Icon(
+                                      Icons.location_pin,
+                                      size: 44,
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.primary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                          ],
+                        ),
                       ),
-                    ),
-                    Positioned(
-                      top: 12,
-                      right: 12,
-                      child: MapZoomControls(
-                        controller: _mapController,
-                        zoomInTooltip: l10n.mapZoomIn,
-                        zoomOutTooltip: l10n.mapZoomOut,
+                      Positioned(
+                        top: 12,
+                        right: 12,
+                        child: MapZoomControls(
+                          controller: _mapController,
+                          zoomInTooltip: l10n.mapZoomIn,
+                          zoomOutTooltip: l10n.mapZoomOut,
+                        ),
                       ),
-                    ),
-                    const Positioned(
-                      right: 8,
-                      bottom: 8,
-                      child: MapTileAttribution(),
-                    ),
-                  ],
+                      const Positioned(
+                        right: 8,
+                        bottom: 8,
+                        child: MapTileAttribution(),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            SizedBox(
-              width: double.infinity,
-              child: MapCurrentLocationButton(
-                label: l10n.addressCurrentLocation,
-                loading: _locating,
-                expanded: true,
-                onPressed: _useCurrentLocation,
-              ),
-            ),
-            if (_permissionDenied)
-              Padding(
-                padding: const EdgeInsets.only(top: AppSpacing.sm),
-                child: Text(
-                  l10n.addressLocationDenied,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+              const SizedBox(height: AppSpacing.md),
+              SizedBox(
+                width: double.infinity,
+                child: MapCurrentLocationButton(
+                  label: l10n.addressCurrentLocation,
+                  loading: _locating,
+                  expanded: true,
+                  onPressed: _useCurrentLocation,
                 ),
               ),
-            const SizedBox(height: AppSpacing.lg),
-            _requiredField(_title, l10n.addressTitle),
-            const SizedBox(height: AppSpacing.sm),
-            FilledButton(
-              onPressed: _saving || _latitude == null || _longitude == null
-                  ? null
-                  : _save,
-              child: _saving
-                  ? const SizedBox.square(
-                      dimension: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Text(l10n.commonSave),
-            ),
-            const SizedBox(height: AppSpacing.xxl),
-          ],
+              if (_permissionDenied)
+                Padding(
+                  padding: const EdgeInsets.only(top: AppSpacing.sm),
+                  child: Text(
+                    l10n.addressLocationDenied,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                ),
+              const SizedBox(height: AppSpacing.lg),
+              _requiredField(_title, l10n.addressTitle),
+              const SizedBox(height: AppSpacing.sm),
+              FilledButton(
+                onPressed: _saving || _latitude == null || _longitude == null
+                    ? null
+                    : _save,
+                child: _saving
+                    ? const SizedBox.square(
+                        dimension: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Text(l10n.commonSave),
+              ),
+              const SizedBox(height: AppSpacing.xxl),
+            ],
+          ),
         ),
       ),
     );
@@ -265,31 +286,47 @@ class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
 
   Future<void> _useCurrentLocation() async {
     if (_locating) return;
+    final revision = ++_locationRevision;
     setState(() {
       _locating = true;
       _permissionDenied = false;
     });
     try {
-      final position = await ref.read(addressLocationResolverProvider)();
-      if (!mounted) return;
+      final position = await ref
+          .read(addressLocationResolverProvider)()
+          .timeout(const Duration(seconds: 15));
+      if (!mounted || revision != _locationRevision) return;
       setState(() {
         _latitude = position.latitude;
         _longitude = position.longitude;
       });
       _mapController.move(LatLng(position.latitude, position.longitude), 16);
-    } on Object {
-      if (mounted) setState(() => _permissionDenied = true);
+    } on Object catch (error) {
+      if (!mounted || revision != _locationRevision) return;
+      final denied =
+          error is StateError && error.message == 'location_permission_denied';
+      setState(() => _permissionDenied = denied);
+      if (!denied) {
+        _messenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              AppLocalizations.of(context).addressLocationUnavailable,
+            ),
+          ),
+        );
+      }
     } finally {
       if (mounted) setState(() => _locating = false);
     }
   }
 
   Future<void> _save() async {
+    if (_saving) return;
     final l10n = AppLocalizations.of(context);
     if (_formKey.currentState?.validate() != true ||
         _latitude == null ||
         _longitude == null) {
-      ScaffoldMessenger.of(context)
+      _messenger
         ..hideCurrentSnackBar()
         ..showSnackBar(SnackBar(content: Text(l10n.addressRequiredFields)));
       return;
@@ -310,7 +347,7 @@ class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
       if (mounted) Navigator.pop(context, saved.id);
     } on ApiFailure catch (failure) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
+      _messenger
         ..hideCurrentSnackBar()
         ..showSnackBar(SnackBar(content: Text(failure.localize(l10n))));
     } finally {

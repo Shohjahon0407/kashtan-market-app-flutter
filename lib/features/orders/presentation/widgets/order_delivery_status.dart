@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../../core/ui/lifecycle/visible_clock.dart';
 import '../../../../core/ui/theme/app_dimens.dart';
 import '../../../../generated/l10n/app_localizations.dart';
 import '../../data/order_models.dart';
@@ -140,10 +141,17 @@ class DeliveryWaitingPanel extends StatefulWidget {
 }
 
 class _DeliveryWaitingPanelState extends State<DeliveryWaitingPanel>
-    with SingleTickerProviderStateMixin {
+    with
+        SingleTickerProviderStateMixin,
+        WidgetsBindingObserver,
+        RouteAware,
+        VisibleClock {
   late final AnimationController _radar;
-  Timer? _clock;
   bool? _animationsDisabled;
+
+  /// Kutish vaqti soati — faqat ekran ko'rinib turganda (mixin).
+  @override
+  void onVisibleTick() => setState(() {});
 
   @override
   void initState() {
@@ -152,9 +160,6 @@ class _DeliveryWaitingPanelState extends State<DeliveryWaitingPanel>
       vsync: this,
       duration: const Duration(milliseconds: 1800),
     );
-    _clock = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() {});
-    });
   }
 
   @override
@@ -174,7 +179,6 @@ class _DeliveryWaitingPanelState extends State<DeliveryWaitingPanel>
 
   @override
   void dispose() {
-    _clock?.cancel();
     _radar.dispose();
     super.dispose();
   }

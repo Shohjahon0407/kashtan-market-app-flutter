@@ -84,7 +84,9 @@ class CheckoutApi {
     );
     final map = JsonRead.map(data);
     if (map == null) {
-      throw const UnknownFailure('delivery estimate javobi obyekt emas');
+      throw const UnknownFailure.malformed(
+        'delivery estimate javobi obyekt emas',
+      );
     }
     return DeliveryEstimate.fromJson(map);
   }
@@ -96,7 +98,9 @@ class CheckoutApi {
 
   UserAddress _address(Object? data) {
     final map = JsonRead.map(data);
-    if (map == null) throw const UnknownFailure('address javobi obyekt emas');
+    if (map == null) {
+      throw const UnknownFailure.malformed('address javobi obyekt emas');
+    }
     return UserAddress.fromJson(map);
   }
 }

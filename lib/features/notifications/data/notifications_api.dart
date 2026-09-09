@@ -50,7 +50,7 @@ class NotificationsApi {
     final data = await _client.get(Api.notificationsUnreadCount);
     final map = JsonRead.map(data);
     if (map == null) {
-      throw const UnknownFailure('unread-count javobi obyekt emas');
+      throw const UnknownFailure.malformed('unread-count javobi obyekt emas');
     }
     return JsonRead.integer(map['unread_count'] ?? map['count']);
   }
@@ -65,7 +65,9 @@ class NotificationsApi {
     );
     final map = JsonRead.map(data);
     if (map == null) {
-      throw const UnknownFailure('notification read javobi obyekt emas');
+      throw const UnknownFailure.malformed(
+        'notification read javobi obyekt emas',
+      );
     }
     return CustomerNotification.fromJson(map);
   }
@@ -74,7 +76,9 @@ class NotificationsApi {
     final data = await _client.post(Api.notificationsReadAll);
     final map = JsonRead.map(data);
     if (map == null) {
-      throw const UnknownFailure('notification read-all javobi obyekt emas');
+      throw const UnknownFailure.malformed(
+        'notification read-all javobi obyekt emas',
+      );
     }
     return JsonRead.integer(map['updated_count']);
   }
@@ -98,7 +102,9 @@ class NotificationsApi {
     );
     final map = JsonRead.map(data);
     if (map == null) {
-      throw const UnknownFailure('notification device javobi obyekt emas');
+      throw const UnknownFailure.malformed(
+        'notification device javobi obyekt emas',
+      );
     }
     return NotificationDevice.fromJson(map);
   }

@@ -1,16 +1,18 @@
 import 'dart:async';
 import 'dart:ui';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
+import '../../../../core/config/app_config.dart';
 import '../../../../core/localization/failure_l10n.dart';
 import '../../../../core/routing/auth_gate.dart';
 import '../../../../core/routing/routes.dart';
 import '../../../../core/ui/theme/app_dimens.dart';
 import '../../../../generated/l10n/app_localizations.dart';
-import '../../../home/presentation/home_screen.dart';
 import '../../data/auth_models.dart';
 import '../../domain/auth_controller.dart';
 import '../../domain/auth_state.dart';
@@ -212,7 +214,10 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen>
         child: Stack(
           fit: StackFit.expand,
           children: [
-            if (!widget.isModalPrompt) const HomeScreen(),
+            // Fon: ilgari shu yerda ikkinchi HomeScreen (va ikkinchi video
+            // lenta — 2-3 yashirin video yuklab) qurilardi; statik fon yetarli.
+            if (!widget.isModalPrompt)
+              ColoredBox(color: Theme.of(context).colorScheme.surface),
             BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
               child: ColoredBox(color: Colors.black.withValues(alpha: 0.28)),
@@ -327,6 +332,9 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen>
                 : Text(l10n.commonContinue),
           ),
         ),
+        const SizedBox(height: AppSpacing.md),
+        // Play/huquqiy talab: kirishda foydalanish shartlariga rozilik.
+        const _AuthConsentText(),
       ],
     );
   }
@@ -422,4 +430,73 @@ String _safeReturnTo(String? raw) {
     return Routes.home;
   }
   return uri.toString();
+}
+
+/// "Davom etish orqali ... rozilik bildirasiz" — Shartlar va Maxfiylik
+/// havolalari bosiladigan. Recognizer'lar State'da yashaydi (dispose shart).
+class _AuthConsentText extends StatefulWidget {
+  const _AuthConsentText();
+
+  @override
+  State<_AuthConsentText> createState() => _AuthConsentTextState();
+}
+
+class _AuthConsentTextState extends State<_AuthConsentText> {
+  late final TapGestureRecognizer _termsTap;
+  late final TapGestureRecognizer _privacyTap;
+
+  @override
+  void initState() {
+    super.initState();
+    _termsTap = TapGestureRecognizer()..onTap = () => _open(AppConfig.termsUrl);
+    _privacyTap = TapGestureRecognizer()
+      ..onTap = () => _open(AppConfig.privacyPolicyUrl);
+  }
+
+  @override
+  void dispose() {
+    _termsTap.dispose();
+    _privacyTap.dispose();
+    super.dispose();
+  }
+
+  void _open(String url) {
+    launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final base = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+    );
+    final link = base?.copyWith(
+      color: theme.colorScheme.primary,
+      decoration: TextDecoration.underline,
+      decorationColor: theme.colorScheme.primary,
+    );
+    return Text.rich(
+      key: const ValueKey('auth-consent-text'),
+      TextSpan(
+        style: base,
+        children: [
+          TextSpan(text: l10n.authConsentPrefix),
+          TextSpan(
+            text: l10n.authConsentTerms,
+            style: link,
+            recognizer: _termsTap,
+          ),
+          TextSpan(text: l10n.authConsentAnd),
+          TextSpan(
+            text: l10n.authConsentPrivacy,
+            style: link,
+            recognizer: _privacyTap,
+          ),
+          TextSpan(text: l10n.authConsentSuffix),
+        ],
+      ),
+      textAlign: TextAlign.center,
+    );
+  }
 }

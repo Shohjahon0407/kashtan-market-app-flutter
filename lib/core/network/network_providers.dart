@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../localization/app_locale.dart';
 import '../localization/locale_controller.dart';
 import '../localization/uzbek_transliterator.dart';
+import '../storage/account_scope.dart';
 import '../storage/secure_token_store.dart';
 import 'api_client.dart';
 import 'connectivity_controller.dart';
@@ -40,6 +43,8 @@ final onSessionExpiredProvider = Provider<Future<void> Function()>(
 final apiClientProvider = Provider<ApiClient>((ref) {
   final client = ApiClient.create(
     tokenStore: ref.watch(tokenStoreProvider),
+    sessionOwner: () =>
+        ref.mounted ? ref.read(accountScopeProvider) : 'disposed',
     apiLang: () => ref.read(localeControllerProvider).apiLang,
     script: () => ref.read(localeControllerProvider).script,
     refresh: (refreshToken) =>
@@ -47,11 +52,33 @@ final apiClientProvider = Provider<ApiClient>((ref) {
     // Ulanish holati: offline bo'lsa so'rov yuborilmaydi, natijalar esa
     // holatni yangilab boradi.
     isOffline: () => ref.read(connectivityControllerProvider).isOffline,
-    onNetworkSuccess: () =>
-        ref.read(connectivityControllerProvider.notifier).reportSuccess(),
-    onNetworkFailure: () => ref
-        .read(connectivityControllerProvider.notifier)
-        .reportNetworkFailure(),
+    onNetworkSuccess: () {
+      if (ref.mounted) {
+        ref.read(connectivityControllerProvider.notifier).reportSuccess();
+      }
+    },
+    onNetworkFailure: () {
+      if (ref.mounted) {
+        ref
+            .read(connectivityControllerProvider.notifier)
+            .reportNetworkFailure();
+      }
+    },
+    onHttpResponse: (status) {
+      if (ref.mounted) {
+        ref
+            .read(connectivityControllerProvider.notifier)
+            .reportHttpResponse(status);
+      }
+    },
+    networkEvidenceRevision: () => ref.mounted
+        ? ref.read(connectivityControllerProvider.notifier).evidenceRevision
+        : -1,
+    onOfflineRequest: () => scheduleMicrotask(() {
+      if (ref.mounted) {
+        unawaited(ref.read(connectivityControllerProvider.notifier).recheck());
+      }
+    }),
     onSessionExpired: () => ref.read(onSessionExpiredProvider)(),
   );
 

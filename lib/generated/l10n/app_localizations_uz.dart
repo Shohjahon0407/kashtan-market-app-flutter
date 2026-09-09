@@ -9,6 +9,10 @@ class AppLocalizationsUz extends AppLocalizations {
   AppLocalizationsUz([String locale = 'uz']) : super(locale);
 
   @override
+  String get addressLocationUnavailable =>
+      'Lokatsiyani aniqlab bo‘lmadi. GPS’ni tekshiring yoki xaritada nuqtani qo‘lda tanlang.';
+
+  @override
   String get appName => 'Besh Kashtan';
 
   @override
@@ -46,6 +50,9 @@ class AppLocalizationsUz extends AppLocalizations {
 
   @override
   String get offlineBanner => 'Offline rejim';
+
+  @override
+  String get connectionServerUnavailable => 'Serverga ulanib bo‘lmadi';
 
   @override
   String get offlineStaleData => 'eski ma\'lumotlar';
@@ -111,6 +118,21 @@ class AppLocalizationsUz extends AppLocalizations {
   String authOtpExpiresIn(int seconds) {
     return 'Kod $seconds soniyadan keyin eskiradi';
   }
+
+  @override
+  String get authConsentPrefix => 'Davom etish orqali siz ';
+
+  @override
+  String get authConsentTerms => 'Foydalanish shartlari';
+
+  @override
+  String get authConsentAnd => ' va ';
+
+  @override
+  String get authConsentPrivacy => 'Maxfiylik siyosati';
+
+  @override
+  String get authConsentSuffix => 'ga rozilik bildirasiz.';
 
   @override
   String get authLogout => 'Chiqish';
@@ -722,6 +744,13 @@ class AppLocalizationsUz extends AppLocalizations {
   String get unsupportedStoreBack => 'Bosh sahifaga qaytish';
 
   @override
+  String get routeNotFoundTitle => 'Sahifa topilmadi';
+
+  @override
+  String get routeNotFoundMessage =>
+      'Bu havola eskirgan yoki ilovaning yangi versiyasini talab qiladi.';
+
+  @override
   String get supportCenterTitle => 'Yordam va murojaatlar';
 
   @override
@@ -1121,6 +1150,10 @@ class AppLocalizationsUzCyrl extends AppLocalizationsUz {
   AppLocalizationsUzCyrl() : super('uz_Cyrl');
 
   @override
+  String get addressLocationUnavailable =>
+      'Локацияни аниқлаб бўлмади. ГПСъни текширинг ёки харитада нуқтани қўлда танланг.';
+
+  @override
   String get appName => 'Besh Kashtan';
 
   @override
@@ -1158,6 +1191,9 @@ class AppLocalizationsUzCyrl extends AppLocalizationsUz {
 
   @override
   String get offlineBanner => 'Оффлине режим';
+
+  @override
+  String get connectionServerUnavailable => 'Серверга уланиб бўлмади';
 
   @override
   String get offlineStaleData => 'эски маълумотлар';
@@ -1223,6 +1259,21 @@ class AppLocalizationsUzCyrl extends AppLocalizationsUz {
   String authOtpExpiresIn(int seconds) {
     return 'Код $seconds сониядан кейин эскиради';
   }
+
+  @override
+  String get authConsentPrefix => 'Давом этиш орқали сиз ';
+
+  @override
+  String get authConsentTerms => 'Фойдаланиш шартлари';
+
+  @override
+  String get authConsentAnd => ' ва ';
+
+  @override
+  String get authConsentPrivacy => 'Махфийлик сиёсати';
+
+  @override
+  String get authConsentSuffix => 'га розилик билдирасиз.';
 
   @override
   String get authLogout => 'Чиқиш';
@@ -1832,6 +1883,13 @@ class AppLocalizationsUzCyrl extends AppLocalizationsUz {
   String get unsupportedStoreBack => 'Бош саҳифага қайтиш';
 
   @override
+  String get routeNotFoundTitle => 'Саҳифа топилмади';
+
+  @override
+  String get routeNotFoundMessage =>
+      'Бу ҳавола эскирган ёки илованинг янги версиясини талаб қилади.';
+
+  @override
   String get supportCenterTitle => 'Ёрдам ва мурожаатлар';
 
   @override
@@ -2221,6 +2279,6 @@ class AppLocalizationsUzCyrl extends AppLocalizationsUz {
 
   @override
   String ugcBlockConfirmation(String name) {
-    return '$name фойдаланувчисини блоклайсизми? Унинг очиқ изоҳ ва шарҳлари сизга кўринмайди.';
+    return '$name фойдаланувчисини блоклайсизми? Унинг публик изоҳ ва шарҳлари сизга кўринмайди.';
   }
 }

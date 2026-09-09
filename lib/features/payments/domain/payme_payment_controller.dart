@@ -43,6 +43,9 @@ final paymePaymentControllerProvider = NotifierProvider.autoDispose
       (orderId) => PaymePaymentController(orderId),
     );
 
+/// Provider autoDispose: foydalanuvchi so'rov paytida orqaga bossa, javob
+/// kelganda `state`/`ref` ga tegish UnmountedRefException beradi — shuning
+/// uchun HAR await'dan keyin `ref.mounted` tekshiriladi.
 class PaymePaymentController extends Notifier<PaymePaymentState> {
   PaymePaymentController(this.orderId);
 
@@ -59,10 +62,12 @@ class PaymePaymentController extends Notifier<PaymePaymentState> {
       final result = await ref
           .read(paymentsApiProvider)
           .createPaymePayment(orderId);
+      if (!ref.mounted) return;
 
       if (result.status == PaymentStatus.paid) {
         // Allaqachon to'langan — buyurtmani yangilab natijani ko'rsatamiz.
         await _refreshOrder();
+        if (!ref.mounted) return;
         state = const PaymePaymentState();
         return;
       }
@@ -77,17 +82,26 @@ class PaymePaymentController extends Notifier<PaymePaymentState> {
         uri,
         mode: url_launcher.LaunchMode.externalApplication,
       );
+      if (!ref.mounted) return;
       if (!launched) {
         state = const PaymePaymentState(failure: UnknownFailure());
         return;
       }
       state = const PaymePaymentState(phase: PaymePhase.awaitingReturn);
     } on NotFoundFailure catch (failure) {
+      if (!ref.mounted) return;
       state = PaymePaymentState(failure: failure, serviceUnavailable: true);
     } on NetworkFailure catch (failure) {
+      if (!ref.mounted) return;
       state = PaymePaymentState(failure: failure, serviceUnavailable: true);
     } on ApiFailure catch (failure) {
+      if (!ref.mounted) return;
       state = PaymePaymentState(failure: failure);
+    } on Object {
+      // Order refresh'dagi kutilmagan xato (masalan dispose bo'lgan
+      // provider) — ekran ochiq bo'lsa umumiy xato, aks holda jim.
+      if (!ref.mounted) return;
+      state = const PaymePaymentState(failure: UnknownFailure());
     }
   }
 
@@ -98,6 +112,7 @@ class PaymePaymentController extends Notifier<PaymePaymentState> {
     state = const PaymePaymentState(phase: PaymePhase.checking);
     try {
       final order = await _refreshOrder();
+      if (!ref.mounted) return;
       final status = PaymentStatus.fromWire(order.paymentStatus);
       state = switch (status) {
         // Yakuniy holat — natija order ma'lumotidan chiziladi.
@@ -108,9 +123,16 @@ class PaymePaymentController extends Notifier<PaymePaymentState> {
         _ => const PaymePaymentState(phase: PaymePhase.awaitingReturn),
       };
     } on ApiFailure catch (failure) {
+      if (!ref.mounted) return;
       state = PaymePaymentState(
         phase: PaymePhase.awaitingReturn,
         failure: failure,
+      );
+    } on Object {
+      if (!ref.mounted) return;
+      state = const PaymePaymentState(
+        phase: PaymePhase.awaitingReturn,
+        failure: UnknownFailure(),
       );
     }
   }

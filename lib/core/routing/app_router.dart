@@ -28,6 +28,7 @@ import '../../features/support/presentation/support_center_screen.dart';
 import '../../features/ugc/presentation/blocked_users_screen.dart';
 import '../store_scope/current_store_type_provider.dart';
 import '../store_scope/store_type.dart';
+import 'route_not_found_screen.dart';
 import 'routes.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
@@ -38,6 +39,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     initialLocation: Routes.splash,
     observers: [appRouteObserver],
     refreshListenable: refresh,
+    // Hech qaysi route mos kelmasa (eski havola, noma'lum yo'l) go_router'ning
+    // qizil xato ekrani emas, bosh sahifaga qaytaruvchi oddiy ekran.
+    errorBuilder: (context, state) =>
+        RouteNotFoundScreen(location: state.uri.toString()),
     debugLogDiagnostics: kDebugMode,
 
     // QOIDA: auth'dan keyingi navigatsiya FAQAT shu redirect orqali
@@ -53,14 +58,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         return path == Routes.splash ? null : Routes.splash;
       }
 
-      if (auth.isAuthenticated) {
-        if (path.startsWith('${Routes.storeBase}/')) {
-          final segments = state.uri.pathSegments;
-          final wire = segments.length > 1 ? segments[1] : '';
-          if (StoreType.fromWire(wire) == null) {
-            return Routes.unsupportedStoreFor(wire);
-          }
+      // Noma'lum do'kon turi (backend yangi tur qo'shgan, ilova eski) —
+      // MEHMON uchun ham. Reels/hub'dan xom wire bilan `/store/<wire>/catalog`
+      // ochiladi; shell route'lari faqat enum qiymatlari uchun bor.
+      if (path.startsWith('${Routes.storeBase}/')) {
+        final segments = state.uri.pathSegments;
+        final wire = segments.length > 1 ? segments[1] : '';
+        if (StoreType.fromWire(wire) == null) {
+          return Routes.unsupportedStoreFor(wire);
         }
+      }
+
+      if (auth.isAuthenticated) {
         // Kirgan foydalanuvchi splash/auth ekranlarida turmaydi.
         if (path == Routes.splash) return Routes.home;
         // Auth prompt muvaffaqiyatni o'zi yakunlaydi. Router bu yerda

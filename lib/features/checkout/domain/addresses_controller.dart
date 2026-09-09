@@ -2,15 +2,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/localization/locale_controller.dart';
 import '../../../core/network/api_failure.dart';
+import '../../../core/network/connectivity_controller.dart';
 import '../../../core/network/network_providers.dart';
-import '../../../core/storage/json_disk_cache.dart';
+import '../../../core/storage/account_scope.dart';
+import '../../auth/domain/auth_controller.dart';
 import '../data/checkout_api.dart';
 import '../data/checkout_models.dart';
 
 final checkoutApiProvider = Provider<CheckoutApi>(
   (ref) => CheckoutApi(
     ref.watch(apiClientProvider),
-    cache: ref.watch(jsonDiskCacheProvider),
+    cache: ref.watch(privateJsonCacheProvider),
     cacheKeySuffix: ref.watch(cacheKeySuffixProvider),
   ),
 );
@@ -21,8 +23,18 @@ final addressesControllerProvider =
     );
 
 class AddressesController extends AsyncNotifier<List<UserAddress>> {
+  int _generation = 0;
   @override
   Future<List<UserAddress>> build() async {
+    _generation++;
+    ref.watch(accountScopeProvider);
+    ref.onDispose(() => _generation++);
+    listenForConnectionRecovery(ref, () async {
+      if (!state.isLoading &&
+          ref.read(authControllerProvider).isAuthenticated) {
+        await refresh();
+      }
+    });
     ref.watch(apiLangProvider);
     final api = ref.watch(checkoutApiProvider);
     try {
@@ -36,10 +48,14 @@ class AddressesController extends AsyncNotifier<List<UserAddress>> {
 
   /// Yangilash ro'yxatni BO'SHATMAYDI — xato bo'lsa eskisi ekranda qoladi.
   Future<void> refresh() async {
+    final generation = _generation;
     final previous = state.value;
     try {
-      state = AsyncData(await ref.read(checkoutApiProvider).fetchAddresses());
+      final addresses = await ref.read(checkoutApiProvider).fetchAddresses();
+      if (!ref.mounted || generation != _generation) return;
+      state = AsyncData(addresses);
     } on Object catch (error, stack) {
+      if (!ref.mounted || generation != _generation) return;
       state = previous != null ? AsyncData(previous) : AsyncError(error, stack);
     }
   }

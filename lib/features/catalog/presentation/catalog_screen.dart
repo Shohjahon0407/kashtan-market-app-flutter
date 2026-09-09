@@ -11,6 +11,7 @@ import '../../../core/routing/store_navigation.dart';
 import '../../../core/store_scope/store_type.dart';
 import '../../../core/ui/formatters/uzs.dart';
 import '../../../core/ui/theme/app_dimens.dart';
+import '../../../core/ui/theme/contrast.dart';
 import '../../../core/utils/debouncer.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../../cart/domain/cart_controller.dart';
@@ -172,133 +173,141 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
         ?.cart;
     final cartQuantity = cart?.totalQuantity ?? 0;
 
-    return Scaffold(
-      body: RefreshIndicator(
-        onRefresh: () async {
-          ref.invalidate(storeLandingProvider(widget.storeType));
-          await ref
-              .read(catalogControllerProvider(widget.storeType).notifier)
-              .refresh();
-        },
-        child: CustomScrollView(
-          key: PageStorageKey('catalog-${widget.storeType.wire}'),
-          controller: _scrollController,
-          physics: const AlwaysScrollableScrollPhysics(),
-          slivers: [
-            SliverAppBar(
-              pinned: true,
-              leading: IconButton(
-                tooltip: MaterialLocalizations.of(context).backButtonTooltip,
-                onPressed: _goBack,
-                icon: const Icon(Icons.arrow_back),
-              ),
-              title: Text(_storeTitle(l10n, widget.storeType, landing.value)),
-              actions: [
-                IconButton(
-                  key: const ValueKey('catalog-cart-button'),
-                  tooltip: l10n.navCart,
-                  onPressed: () =>
-                      goToStoreTab(context, widget.storeType, StoreTab.cart),
-                  icon: Badge(
-                    isLabelVisible: cartQuantity > 0,
-                    label: Text(cartQuantity > 99 ? '99+' : '$cartQuantity'),
-                    child: const Icon(Icons.shopping_bag_outlined),
-                  ),
+    // Snackbar'lar SHU ekranning Scaffold'i bo'yicha joylashsin: floating
+    // snackbar o'z Scaffold'ining bottomNavigationBar'idan YUQORIDA chiziladi.
+    // Busiz u tashqi shell Scaffold'iga tegishli bo'lib, pastdagi yashil
+    // "SAVAT" panelini to'sib qo'yardi.
+    return ScaffoldMessenger(
+      child: Scaffold(
+        body: RefreshIndicator(
+          onRefresh: () async {
+            ref.invalidate(storeLandingProvider(widget.storeType));
+            await ref
+                .read(catalogControllerProvider(widget.storeType).notifier)
+                .refresh();
+          },
+          child: CustomScrollView(
+            key: PageStorageKey('catalog-${widget.storeType.wire}'),
+            controller: _scrollController,
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              SliverAppBar(
+                pinned: true,
+                leading: IconButton(
+                  tooltip: MaterialLocalizations.of(context).backButtonTooltip,
+                  onPressed: _goBack,
+                  icon: const Icon(Icons.arrow_back),
                 ),
-              ],
-              bottom: PreferredSize(
-                preferredSize: const Size.fromHeight(68),
-                child: ColoredBox(
-                  color: Theme.of(context).scaffoldBackgroundColor,
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      AppSpacing.screenH,
-                      AppSpacing.xs,
-                      AppSpacing.screenH,
-                      AppSpacing.sm,
+                title: Text(_storeTitle(l10n, widget.storeType, landing.value)),
+                actions: [
+                  IconButton(
+                    key: const ValueKey('catalog-cart-button'),
+                    tooltip: l10n.navCart,
+                    onPressed: () =>
+                        goToStoreTab(context, widget.storeType, StoreTab.cart),
+                    icon: Badge(
+                      isLabelVisible: cartQuantity > 0,
+                      label: Text(cartQuantity > 99 ? '99+' : '$cartQuantity'),
+                      child: const Icon(Icons.shopping_bag_outlined),
                     ),
-                    child: TextField(
-                      key: const ValueKey('catalog-search-field'),
-                      controller: _searchController,
-                      onChanged: _onSearchChanged,
-                      onSubmitted: _submitSearch,
-                      textInputAction: TextInputAction.search,
-                      decoration: InputDecoration(
-                        hintText: l10n.catalogSearchHint,
-                        prefixIcon: IconButton(
-                          tooltip: l10n.commonSearch,
-                          onPressed: _submitSearch,
-                          icon: const Icon(Icons.search),
-                        ),
-                        suffixIcon: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (_searchController.text.isNotEmpty)
-                              IconButton(
-                                onPressed: _clearSearch,
-                                icon: const Icon(Icons.close),
-                              ),
-                            if (widget.storeType == StoreType.household)
-                              IconButton(
-                                key: const ValueKey(
-                                  'household-category-filter',
+                  ),
+                ],
+                bottom: PreferredSize(
+                  preferredSize: const Size.fromHeight(68),
+                  child: ColoredBox(
+                    color: Theme.of(context).scaffoldBackgroundColor,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.screenH,
+                        AppSpacing.xs,
+                        AppSpacing.screenH,
+                        AppSpacing.sm,
+                      ),
+                      child: TextField(
+                        key: const ValueKey('catalog-search-field'),
+                        controller: _searchController,
+                        onChanged: _onSearchChanged,
+                        onSubmitted: _submitSearch,
+                        textInputAction: TextInputAction.search,
+                        decoration: InputDecoration(
+                          hintText: l10n.catalogSearchHint,
+                          prefixIcon: IconButton(
+                            tooltip: l10n.commonSearch,
+                            onPressed: _submitSearch,
+                            icon: const Icon(Icons.search),
+                          ),
+                          suffixIcon: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (_searchController.text.isNotEmpty)
+                                IconButton(
+                                  onPressed: _clearSearch,
+                                  icon: const Icon(Icons.close),
                                 ),
-                                tooltip: l10n.catalogCategoryFilter,
-                                onPressed:
-                                    householdCategories == null ||
-                                        householdCategories.isEmpty
-                                    ? null
-                                    : () => _showHouseholdCategoryFilter(
-                                        householdCategories,
-                                      ),
-                                icon: Badge(
-                                  isLabelVisible:
-                                      !isSearching &&
-                                      _householdCategoryId != null,
-                                  smallSize: 7,
-                                  child: Icon(
-                                    Icons.tune_rounded,
-                                    color:
+                              if (widget.storeType == StoreType.household)
+                                IconButton(
+                                  key: const ValueKey(
+                                    'household-category-filter',
+                                  ),
+                                  tooltip: l10n.catalogCategoryFilter,
+                                  onPressed:
+                                      householdCategories == null ||
+                                          householdCategories.isEmpty
+                                      ? null
+                                      : () => _showHouseholdCategoryFilter(
+                                          householdCategories,
+                                        ),
+                                  icon: Badge(
+                                    isLabelVisible:
                                         !isSearching &&
-                                            _householdCategoryId != null
-                                        ? Theme.of(context).colorScheme.primary
-                                        : null,
+                                        _householdCategoryId != null,
+                                    smallSize: 7,
+                                    child: Icon(
+                                      Icons.tune_rounded,
+                                      color:
+                                          !isSearching &&
+                                              _householdCategoryId != null
+                                          ? Theme.of(
+                                              context,
+                                            ).colorScheme.primary
+                                          : null,
+                                    ),
                                   ),
                                 ),
-                              ),
-                          ],
+                            ],
+                          ),
+                          suffixIconConstraints: const BoxConstraints(
+                            minHeight: 48,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(AppRadius.pill),
+                          ),
+                          isDense: true,
                         ),
-                        suffixIconConstraints: const BoxConstraints(
-                          minHeight: 48,
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(AppRadius.pill),
-                        ),
-                        isDense: true,
                       ),
                     ),
                   ),
                 ),
               ),
-            ),
-            if (!isSearching) ..._landingSlivers(context, landing),
-            ..._catalogSlivers(context, catalog, isSearching: isSearching),
-            SliverToBoxAdapter(
-              child: SizedBox(
-                height: cartQuantity > 0 ? AppSpacing.huge : AppSpacing.xxl,
+              if (!isSearching) ..._landingSlivers(context, landing),
+              ..._catalogSlivers(context, catalog, isSearching: isSearching),
+              SliverToBoxAdapter(
+                child: SizedBox(
+                  height: cartQuantity > 0 ? AppSpacing.huge : AppSpacing.xxl,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
+        bottomNavigationBar: cartQuantity == 0
+            ? null
+            : _MiniCartBar(
+                quantity: cartQuantity,
+                subtotal: cart?.subtotal ?? '0',
+                onTap: () =>
+                    goToStoreTab(context, widget.storeType, StoreTab.cart),
+              ),
       ),
-      bottomNavigationBar: cartQuantity == 0
-          ? null
-          : _MiniCartBar(
-              quantity: cartQuantity,
-              subtotal: cart?.subtotal ?? '0',
-              onTap: () =>
-                  goToStoreTab(context, widget.storeType, StoreTab.cart),
-            ),
     );
   }
 
@@ -605,15 +614,18 @@ class _StoreHero extends StatelessWidget {
         ? banner!.subtitle.trim()
         : header.subtitle.trim();
     final imageUrl = banner?.imageUrl ?? header.imageUrl;
+    final background =
+        banner?.backgroundColor ??
+        header.accentColor ??
+        colors.primaryContainer;
+    // Rasmsiz hero: admin matn rangini bermagan bo'lsa fon yorqinligiga
+    // qarab tanlanadi — to'q fon ustida to'q matn bo'lib qolmasin.
     final foreground = imageUrl == null
-        ? banner?.textColor ?? colors.onPrimaryContainer
+        ? banner?.textColor ?? onAccent(background)
         : Colors.white;
 
     return Material(
-      color:
-          banner?.backgroundColor ??
-          header.accentColor ??
-          colors.primaryContainer,
+      color: background,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppRadius.xs),
       ),

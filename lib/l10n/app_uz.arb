@@ -1,5 +1,6 @@
 {
   "@@locale": "uz",
+  "addressLocationUnavailable": "Lokatsiyani aniqlab bo‘lmadi. GPS’ni tekshiring yoki xaritada nuqtani qo‘lda tanlang.",
   "appName": "Besh Kashtan",
   "@appName": {
     "description": "Ilova nomi"
@@ -16,6 +17,7 @@
   "commonYes": "Ha",
   "commonNo": "Yo'q",
   "offlineBanner": "Offline rejim",
+  "connectionServerUnavailable": "Serverga ulanib bo‘lmadi",
   "offlineStaleData": "eski ma'lumotlar",
   "errorNetwork": "Internet aloqasi yo'q. Ulanishni tekshiring.",
   "@errorNetwork": {
@@ -59,6 +61,11 @@
       }
     }
   },
+  "authConsentPrefix": "Davom etish orqali siz ",
+  "authConsentTerms": "Foydalanish shartlari",
+  "authConsentAnd": " va ",
+  "authConsentPrivacy": "Maxfiylik siyosati",
+  "authConsentSuffix": "ga rozilik bildirasiz.",
   "authLogout": "Chiqish",
   "authErrorOtpCooldown": "Kodni qayta yuborish uchun biroz kuting.",
   "authErrorOtpHourLimit": "Bir soatda 5 martadan ko'p kod so'rab bo'lmaydi.",
@@ -295,6 +302,8 @@
   "unsupportedStoreTitle": "Noma'lum do'kon",
   "unsupportedStoreMessage": "Bu do'kon turi ilova tomonidan qo'llanmaydi.",
   "unsupportedStoreBack": "Bosh sahifaga qaytish",
+  "routeNotFoundTitle": "Sahifa topilmadi",
+  "routeNotFoundMessage": "Bu havola eskirgan yoki ilovaning yangi versiyasini talab qiladi.",
   "supportCenterTitle": "Yordam va murojaatlar",
   "supportFormIntro": "Kerakli mahsulotni topmadingizmi, taklifingiz yoki savolingiz bormi? Matn, rasm yoki ovoz orqali yuboring.",
   "supportMissingProductTitle": "Yo'q tovarlar uchun zakaz berish",

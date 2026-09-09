@@ -22,8 +22,12 @@ class StoreShell extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (ref.watch(authControllerProvider).isAuthenticated) {
-      ref.watch(orderRealtimeProvider);
+    if (ref.watch(
+      authControllerProvider.select((auth) => auth.isAuthenticated),
+    )) {
+      // Faqat tirik ushlab turish — har WS pong'da shell + NavigationBar
+      // qayta qurilmasin.
+      ref.listen(orderRealtimeProvider, (_, _) {});
     }
     final l10n = AppLocalizations.of(context);
     final cartQuantity =

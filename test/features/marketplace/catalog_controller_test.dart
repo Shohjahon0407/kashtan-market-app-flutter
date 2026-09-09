@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:beshkashtan_customer/core/localization/app_locale.dart';
 import 'package:beshkashtan_customer/core/localization/locale_controller.dart';
 import 'package:beshkashtan_customer/core/network/paginated.dart';
+import 'package:beshkashtan_customer/core/storage/json_disk_cache.dart';
 import 'package:beshkashtan_customer/core/storage/prefs_store.dart';
 import 'package:beshkashtan_customer/core/store_scope/store_type.dart';
 import 'package:beshkashtan_customer/features/catalog/data/catalog_api.dart';
@@ -15,6 +16,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class _MockCatalogApi extends Mock implements CatalogApi {}
 
+class _MockCache extends Mock implements JsonDiskCache {}
+
 ProductSummary _product(String id) => ProductSummary.fromJson({
   'id': id,
   'name': 'Mahsulot $id',
@@ -26,6 +29,56 @@ ProductSummary _product(String id) => ProductSummary.fromJson({
 });
 
 void main() {
+  test('late cache revalidation cannot replace a selected category', () async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await PrefsStore.load();
+    final api = _MockCatalogApi();
+    final cache = _MockCache();
+    final oldPage = Completer<CursorPage<ProductSummary>>();
+    when(() => cache.read(any())).thenAnswer(
+      (_) async => {
+        'next': null,
+        'results': [
+          {
+            'id': 'cached',
+            'name': 'Cached',
+            'price': '100',
+            'store_type': 'household',
+          },
+        ],
+      },
+    );
+    when(
+      () => api.fetchProducts(storeType: 'household'),
+    ).thenAnswer((_) => oldPage.future);
+    when(
+      () => api.fetchProducts(
+        storeType: 'household',
+        categoryId: 'tools',
+        query: '',
+      ),
+    ).thenAnswer(
+      (_) async => CursorPage(items: [_product('filtered')], nextUrl: null),
+    );
+    final container = ProviderContainer(
+      overrides: [
+        prefsStoreProvider.overrideWithValue(prefs),
+        catalogApiProvider.overrideWithValue(api),
+        jsonDiskCacheProvider.overrideWithValue(cache),
+      ],
+    );
+    addTearDown(container.dispose);
+    final provider = catalogControllerProvider(StoreType.household);
+    final subscription = container.listen(provider, (_, _) {});
+    addTearDown(subscription.close);
+    await container.read(provider.future);
+    await container.read(provider.notifier).applyFilter(categoryId: 'tools');
+    oldPage.complete(CursorPage(items: [_product('old')], nextUrl: null));
+    await container.pump();
+    expect(container.read(provider).value!.categoryId, 'tools');
+    expect(container.read(provider).value!.items.single.id, 'filtered');
+  });
+
   test(
     'qidiruv kategoriyani olib tashlaydi va locale bilan refetch qiladi',
     () async {

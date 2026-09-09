@@ -1,3 +1,5 @@
+import '../../localization/app_locale.dart';
+
 /// Backend pul stringlarini ko'rsatish.
 ///
 /// Server pulni STRING qaytaradi (`"15000.00"`). Double'ga o'tkazib
@@ -5,10 +7,21 @@
 /// kasr qismi tashlanadi (so'mda tiyin ko'rsatilmaydi), butun qism
 /// mingliklarga bo'linadi.
 abstract final class Uzs {
+  /// Joriy tilga mos valyuta qo'shimchasi. Locale controller o'rnatadi —
+  /// ruscha/kirill foydalanuvchi lotin "so'm" ko'rmasin. Chaqiruv joylari
+  /// (o'nlab) o'zgarmaydi.
+  static String suffix = suffixFor(AppLocale.uz);
+
+  static String suffixFor(AppLocale locale) => switch (locale) {
+    AppLocale.uz => "so'm",
+    AppLocale.uzCyrl => 'сўм',
+    AppLocale.ru => 'сум',
+  };
+
   /// `"15000.00"` → `15 000 so'm`. Buzuq kiritmada bo'sh string.
   static String format(String? raw) {
     final grouped = groupDigits(raw);
-    return grouped.isEmpty ? '' : "$grouped so'm";
+    return grouped.isEmpty ? '' : '$grouped $suffix';
   }
 
   /// Valyutasiz: `"15000.00"` → `15 000`.

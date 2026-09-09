@@ -1,5 +1,6 @@
 import 'package:beshkashtan_customer/core/localization/locale_controller.dart';
 import 'package:beshkashtan_customer/core/network/api_failure.dart';
+import 'package:beshkashtan_customer/core/network/connectivity_controller.dart';
 import 'package:beshkashtan_customer/core/network/paginated.dart';
 import 'package:beshkashtan_customer/core/store_scope/store_type.dart';
 import 'package:beshkashtan_customer/features/catalog/data/catalog_api.dart';
@@ -33,6 +34,53 @@ const _address = UserAddress(
 );
 
 void main() {
+  test(
+    'connection recovery refreshes an open guest catalog without losing category',
+    () async {
+      final api = _MockCatalogApi();
+      const page = CursorPage<ProductSummary>(items: [], nextUrl: null);
+      when(
+        () => api.fetchProducts(storeType: 'household'),
+      ).thenAnswer((_) async => page);
+      when(
+        () => api.fetchProducts(
+          storeType: 'household',
+          categoryId: 'tools',
+          query: '',
+        ),
+      ).thenAnswer((_) async => page);
+      final container = ProviderContainer(
+        retry: _noRetry,
+        overrides: [
+          apiLangProvider.overrideWithValue('uz'),
+          catalogApiProvider.overrideWithValue(api),
+        ],
+      );
+      addTearDown(container.dispose);
+      final provider = catalogControllerProvider(StoreType.household);
+      final subscription = container.listen(provider, (_, _) {});
+      addTearDown(subscription.close);
+      await container.read(provider.future);
+      await container.read(provider.notifier).applyFilter(categoryId: 'tools');
+      final connectivity = container.read(
+        connectivityControllerProvider.notifier,
+      );
+      connectivity.reportHttpResponse(503);
+      await container.pump();
+      connectivity.reportSuccess();
+      await container.pump();
+      await container.read(provider.future);
+      expect(container.read(provider).value?.categoryId, 'tools');
+      verify(
+        () => api.fetchProducts(
+          storeType: 'household',
+          categoryId: 'tools',
+          query: '',
+        ),
+      ).called(2);
+    },
+  );
+
   test('katalog: kesh bo‘lmasa tarmoq xatosi yuqoriga chiqadi', () async {
     final api = _MockCatalogApi();
     when(

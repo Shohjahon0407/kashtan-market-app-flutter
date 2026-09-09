@@ -44,7 +44,8 @@ extension ApiFailureL10n on ApiFailure {
       AuthErrorCode.unknown => _fallback(l10n),
     },
     ValidationFailure(:final fields) => _localizeValidation(l10n, fields),
-    UnknownFailure() => _fallback(l10n),
+    UnknownFailure(:final isDiagnostic) =>
+      isDiagnostic ? l10n.errorUnknown : _fallback(l10n),
   };
 
   String _localizeValidation(

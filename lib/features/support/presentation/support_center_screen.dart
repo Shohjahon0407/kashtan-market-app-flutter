@@ -13,6 +13,7 @@ import '../../../core/localization/failure_l10n.dart';
 import '../../../core/network/api_failure.dart';
 import '../../../core/routing/routes.dart';
 import '../../../core/store_scope/store_type.dart';
+import '../../../core/ui/theme/app_buttons.dart';
 import '../../../core/ui/theme/app_dimens.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../../auth/domain/auth_controller.dart';
@@ -136,6 +137,7 @@ class _SupportCenterScreenState extends ConsumerState<SupportCenterScreen> {
       );
       if (file == null) return;
       final bytes = await file.readAsBytes();
+      if (!mounted) return;
       if (bytes.length > _maxImageBytes) {
         _snack(l10n.supportImageTooLarge);
         return;
@@ -218,6 +220,7 @@ class _SupportCenterScreenState extends ConsumerState<SupportCenterScreen> {
       setState(() => _isRecording = false);
       if (!keep || output == null || output.isEmpty) return;
       final bytes = await XFile(output).readAsBytes();
+      if (!mounted) return;
       if (bytes.length > _maxVoiceBytes) {
         _snack(l10n.supportVoiceTooLarge);
         return;
@@ -274,6 +277,7 @@ class _SupportCenterScreenState extends ConsumerState<SupportCenterScreen> {
       return;
     }
     if (!await _ensureContactName()) return;
+    if (!mounted) return;
 
     setState(() {
       _isSubmitting = true;
@@ -302,10 +306,11 @@ class _SupportCenterScreenState extends ConsumerState<SupportCenterScreen> {
         _uploadProgress = null;
       });
       ref.invalidate(supportTicketsProvider);
+      final shortId = _shortTicketId(ticket.id);
       _snack(
-        widget.dedicatedMissingProduct
+        widget.dedicatedMissingProduct || shortId.isEmpty
             ? l10n.supportSent
-            : '${l10n.supportSent} #${ticket.id.substring(0, 8)}',
+            : '${l10n.supportSent} #$shortId',
       );
     } on ApiFailure catch (failure) {
       _snack(failure.localize(l10n));
@@ -1198,6 +1203,8 @@ class _ContactNameDialogState extends State<_ContactNameDialog> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return AlertDialog(
+      // Klaviatura ochilganda kontent siqilmasin — o'zi skroll bo'ladi.
+      scrollable: true,
       title: Text(l10n.supportContactNeededTitle),
       content: Form(
         key: _formKey,
@@ -1232,6 +1239,7 @@ class _ContactNameDialogState extends State<_ContactNameDialog> {
           child: Text(l10n.commonCancel),
         ),
         FilledButton(
+          style: AppButtons.dialogAction,
           onPressed: () {
             if (_formKey.currentState?.validate() != true) return;
             Navigator.pop(context, (
@@ -1271,6 +1279,10 @@ String _storeLabel(AppLocalizations l10n, StoreType store) => switch (store) {
   StoreType.shashlik => l10n.storeShashlik,
   StoreType.meat => l10n.storeMeat,
 };
+
+/// Ticket id'ning qisqa ko'rinishi. Id 8 belgidan qisqa bo'lsa (bo'sh yoki
+/// butun son) `substring` RangeError bermasligi uchun to'liq qaytariladi.
+String _shortTicketId(String id) => id.length <= 8 ? id : id.substring(0, 8);
 
 String _durationText(Duration value) {
   final minutes = value.inMinutes.toString().padLeft(2, '0');

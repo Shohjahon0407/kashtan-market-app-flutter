@@ -9,6 +9,7 @@ import '../../../core/routing/routes.dart';
 import '../../../core/routing/store_navigation.dart';
 import '../../../core/store_scope/store_type.dart';
 import '../../../core/ui/formatters/uzs.dart';
+import '../../../core/ui/theme/app_buttons.dart';
 import '../../../core/ui/theme/app_dimens.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../../catalog/data/product_models.dart';
@@ -197,11 +198,16 @@ class StoreCartSection extends ConsumerWidget {
         label: label,
         number: number,
         state: value,
-        onClear: value.isBusy('clear')
+        onClear: value.busyKeys.isNotEmpty
             ? null
             : () => _confirmClear(context, ref, storeType),
-        onCheckout: () =>
-            pushAuthenticated(context, ref, Routes.checkout(storeType.wire)),
+        onCheckout: value.busyKeys.isNotEmpty
+            ? null
+            : () => pushAuthenticated(
+                context,
+                ref,
+                Routes.checkout(storeType.wire),
+              ),
       ),
       AsyncError(:final error) => _CartError(
         label: label,
@@ -228,7 +234,7 @@ class _FilledStoreCart extends StatelessWidget {
   final String label;
   final int? number;
   final CartState state;
-  final VoidCallback onCheckout;
+  final VoidCallback? onCheckout;
   final VoidCallback? onClear;
 
   @override
@@ -314,7 +320,7 @@ class _CartItemRow extends ConsumerWidget {
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
     final state = ref.watch(cartControllerProvider(storeType)).value;
-    final busy = state?.isBusy('item:${item.id}') ?? false;
+    final busy = state?.busyKeys.isNotEmpty ?? false;
     final controller = ref.read(cartControllerProvider(storeType).notifier);
     final needsAddonNames = item.selectedAddons.any(
       (addon) => addon.name.isEmpty,
@@ -420,7 +426,8 @@ class CartQuantityStepper extends StatelessWidget {
     return Semantics(
       label: semanticLabel,
       child: Container(
-        height: 36,
+        // 40 dp: +/- tugmalari minimal tap target'ga yetsin.
+        height: 40,
         decoration: BoxDecoration(
           color: colors.surfaceContainerLow,
           border: Border.all(color: colors.outlineVariant),
@@ -468,7 +475,7 @@ class _StepperButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) => IconButton(
     visualDensity: VisualDensity.compact,
-    constraints: const BoxConstraints.tightFor(width: 34, height: 34),
+    constraints: const BoxConstraints.tightFor(width: 40, height: 40),
     padding: EdgeInsets.zero,
     onPressed: onPressed,
     icon: Icon(icon, size: 16),
@@ -700,6 +707,7 @@ Future<void> _confirmClear(
           child: Text(l10n.commonCancel),
         ),
         FilledButton(
+          style: AppButtons.dialogAction,
           onPressed: () => Navigator.pop(dialogContext, true),
           child: Text(l10n.commonDelete),
         ),

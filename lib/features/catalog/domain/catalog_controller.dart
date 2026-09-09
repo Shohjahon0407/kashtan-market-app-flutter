@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/localization/locale_controller.dart';
 import '../../../core/network/api_failure.dart';
+import '../../../core/network/connectivity_controller.dart';
 import '../../../core/network/network_providers.dart';
 import '../../../core/network/paginated.dart';
 import '../../../core/storage/json_disk_cache.dart';
@@ -83,6 +84,17 @@ class CatalogController extends AsyncNotifier<CatalogState> {
 
   @override
   Future<CatalogState> build() async {
+    // Dispose'dan keyin kechikkan javob eski instance'ga yozmasin:
+    // `state` ga tegish UnmountedRefException beradi.
+    ref.onDispose(() {
+      _requestRevision++;
+      _buildRevision++;
+    });
+    listenForConnectionRecovery(ref, () async {
+      // A successful in-flight filter request already reconciles the screen.
+      // Starting another refresh here would lose its pending category/query.
+      if (!state.isLoading) await refresh();
+    });
     ref.listen<String>(apiLangProvider, (previous, next) {
       if (previous != null && previous != next && state.value != null) {
         unawaited(refresh());
@@ -146,13 +158,23 @@ class CatalogController extends AsyncNotifier<CatalogState> {
   }
 
   Future<void> applyFilter({String? categoryId, String query = ''}) async {
+    // Invalidate the plain-catalog cache revalidation too, not only other
+    // filter requests. Its late response must not replace this selection.
+    _buildRevision++;
     final normalizedQuery = query.trim();
     // Store qidiruvi har doim butun store bo'yicha ishlaydi. Aks holda avval
     // tanlangan, UI'da ko'rinmay qolgan kategoriya natijalarni nolga tushiradi.
     final normalizedCategoryId = normalizedQuery.isEmpty ? categoryId : null;
     final revision = ++_requestRevision;
     final previous = state.value;
-    state = const AsyncLoading();
+    // Filtr o'zgarganda spinner (yangi kontent kutilmoqda). Ayni filtrni
+    // yangilashda (pull-to-refresh, reconnect) esa eski ro'yxat ekranda
+    // qoladi — xato bo'lsa ham 40 ta mahsulot yo'qolib ketmaydi.
+    final filterChanged =
+        previous == null ||
+        previous.categoryId != normalizedCategoryId ||
+        previous.query != normalizedQuery;
+    if (filterChanged) state = const AsyncLoading();
     try {
       final page = await ref
           .read(catalogApiProvider)
@@ -161,7 +183,7 @@ class CatalogController extends AsyncNotifier<CatalogState> {
             categoryId: normalizedCategoryId,
             query: normalizedQuery,
           );
-      if (revision != _requestRevision) return;
+      if (!ref.mounted || revision != _requestRevision) return;
       state = AsyncData(
         CatalogState(
           items: page.items,
@@ -171,11 +193,12 @@ class CatalogController extends AsyncNotifier<CatalogState> {
         ),
       );
     } on Object catch (error, stack) {
-      if (revision != _requestRevision) return;
-      state = AsyncError(error, stack);
-      if (previous != null && error is CancelledFailure) {
-        state = AsyncData(previous);
+      if (!ref.mounted || revision != _requestRevision) return;
+      if (previous != null && (!filterChanged || error is CancelledFailure)) {
+        state = AsyncData(previous.copyWith(isLoadingMore: false));
+        return;
       }
+      state = AsyncError(error, stack);
     }
   }
 
@@ -198,7 +221,7 @@ class CatalogController extends AsyncNotifier<CatalogState> {
       final page = await ref
           .read(catalogApiProvider)
           .fetchProducts(storeType: storeType.wire, nextUrl: current.nextUrl);
-      if (revision != _requestRevision) return;
+      if (!ref.mounted || revision != _requestRevision) return;
       state = AsyncData(
         current.copyWith(
           items: [...current.items, ...page.items],
@@ -207,7 +230,7 @@ class CatalogController extends AsyncNotifier<CatalogState> {
         ),
       );
     } on ApiFailure catch (failure) {
-      if (revision != _requestRevision) return;
+      if (!ref.mounted || revision != _requestRevision) return;
       state = AsyncData(
         current.copyWith(isLoadingMore: false, loadMoreFailure: () => failure),
       );
@@ -217,6 +240,7 @@ class CatalogController extends AsyncNotifier<CatalogState> {
 
 final productDetailProvider = FutureProvider.autoDispose
     .family<ProductDetail, String>((ref, id) async {
+      ref.watch(connectivityRecoveryProvider);
       ref.watch(apiLangProvider);
       ref.watch(authControllerProvider.select((auth) => auth.isAuthenticated));
       final api = ref.watch(catalogApiProvider);

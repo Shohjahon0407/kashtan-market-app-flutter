@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../../../core/config/app_config.dart';
+import '../../../../core/ui/lifecycle/visible_clock.dart';
 import '../../../../core/ui/maps/neutral_map_widgets.dart';
 import '../../../../core/ui/theme/app_dimens.dart';
 import '../../../../generated/l10n/app_localizations.dart';
@@ -30,9 +31,9 @@ class OrderLiveMap extends ConsumerStatefulWidget {
   ConsumerState<OrderLiveMap> createState() => _OrderLiveMapState();
 }
 
-class _OrderLiveMapState extends ConsumerState<OrderLiveMap> {
+class _OrderLiveMapState extends ConsumerState<OrderLiveMap>
+    with WidgetsBindingObserver, RouteAware, VisibleClock {
   final _mapController = MapController();
-  Timer? _freshnessClock;
   MapRouteData? _route;
   LatLng? _routeOrigin;
   LatLng? _routeDestination;
@@ -45,19 +46,19 @@ class _OrderLiveMapState extends ConsumerState<OrderLiveMap> {
   LatLng get _destination =>
       LatLng(widget.destinationLatitude, widget.destinationLongitude);
 
+  /// "n soniya oldin" yangilanishi — faqat ekran ko'rinib turganda (mixin).
+  @override
+  void onVisibleTick() => setState(() {});
+
   @override
   void initState() {
     super.initState();
-    _freshnessClock = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() {});
-    });
     scheduleMicrotask(_refreshRouteIfNeeded);
   }
 
   @override
   void dispose() {
     _routeRequestGeneration++;
-    _freshnessClock?.cancel();
     _mapController.dispose();
     super.dispose();
   }

@@ -20,7 +20,7 @@ class HomeApi {
   Future<HomeData> fetch() async {
     final data = await _client.get(Api.home);
     if (data is! Map<String, dynamic>) {
-      throw const UnknownFailure('home javobi obyekt emas');
+      throw const UnknownFailure.malformed('home javobi obyekt emas');
     }
     final suffix = cacheKeySuffix?.call();
     if (cache != null && suffix != null) {

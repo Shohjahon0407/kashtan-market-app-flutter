@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../storage/prefs_store.dart';
+import '../ui/formatters/uzs.dart';
 import 'app_locale.dart';
 
 /// `PrefsStore` `runApp` dan oldin yuklanadi va shu yerda override qilinadi.
@@ -18,12 +19,15 @@ class LocaleController extends Notifier<AppLocale> {
   @override
   AppLocale build() {
     final prefs = ref.read(prefsStoreProvider);
-    return AppLocale.fromCode(prefs.localeCode);
+    final locale = AppLocale.fromCode(prefs.localeCode);
+    Uzs.suffix = Uzs.suffixFor(locale);
+    return locale;
   }
 
   Future<void> set(AppLocale locale) async {
     if (locale == state) return;
     state = locale;
+    Uzs.suffix = Uzs.suffixFor(locale);
     await ref.read(prefsStoreProvider).setLocaleCode(locale.code);
   }
 }

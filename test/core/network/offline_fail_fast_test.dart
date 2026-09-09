@@ -74,7 +74,7 @@ void main() {
         lessThan(const Duration(seconds: 1)),
         reason: 'taymaut kutilmasligi kerak',
       );
-      expect(failures, greaterThan(0));
+      expect(failures, 0, reason: 'lokal reject tarmoq xatosi emas');
     },
   );
 

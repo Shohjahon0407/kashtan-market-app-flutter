@@ -27,7 +27,15 @@ import 'localized_json_transformer.dart';
 /// 5 Error            DioException → ApiFailure (OXIRGI bo'lishi shart)
 /// ```
 class ApiClient {
-  ApiClient._(this._dio, this.transformer);
+  ApiClient._(
+    this._dio,
+    this.transformer,
+    this._onNetworkSuccess,
+    this._onNetworkFailure,
+    this._onHttpResponse,
+    this._networkEvidenceRevision,
+    this._sessionOwner,
+  );
 
   /// To'liq interceptor to'plami bilan klient yig'adi.
   factory ApiClient.create({
@@ -40,6 +48,10 @@ class ApiClient {
     bool Function()? isOffline,
     void Function()? onNetworkSuccess,
     void Function()? onNetworkFailure,
+    void Function(int statusCode)? onHttpResponse,
+    int Function()? networkEvidenceRevision,
+    void Function()? onOfflineRequest,
+    String Function()? sessionOwner,
   }) {
     final transformer = LocalizedJsonTransformer()..script = script();
 
@@ -74,8 +86,7 @@ class ApiClient {
       if (isOffline != null)
         ConnectivityInterceptor(
           isOffline: isOffline,
-          onSuccess: onNetworkSuccess ?? () {},
-          onNetworkFailure: onNetworkFailure ?? () {},
+          onBlocked: onOfflineRequest,
         ),
       LangInterceptor(apiLang),
       UzScriptRequestInterceptor(script),
@@ -84,15 +95,35 @@ class ApiClient {
         bareDio: bareDio,
         refresh: refresh,
         onSessionExpired: onSessionExpired,
+        sessionOwner: sessionOwner,
       ),
       RetryInterceptor(bareDio: bareDio),
       const ErrorInterceptor(),
     ]);
 
-    return ApiClient._(dio, transformer);
+    return ApiClient._(
+      dio,
+      transformer,
+      onNetworkSuccess,
+      onNetworkFailure,
+      onHttpResponse,
+      networkEvidenceRevision,
+      sessionOwner,
+    );
   }
 
   final Dio _dio;
+  final void Function()? _onNetworkSuccess;
+  final void Function()? _onNetworkFailure;
+  final void Function(int)? _onHttpResponse;
+  final int Function()? _networkEvidenceRevision;
+  final String Function()? _sessionOwner;
+
+  bool _currentOwner(RequestOptions options) =>
+      _sessionOwner == null ||
+      options.extra[authOwnerKey] == null ||
+      options.extra[authOwnerKey] == _sessionOwner();
+  int _localEvidenceRevision = 0;
 
   /// Til o'zgarganda [LocalizedJsonTransformer.script] shu orqali yangilanadi.
   final LocalizedJsonTransformer transformer;
@@ -205,10 +236,36 @@ class ApiClient {
   );
 
   Future<dynamic> _send(Future<Response<dynamic>> Function() call) async {
+    final revision = _networkEvidenceRevision?.call() ?? _localEvidenceRevision;
     try {
       final response = await call();
+      if (!_currentOwner(response.requestOptions)) {
+        throw const CancelledFailure();
+      }
+      _localEvidenceRevision++;
+      _onNetworkSuccess?.call();
       return response.data;
     } on DioException catch (e) {
+      if (!_currentOwner(e.requestOptions)) throw const CancelledFailure();
+      // This observes the FINAL outcome, including responses resolved by the
+      // bare retry/auth client. Synthetic errors and cancellation are not
+      // evidence of a transport failure. Ignore failures older than a success.
+      if (e.type != DioExceptionType.cancel &&
+          e.requestOptions.extra[kOfflineShortCircuited] != true &&
+          revision ==
+              (_networkEvidenceRevision?.call() ?? _localEvidenceRevision)) {
+        final status = e.response?.statusCode;
+        if (status != null) {
+          _localEvidenceRevision++;
+          _onHttpResponse?.call(status);
+        } else if (e.type == DioExceptionType.connectionError ||
+            e.type == DioExceptionType.connectionTimeout ||
+            e.type == DioExceptionType.receiveTimeout ||
+            e.type == DioExceptionType.sendTimeout ||
+            e.error is NetworkFailure) {
+          _onNetworkFailure?.call();
+        }
+      }
       // ErrorInterceptor `error` ni allaqachon ApiFailure ga aylantirgan.
       final failure = e.error;
       if (failure is ApiFailure) throw failure;

@@ -25,7 +25,7 @@ class PaymentsApi {
     );
     final map = JsonRead.map(data);
     if (map == null) {
-      throw const UnknownFailure("Payme to'lov javobi obyekt emas");
+      throw const UnknownFailure.malformed("Payme to'lov javobi obyekt emas");
     }
     return PaymePaymentCreateResult.fromJson(map);
   }

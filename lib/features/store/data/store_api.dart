@@ -18,7 +18,7 @@ class StoreApi {
   Future<StoreLandingData> fetchLanding(String storeType) async {
     final data = await _client.get(Api.storeLanding(storeType));
     if (data is! Map<String, dynamic>) {
-      throw const UnknownFailure('store landing javobi obyekt emas');
+      throw const UnknownFailure.malformed('store landing javobi obyekt emas');
     }
     final suffix = cacheKeySuffix?.call();
     if (cache != null && suffix != null) {

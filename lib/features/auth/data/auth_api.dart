@@ -39,7 +39,7 @@ class AuthApi {
       },
     );
     if (data is! Map<String, dynamic>) {
-      throw const UnknownFailure('verify-otp javobi obyekt emas');
+      throw const UnknownFailure.malformed('verify-otp javobi obyekt emas');
     }
     return VerifyOtpResult.fromJson(data);
   }
@@ -48,7 +48,7 @@ class AuthApi {
   Future<AuthUser> me() async {
     final data = await _client.get(Api.authMe);
     if (data is! Map<String, dynamic>) {
-      throw const UnknownFailure('auth/me javobi obyekt emas');
+      throw const UnknownFailure.malformed('auth/me javobi obyekt emas');
     }
     return AuthUser.fromMeFlat(data);
   }
@@ -62,7 +62,7 @@ class AuthApi {
       body: {'first_name': firstName, 'last_name': lastName},
     );
     if (data is! Map<String, dynamic>) {
-      throw const UnknownFailure('profile javobi obyekt emas');
+      throw const UnknownFailure.malformed('profile javobi obyekt emas');
     }
     return AuthUser.fromMeFlat(data);
   }

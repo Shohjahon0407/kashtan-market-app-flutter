@@ -10,7 +10,6 @@ import 'package:beshkashtan_customer/core/store_scope/store_type.dart';
 import 'package:beshkashtan_customer/features/auth/data/auth_api.dart';
 import 'package:beshkashtan_customer/features/auth/data/auth_models.dart';
 import 'package:beshkashtan_customer/features/auth/domain/auth_controller.dart';
-import 'package:beshkashtan_customer/features/auth/presentation/screens/otp_screen.dart';
 import 'package:beshkashtan_customer/features/auth/presentation/screens/phone_screen.dart';
 import 'package:beshkashtan_customer/features/auth/presentation/widgets/otp_code_field.dart';
 import 'package:beshkashtan_customer/features/auth/presentation/widgets/phone_field.dart';
@@ -255,7 +254,7 @@ void main() {
       await tester.pumpAndSettle();
       // phone == null bo'lgani uchun /auth/otp so'ralsa ham /auth/phone
       expect(find.byType(PhoneScreen), findsOneWidget);
-      expect(find.byType(OtpScreen), findsNothing);
+      expect(find.byType(OtpCodeField), findsNothing);
     },
   );
 

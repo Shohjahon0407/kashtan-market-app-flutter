@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/config/api_endpoints.dart';
 import '../../../core/localization/locale_controller.dart';
 import '../../../core/network/api_failure.dart';
+import '../../../core/network/connectivity_controller.dart';
 import '../../../core/network/network_providers.dart';
 import '../../../core/network/paginated.dart';
 import '../../catalog/data/product_models.dart';
@@ -71,6 +72,9 @@ class ProductSearchController extends Notifier<SearchState> {
 
   @override
   SearchState build() {
+    listenForConnectionRecovery(ref, () async {
+      if (state.query.isNotEmpty && !state.isLoading) await search(state.query);
+    });
     ref.onDispose(() => _inFlight?.cancel());
     ref.listen<String>(apiLangProvider, (previous, next) {
       if (previous != null && previous != next && state.query.isNotEmpty) {
@@ -133,9 +137,16 @@ class ProductSearchController extends Notifier<SearchState> {
     final next = state.nextUrl;
     if (next == null || state.isLoadingMore || state.isLoading) return;
 
+    // Yangi qidiruv yoki dispose sahifalashni ham bekor qiladi — ekran
+    // yopilgach javob kelib `state` ga tegmaydi.
+    final token = CancelToken();
+    _inFlight = token;
     state = state.copyWith(isLoadingMore: true);
     try {
-      final data = await ref.read(apiClientProvider).getUrl(next);
+      final data = await ref
+          .read(apiClientProvider)
+          .getUrl(next, cancelToken: token);
+      if (!ref.mounted) return;
       final page = PageDecoder.cursor<ProductSummary>(
         data,
         ProductSummary.fromJson,
@@ -146,8 +157,10 @@ class ProductSearchController extends Notifier<SearchState> {
         isLoadingMore: false,
       );
     } on CancelledFailure {
+      if (!ref.mounted) return;
       state = state.copyWith(isLoadingMore: false);
     } on ApiFailure {
+      if (!ref.mounted) return;
       // Keyingi sahifa xatosi jim yutilmaydi ham, ro'yxatni buzmaydi ham —
       // scroll qayta urinish imkonini beradi.
       state = state.copyWith(isLoadingMore: false);

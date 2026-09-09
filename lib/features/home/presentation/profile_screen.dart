@@ -20,6 +20,7 @@ class ProfileScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final loggingOut = ref.watch(logoutBusyProvider);
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
@@ -174,7 +175,10 @@ class ProfileScreen extends ConsumerWidget {
                 icon: Icons.logout,
                 label: l10n.authLogout,
                 destructive: true,
-                onTap: () => ref.read(authControllerProvider.notifier).logout(),
+                busy: loggingOut,
+                onTap: loggingOut
+                    ? () {}
+                    : () => ref.read(authControllerProvider.notifier).logout(),
               ),
               // Play Store talabi: foydalanuvchi hisobini ilovadan o'chira olsin.
               _ProfileMenuRow(
@@ -213,6 +217,7 @@ class _ProfileMenuRow extends StatelessWidget {
     required this.onTap,
     this.trailing,
     this.destructive = false,
+    this.busy = false,
     super.key,
   });
 
@@ -221,6 +226,9 @@ class _ProfileMenuRow extends StatelessWidget {
   final VoidCallback onTap;
   final String? trailing;
   final bool destructive;
+
+  /// Jarayon ketyapti (masalan chiqish) — chevron o'rniga spinner.
+  final bool busy;
 
   @override
   Widget build(BuildContext context) {
@@ -261,7 +269,13 @@ class _ProfileMenuRow extends StatelessWidget {
                   ),
                 ),
               const SizedBox(width: AppSpacing.xs),
-              Icon(Icons.chevron_right, size: 18, color: colors.outline),
+              if (busy)
+                const SizedBox.square(
+                  dimension: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              else
+                Icon(Icons.chevron_right, size: 18, color: colors.outline),
             ],
           ),
         ),

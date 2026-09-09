@@ -55,10 +55,22 @@ if (requestedReleasePackage) {
     val dartDefines = decodedDartDefines()
     val appFlavor = dartDefines["APP_FLAVOR"]?.lowercase() ?: "prod"
     val mapboxToken = dartDefines["MAPBOX_ACCESS_TOKEN"].orEmpty()
-    if (appFlavor == "prod" && (!mapboxToken.startsWith("pk.") || mapboxToken.length < 20)) {
+    // ALLOW_OSM_TILES=true — VAQTINCHA ochiq istisno: token hali olinmagan
+    // bo'lsa ilova OSM zaxirasida quriladi (foydalanuvchi ko'payguncha
+    // Mapbox tokeni olinishi shart — OSM ommaviy ilovalarni bloklaydi).
+    val allowOsmTiles = dartDefines["ALLOW_OSM_TILES"]?.lowercase() == "true"
+    val hasMapboxToken = mapboxToken.startsWith("pk.") && mapboxToken.length >= 20
+    if (appFlavor == "prod" && !hasMapboxToken && !allowOsmTiles) {
         throw GradleException(
             "Production release requires a public MAPBOX_ACCESS_TOKEN (pk.*) " +
-                "provided with --dart-define.",
+                "provided with --dart-define (or ALLOW_OSM_TILES=true for the " +
+                "temporary OSM fallback).",
+        )
+    }
+    if (appFlavor == "prod" && !hasMapboxToken && allowOsmTiles) {
+        logger.warn(
+            "WARNING: building WITHOUT Mapbox token — public OSM tiles in use " +
+                "(temporary; not suitable at scale).",
         )
     }
 }

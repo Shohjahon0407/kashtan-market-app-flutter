@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:beshkashtan_customer/core/ui/maps/neutral_map_widgets.dart';
 import 'package:beshkashtan_customer/features/checkout/data/checkout_models.dart';
 import 'package:beshkashtan_customer/features/checkout/domain/addresses_controller.dart';
@@ -32,6 +34,39 @@ Position _position({
 );
 
 void main() {
+  testWidgets('late auto-GPS cannot override a manually selected map point', (
+    tester,
+  ) async {
+    final pending = Completer<Position>();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          addressesControllerProvider.overrideWith(_AddressesController.new),
+          addressLocationResolverProvider.overrideWithValue(
+            () => pending.future,
+          ),
+        ],
+        child: const MaterialApp(
+          locale: Locale('uz'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: AddressFormScreen(),
+        ),
+      ),
+    );
+    await tester.pump();
+    final map = tester.widget<FlutterMap>(find.byType(FlutterMap));
+    map.options.onTap!.call(
+      const TapPosition(Offset.zero, Offset.zero),
+      const LatLng(42, 70),
+    );
+    await tester.pump();
+    pending.complete(_position(latitude: 41, longitude: 69));
+    await tester.pump();
+    final markers = tester.widget<MarkerLayer>(find.byType(MarkerLayer));
+    expect(markers.markers.single.point, const LatLng(42, 70));
+  });
+
   testWidgets('manzil formida faqat nom va xarita lokatsiyasi qoladi', (
     tester,
   ) async {

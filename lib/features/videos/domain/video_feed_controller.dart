@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/localization/locale_controller.dart';
+import '../../../core/network/connectivity_controller.dart';
 import '../../../core/network/network_providers.dart';
 import '../data/video_api.dart';
 import '../data/video_models.dart';
@@ -11,7 +12,9 @@ final videoApiProvider = Provider<VideoApi>(
 
 final videoProductRailProvider = FutureProvider.autoDispose
     .family<VideoProductRail, String>((ref, videoId) {
-      ref.keepAlive();
+      // keepAlive YO'Q: rail faqat ko'rinish oynasidagi (±2 reel) widget'lar
+      // kuzatib turganda tirik — ilgari abadiy keepAlive edi (60 reel = 60
+      // javob xotirada). Oynadan chiqib qaytilsa qayta so'raladi.
       ref.watch(apiLangProvider);
       return ref.watch(videoApiProvider).fetchProducts(videoId);
     });
@@ -58,6 +61,10 @@ class VideoFeedController extends AsyncNotifier<VideoFeedState> {
 
   @override
   Future<VideoFeedState> build() async {
+    listenForConnectionRecovery(ref, () async {
+      // Retain loaded reels, pagination and the active player position.
+      if (state.hasError && !state.hasValue) await refresh();
+    });
     ref.watch(apiLangProvider);
     final page = await ref.watch(videoApiProvider).fetchFeed();
     return VideoFeedState(items: page.items, nextUrl: page.nextUrl);

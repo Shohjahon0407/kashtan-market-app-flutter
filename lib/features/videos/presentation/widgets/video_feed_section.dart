@@ -332,8 +332,16 @@ class _VideoFeedSectionState extends ConsumerState<VideoFeedSection>
           await controller.dispose();
           continue;
         }
+        // Ko'rilgan video diskda qoladi: orqaga scroll va oflaynda fayldan
+        // o'ynaydi. Faqat haqiqatan initialize bo'lgan (ko'rilayotgan) video —
+        // butun lenta oldindan yuklanmaydi.
+        if (cachedFile == null) {
+          ref.read(videoCacheProvider).storeInBackground(video.videoUrl);
+        }
         await controller.setLooping(true);
         await controller.setVolume(ref.read(videoSoundProvider) ? 1 : 0);
+        // Yuqoridagi ikki await paytida ham ekran yopilgan bo'lishi mumkin.
+        if (!mounted || _controllers[video.id] != controller) continue;
         setState(() {});
         // Aktiv video tayyor bo'lishi bilan darhol o'ynaydi. Keyingi/oldingi
         // controllerlar tayyor bo'lishini kutmaydi.
@@ -375,6 +383,15 @@ class _VideoFeedSectionState extends ConsumerState<VideoFeedSection>
         changed = _productRailIds.add(items[index].id) || changed;
       }
     }
+    // Oynadan uzoqlashgan reel'larning rail widget'lari bo'shatiladi — aks
+    // holda 60 reel scroll qilinganda 60 ta rail abadiy mounted qolardi.
+    final keep = <String>{
+      for (var index = center - 2; index <= center + 2; index++)
+        if (index >= 0 && index < items.length) items[index].id,
+    };
+    final before = _productRailIds.length;
+    _productRailIds.retainWhere(keep.contains);
+    changed = changed || _productRailIds.length != before;
     if (changed && mounted) setState(() {});
   }
 
@@ -613,6 +630,8 @@ class _VideoReelCardState extends State<_VideoReelCard> {
             children: [
               if (widget.video.posterUrl != null)
                 CachedNetworkImage(
+                  // To'liq o'lchamda dekod qilinmasin — ko'rsatiladigan kenglikka yaqin.
+                  memCacheWidth: 720,
                   imageUrl: widget.video.posterUrl!,
                   fit: BoxFit.cover,
                   errorWidget: (_, _, _) => const SizedBox(),

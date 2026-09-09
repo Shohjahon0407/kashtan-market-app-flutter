@@ -82,7 +82,7 @@ abstract final class PageDecoder {
     final map = _asMap(json, 'OffsetPage');
     final rawCount = map['count'];
     if (rawCount is! int) {
-      throw const UnknownFailure(
+      throw const UnknownFailure.malformed(
         'OffsetPage kutilgan edi, lekin javobda "count" yo\'q — '
         'ehtimol bu cursor sahifalash.',
       );
@@ -106,7 +106,7 @@ abstract final class PageDecoder {
         items: _mapList(json['results'] as List, mapper, 'BareList'),
       );
     }
-    throw UnknownFailure(
+    throw UnknownFailure.malformed(
       'BareList kutilgan edi, lekin ${json.runtimeType} keldi.',
     );
   }
@@ -115,7 +115,9 @@ abstract final class PageDecoder {
 
   static Map<String, dynamic> _asMap(Object? json, String who) {
     if (json is Map<String, dynamic>) return json;
-    throw UnknownFailure('$who kutilgan edi, lekin ${json.runtimeType} keldi.');
+    throw UnknownFailure.malformed(
+      '$who kutilgan edi, lekin ${json.runtimeType} keldi.',
+    );
   }
 
   static List<T> _results<T>(
@@ -125,7 +127,7 @@ abstract final class PageDecoder {
   ) {
     final raw = map['results'];
     if (raw is! List) {
-      throw UnknownFailure('$who javobida "results" massivi yo\'q.');
+      throw UnknownFailure.malformed('$who javobida "results" massivi yo\'q.');
     }
     return _mapList(raw, mapper, who);
   }
@@ -138,7 +140,9 @@ abstract final class PageDecoder {
     final out = <T>[];
     for (final item in raw) {
       if (item is! Map<String, dynamic>) {
-        throw UnknownFailure('$who elementi obyekt emas: ${item.runtimeType}.');
+        throw UnknownFailure.malformed(
+          '$who elementi obyekt emas: ${item.runtimeType}.',
+        );
       }
       out.add(mapper(item));
     }

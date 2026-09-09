@@ -116,14 +116,16 @@ class OrdersApi {
     final data = await _client.get(Api.orderTracking(id));
     final map = JsonRead.map(data);
     if (map == null) {
-      throw const UnknownFailure('order tracking javobi obyekt emas');
+      throw const UnknownFailure.malformed('order tracking javobi obyekt emas');
     }
     return OrderTrackingData.fromJson(map);
   }
 
   OrderData _order(Object? data) {
     final map = JsonRead.map(data);
-    if (map == null) throw const UnknownFailure('order javobi obyekt emas');
+    if (map == null) {
+      throw const UnknownFailure.malformed('order javobi obyekt emas');
+    }
     return OrderData.fromJson(map);
   }
 }

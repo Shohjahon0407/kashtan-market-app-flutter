@@ -34,6 +34,11 @@ class _CustomerNotificationBootstrapState
     with WidgetsBindingObserver {
   StreamSubscription<CustomerPushMessage>? _foregroundSubscription;
   StreamSubscription<CustomerPushMessage>? _navigationSubscription;
+
+  /// Obunalar qaysi servis instansiga bog'langani. Servis account scope
+  /// o'zgarganda (logout→login) qayta quriladi va eskisining stream'lari
+  /// yopiladi — `??=` bilan eski obunalar qolsa banner va push-tap o'lik.
+  CustomerPushService? _boundService;
   ProviderSubscription<AuthState>? _authSubscription;
   ProviderSubscription<Object?>? _localeSubscription;
 
@@ -77,10 +82,16 @@ class _CustomerNotificationBootstrapState
 
   Future<void> _start() async {
     final service = ref.read(customerPushServiceProvider);
-    _foregroundSubscription ??= service.foregroundMessages.listen(
-      _handleForeground,
-    );
-    _navigationSubscription ??= service.navigationRequests.listen(_openMessage);
+    if (!identical(service, _boundService)) {
+      await _foregroundSubscription?.cancel();
+      await _navigationSubscription?.cancel();
+      if (!mounted) return;
+      _foregroundSubscription = service.foregroundMessages.listen(
+        _handleForeground,
+      );
+      _navigationSubscription = service.navigationRequests.listen(_openMessage);
+      _boundService = service;
+    }
     await service.start();
   }
 
@@ -113,9 +124,16 @@ class _CustomerNotificationBootstrapState
               if (message.title.isNotEmpty)
                 Text(
                   message.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontWeight: FontWeight.w700),
                 ),
-              if (message.body.isNotEmpty) Text(message.body),
+              if (message.body.isNotEmpty)
+                Text(
+                  message.body,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                ),
             ],
           ),
           action: message.hasOrderTarget
