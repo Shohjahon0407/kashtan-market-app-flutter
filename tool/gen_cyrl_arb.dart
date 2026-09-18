@@ -114,9 +114,7 @@ String _transliterateIcu(String value) {
         ? buffer.toString().replaceAll("''", "'")
         : buffer.toString();
     final cyrillic = UzbekTransliterator.toCyrillic(raw);
-    out.write(
-      isIcuMessage ? cyrillic.replaceAll("'", "''") : cyrillic,
-    );
+    out.write(isIcuMessage ? cyrillic.replaceAll("'", "''") : cyrillic);
     buffer.clear();
   }
 

@@ -81,7 +81,9 @@ void main() {
   group('sendCode', () {
     test('muvaffaqiyat: codeSent + codeSentAt o‘rnatiladi', () async {
       await setUpContainer();
-      when(() => api.sendOtp(any())).thenAnswer((_) async {});
+      when(
+        () => api.sendOtp(any()),
+      ).thenAnswer((_) async => const SendOtpResult(smsAppHash: false));
 
       await notifier().sendCode('901234567');
 
@@ -123,7 +125,9 @@ void main() {
   group('resendCode', () {
     test('muvaffaqiyatsiz resend eski codeSentAt ni SAQLAYDI', () async {
       await setUpContainer();
-      when(() => api.sendOtp(any())).thenAnswer((_) async {});
+      when(
+        () => api.sendOtp(any()),
+      ).thenAnswer((_) async => const SendOtpResult(smsAppHash: false));
       await notifier().sendCode('901234567');
       final firstSentAt = state().codeSentAt;
 
@@ -144,7 +148,9 @@ void main() {
 
   group('verifyCode', () {
     Future<void> reachCodeSent() async {
-      when(() => api.sendOtp(any())).thenAnswer((_) async {});
+      when(
+        () => api.sendOtp(any()),
+      ).thenAnswer((_) async => const SendOtpResult(smsAppHash: false));
       await notifier().sendCode('901234567');
     }
 
@@ -346,7 +352,9 @@ void main() {
 
     test('expireSession faqat authenticated holatda ishlaydi', () async {
       await setUpContainer();
-      when(() => api.sendOtp(any())).thenAnswer((_) async {});
+      when(
+        () => api.sendOtp(any()),
+      ).thenAnswer((_) async => const SendOtpResult(smsAppHash: false));
       await notifier().sendCode('901234567');
 
       // OTP kiritish paytida tasodifiy 401 sessiyani buzmasligi kerak

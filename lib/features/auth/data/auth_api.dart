@@ -15,14 +15,22 @@ class AuthApi {
 
   static const String _clientType = 'customer';
 
-  /// SMS kod yuborish. Muvaffaqiyat — hech qanday qiymat qaytarmaydi:
-  /// javobda faqat `{success, message, phone_number, client_type}` bor,
-  /// `otp_length`/`resend_after_seconds` YO'Q (client [OtpPolicy] ishlatadi).
-  Future<void> sendOtp(String normalizedPhone) async {
-    await _client.post(
+  /// SMS kod yuborish.
+  ///
+  /// Javobda `{success, message, phone_number, client_type, sms_app_hash}`
+  /// bor; `otp_length`/`resend_after_seconds` YO'Q (client [OtpPolicy]
+  /// ishlatadi). Faqat `sms_app_hash` o'qiladi — u SMS autofill rejimini
+  /// belgilaydi. Javob kutilmagan shaklda kelsa autofill 1-tap rejimida
+  /// qoladi, login esa baribir ishlayveradi.
+  Future<SendOtpResult> sendOtp(String normalizedPhone) async {
+    final data = await _client.post(
       Api.sendOtp,
       body: {'phone_number': normalizedPhone, 'client_type': _clientType},
     );
+    if (data is! Map<String, dynamic>) {
+      return const SendOtpResult(smsAppHash: false);
+    }
+    return SendOtpResult.fromJson(data);
   }
 
   /// Kodni tekshirish. Yangi foydalanuvchini backend o'zi yaratadi.

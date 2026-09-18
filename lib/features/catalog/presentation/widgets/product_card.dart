@@ -391,24 +391,31 @@ class ProductCartControl extends ConsumerWidget {
     final provider = cartControllerProvider(storeType);
     // Butun CartState emas, faqat shu mahsulotga kerakli qismlar — savatdagi
     // har bir o'zgarish grid'dagi barcha kartalarni qayta qurmasin.
+    // Faqat SHU kartaga tegishli holat kuzatiladi: bitta mahsulot
+    // qo'shilayotganda grid'dagi boshqa kartalar spinnerga aylanmaydi.
     final view = ref.watch(
-      provider.select(
-        (async) => (
-          line: _simpleLine(async.value?.cart.items ?? const []),
-          busy: async.value?.busyKeys.isNotEmpty ?? false,
+      provider.select((async) {
+        final value = async.value;
+        final line = _simpleLine(value?.cart.items ?? const []);
+        return (
+          line: line,
+          addBusy: value?.isBusy(_simpleIdentity) ?? false,
+          itemBusy:
+              line != null &&
+              (value?.isBusy(CartMutationKeys.item(line.id)) ?? false),
           unconfirmed:
-              async.value?.unconfirmedKeys.contains(_simpleIdentity) ?? false,
-          waiting: async.isLoading && async.value == null,
+              value?.unconfirmedKeys.contains(_simpleIdentity) ?? false,
+          waiting: async.isLoading && value == null,
           hasError: async.hasError,
-        ),
-      ),
+        );
+      }),
     );
     final simpleLine = view.line;
     final controller = ref.read(provider.notifier);
     // Serverga yozilgan, lekin hali ko'rinishda tasdiqlanmagan qo'shish —
     // tugma spinner bo'lib turadi, qayta bosib 2 dona qilib bo'lmaydi.
-    final addBusy = view.busy || (simpleLine == null && view.unconfirmed);
-    final itemBusy = view.busy;
+    final addBusy = view.addBusy || (simpleLine == null && view.unconfirmed);
+    final itemBusy = view.itemBusy;
     final waitingForCart = view.waiting;
     final height = inlineCompact
         ? 34.0

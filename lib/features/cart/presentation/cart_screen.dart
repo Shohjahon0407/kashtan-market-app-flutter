@@ -198,10 +198,10 @@ class StoreCartSection extends ConsumerWidget {
         label: label,
         number: number,
         state: value,
-        onClear: value.busyKeys.isNotEmpty
+        onClear: value.hasPendingMutation
             ? null
             : () => _confirmClear(context, ref, storeType),
-        onCheckout: value.busyKeys.isNotEmpty
+        onCheckout: value.hasPendingMutation
             ? null
             : () => pushAuthenticated(
                 context,
@@ -320,7 +320,9 @@ class _CartItemRow extends ConsumerWidget {
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
     final state = ref.watch(cartControllerProvider(storeType)).value;
-    final busy = state?.busyKeys.isNotEmpty ?? false;
+    // Faqat shu satr bandligi — boshqa mahsulot o'zgartirilayotganda bu
+    // qatordagi tugmalar ishlab turaveradi.
+    final busy = state?.isBusy(CartMutationKeys.item(item.id)) ?? false;
     final controller = ref.read(cartControllerProvider(storeType).notifier);
     final needsAddonNames = item.selectedAddons.any(
       (addon) => addon.name.isEmpty,

@@ -19,6 +19,9 @@ class AppLocalizationsRu extends AppLocalizations {
   String get commonRetry => 'Повторить';
 
   @override
+  String get commonFieldRequired => 'Заполните это поле';
+
+  @override
   String get commonCancel => 'Отмена';
 
   @override
@@ -647,6 +650,12 @@ class AppLocalizationsRu extends AppLocalizations {
   String get addressTitle => 'Название адреса';
 
   @override
+  String get addressTitleOptional => 'Название адреса (необязательно)';
+
+  @override
+  String get addressUnnamed => 'Точка на карте';
+
+  @override
   String get addressDistrict => 'Район';
 
   @override
@@ -684,8 +693,7 @@ class AppLocalizationsRu extends AppLocalizations {
       'Доступ к геолокации не предоставлен. Выберите точку на карте вручную.';
 
   @override
-  String get addressRequiredFields =>
-      'Введите название адреса и выберите точку на карте';
+  String get addressLocationRequired => 'Выберите точку на карте';
 
   @override
   String get addressesEmpty => 'Адреса пока не добавлены';

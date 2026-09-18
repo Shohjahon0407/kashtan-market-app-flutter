@@ -1,6 +1,6 @@
 # Besh Kashtan — Google Play release checklist
 
-Release: `1.0.1 (2)` · package: `uz.beshkashtan.customer` · category:
+Release: `1.1.0 (3)` · package: `uz.beshkashtan.customer` · category:
 `Shopping` · region: Uzbekistan · target audience: 13+.
 
 ## Release gate
@@ -15,7 +15,7 @@ ALLOW_OSM_TILES=1 ./tool/build_play_release.sh
 
 Gate analyzer, tests, Android lint, Firebase package, upload signing, target API,
 signed AAB, 16 KB alignment va SHA-256 checksumni tekshiradi. Play’ga faqat
-gate muvaffaqiyatli tugagach `build/play-release/1.0.1-2/` ichiga ko‘chirilgan
+gate muvaffaqiyatli tugagach `build/play-release/1.1.0-3/` ichiga ko‘chirilgan
 `.aab` yuklanadi. `build/app/outputs/` ichida oldingi builddan qolgan fayl bo‘lsa
 u release artefakti hisoblanmaydi. Play App Signing birinchi upload vaqtida
 yoqiladi. Upload keystore va parollar repo/log ichiga kiritilmaydi va ikki

@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/localization/locale_controller.dart';
 import '../../../core/network/api_failure.dart';
 import '../../../core/network/network_providers.dart';
+import '../../../core/platform/sms_autofill_service.dart';
 import '../../../core/storage/json_disk_cache.dart';
 import '../../../core/storage/secure_token_store.dart';
 import '../data/auth_api.dart';
@@ -182,7 +183,12 @@ class AuthController extends Notifier<AuthState> {
       codeSentAt: state.phone == normalizedPhone ? state.codeSentAt : null,
     );
     try {
-      await _api.sendOtp(normalizedPhone);
+      final result = await _api.sendOtp(normalizedPhone);
+      // Autofill rejimini SERVER aytadi: SMS'da Retriever hash'i bo'lsa
+      // 0-tap, aks holda tizim oynasi. Ilovani yangilash shart emas.
+      ref
+          .read(smsAutofillModeProvider.notifier)
+          .applyServerHint(serverAppendsHash: result.smsAppHash);
       state = AuthState(
         status: AuthStatus.codeSent,
         phone: normalizedPhone,

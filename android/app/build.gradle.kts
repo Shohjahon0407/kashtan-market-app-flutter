@@ -132,6 +132,10 @@ kotlin {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
+    // SMS OTP autofill (SMS Retriever + SMS User Consent).
+    // RECEIVE_SMS/READ_SMS ruxsatlari TALAB QILINMAYDI — xabarni Play
+    // Services yetkazadi, demak Play'ning SMS deklaratsiyasi ham kerak emas.
+    implementation("com.google.android.gms:play-services-auth-api-phone:18.2.0")
 }
 
 flutter {

@@ -19,6 +19,9 @@ class AppLocalizationsUz extends AppLocalizations {
   String get commonRetry => 'Qayta urinish';
 
   @override
+  String get commonFieldRequired => 'Bu maydonni to\'ldiring';
+
+  @override
   String get commonCancel => 'Bekor qilish';
 
   @override
@@ -649,6 +652,12 @@ class AppLocalizationsUz extends AppLocalizations {
   String get addressTitle => 'Manzil nomi';
 
   @override
+  String get addressTitleOptional => 'Manzil nomi (ixtiyoriy)';
+
+  @override
+  String get addressUnnamed => 'Xaritadagi manzil';
+
+  @override
   String get addressDistrict => 'Tuman';
 
   @override
@@ -686,8 +695,7 @@ class AppLocalizationsUz extends AppLocalizations {
       'Lokatsiya ruxsati berilmadi. Nuqtani xaritada qo\'lda tanlang.';
 
   @override
-  String get addressRequiredFields =>
-      'Manzil nomini kiriting va xaritada lokatsiyani tanlang';
+  String get addressLocationRequired => 'Xaritada lokatsiyani tanlang';
 
   @override
   String get addressesEmpty => 'Hozircha manzil qo\'shilmagan';
@@ -1158,6 +1166,9 @@ class AppLocalizationsUzCyrl extends AppLocalizationsUz {
 
   @override
   String get commonRetry => 'Қайта уриниш';
+
+  @override
+  String get commonFieldRequired => 'Бу майдонни тўлдиринг';
 
   @override
   String get commonCancel => 'Бекор қилиш';
@@ -1788,6 +1799,12 @@ class AppLocalizationsUzCyrl extends AppLocalizationsUz {
   String get addressTitle => 'Манзил номи';
 
   @override
+  String get addressTitleOptional => 'Манзил номи (ихтиёрий)';
+
+  @override
+  String get addressUnnamed => 'Харитадаги манзил';
+
+  @override
   String get addressDistrict => 'Туман';
 
   @override
@@ -1825,8 +1842,7 @@ class AppLocalizationsUzCyrl extends AppLocalizationsUz {
       'Локация рухсати берилмади. Нуқтани харитада қўлда танланг.';
 
   @override
-  String get addressRequiredFields =>
-      'Манзил номини киритинг ва харитада локацияни танланг';
+  String get addressLocationRequired => 'Харитада локацияни танланг';
 
   @override
   String get addressesEmpty => 'Ҳозирча манзил қўшилмаган';

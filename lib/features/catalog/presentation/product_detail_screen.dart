@@ -309,8 +309,13 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
       configuration,
       cartState?.cart.items ?? const <CartItem>[],
     );
-    final addBusy = cartState?.busyKeys.isNotEmpty ?? false;
-    final itemBusy = addBusy;
+    // Har bir tugma o'z kalitini kuzatadi — bitta amal butun ekranni
+    // bloklamaydi.
+    final addBusy =
+        cartState?.isBusy(CartMutationKeys.add(configuration)) ?? false;
+    final itemBusy =
+        line != null &&
+        (cartState?.isBusy(CartMutationKeys.item(line.id)) ?? false);
     final waitingForCart = cartAsync.isLoading && cartState == null;
     final controller = ref.read(
       cartControllerProvider(widget.storeType).notifier,

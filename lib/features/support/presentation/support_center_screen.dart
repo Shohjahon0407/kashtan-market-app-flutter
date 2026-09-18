@@ -1218,7 +1218,7 @@ class _ContactNameDialogState extends State<_ContactNameDialog> {
               textCapitalization: TextCapitalization.words,
               decoration: InputDecoration(labelText: l10n.supportFirstName),
               validator: (value) => value == null || value.trim().isEmpty
-                  ? l10n.addressRequiredFields
+                  ? l10n.commonFieldRequired
                   : null,
             ),
             const SizedBox(height: AppSpacing.md),
@@ -1227,7 +1227,7 @@ class _ContactNameDialogState extends State<_ContactNameDialog> {
               textCapitalization: TextCapitalization.words,
               decoration: InputDecoration(labelText: l10n.supportLastName),
               validator: (value) => value == null || value.trim().isEmpty
-                  ? l10n.addressRequiredFields
+                  ? l10n.commonFieldRequired
                   : null,
             ),
           ],

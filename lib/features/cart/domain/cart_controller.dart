@@ -22,6 +22,23 @@ final cartApiProvider = Provider<CartApi>(
   ),
 );
 
+/// Savat mutatsiyalarining kalitlari.
+///
+/// UI aynan SHU kalit bo'yicha "bandmi" deb so'raydi — shuning uchun kalit
+/// qurish mantigi bitta joyda turadi (ilgari `'item:$id'` satri uch xil
+/// ekranda takrorlanardi).
+abstract final class CartMutationKeys {
+  /// Savatdagi mavjud satr (miqdor o'zgartirish, o'chirish).
+  static String item(String itemId) => 'item:$itemId';
+
+  /// Yangi mahsulot qo'shish — konfiguratsiya o'ziga xosligi bilan.
+  static String add(CartConfiguration configuration) => configuration.identity;
+
+  static String bundle(String bundleId) => 'bundle:$bundleId';
+
+  static const String clear = 'clear';
+}
+
 class CartState {
   const CartState({
     required this.cart,
@@ -31,6 +48,12 @@ class CartState {
   });
 
   final CartData cart;
+
+  /// Ayni paytda bajarilayotgan (yoki navbatda turgan) mutatsiya kalitlari.
+  ///
+  /// UI ularni [isBusy] orqali KALIT BO'YICHA so'raydi: bitta mahsulot
+  /// qo'shilayotganda faqat o'sha karta spinner ko'rsatadi, qolganlari
+  /// oddiy holatda qoladi.
   final Set<String> busyKeys;
 
   /// Serverga YOZILGAN, lekin keyingi GET xato bergani uchun `cart` ichida
@@ -41,6 +64,10 @@ class CartState {
   final ApiFailure? mutationFailure;
 
   bool isBusy(String key) => busyKeys.contains(key);
+
+  /// Savat bo'yicha biror amal ketyaptimi (tozalash/checkout kabi butun
+  /// savatga tegadigan tugmalar uchun).
+  bool get hasPendingMutation => busyKeys.isNotEmpty;
 
   CartState copyWith({
     CartData? cart,
@@ -70,6 +97,14 @@ class CartController extends AsyncNotifier<CartState> {
   Timer? _unconfirmedRetry;
   int _unconfirmedAttempt = 0;
 
+  /// Band kalitlarning YAGONA manbasi; har bir state yozuvi shundan ko'chiriladi.
+  final Set<String> _pending = {};
+
+  /// Mutatsiyalar KETMA-KET bajariladi (ikkita parallel yozuv `_reconcile`
+  /// natijalarini bir-birining ustiga tashlab yuborardi), ammo endi ular
+  /// TASHLAB YUBORILMAYDI: ikkinchi karta bosilsa navbatda kutadi.
+  Future<void> _queueTail = Future<void>.value();
+
   @override
   Future<CartState> build() async {
     _generation++;
@@ -77,9 +112,10 @@ class CartController extends AsyncNotifier<CartState> {
     ref.onDispose(() {
       _generation++;
       _unconfirmedRetry?.cancel();
+      _pending.clear();
     });
     listenForConnectionRecovery(ref, () async {
-      if (state.isLoading || state.value?.busyKeys.isNotEmpty == true) return;
+      if (state.isLoading || state.value?.hasPendingMutation == true) return;
       await refresh();
     });
     ref.watch(apiLangProvider);
@@ -88,10 +124,49 @@ class CartController extends AsyncNotifier<CartState> {
     return CartState(cart: cart);
   }
 
+  /// Mutatsiyani navbatga qo'yadi va `key` ni band deb belgilaydi.
+  ///
+  /// Kalit DARHOL band bo'ladi — foydalanuvchi bosgan karta bir zumda spinner
+  /// ko'rsatadi, garchi so'rov oldingi mutatsiya tugashini kutsa ham. Ayni
+  /// kalit bo'yicha takroriy bosish e'tiborsiz qoldiriladi (ikki marta
+  /// qo'shilib ketmasin), boshqa kalitlar esa navbatda kutadi.
+  Future<bool> _mutate(
+    String key,
+    Future<bool> Function(CartState current) action,
+  ) {
+    final current = state.value;
+    if (current == null || _pending.contains(key)) return Future.value(false);
+    final generation = _generation;
+    _pending.add(key);
+    state = AsyncData(
+      current.copyWith(busyKeys: {..._pending}, mutationFailure: () => null),
+    );
+
+    final result = _queueTail.then((_) async {
+      if (!ref.mounted || generation != _generation) return false;
+      final latest = state.value;
+      if (latest == null) return false;
+      try {
+        return await action(latest);
+      } finally {
+        _pending.remove(key);
+        if (ref.mounted && generation == _generation) {
+          final held = state.value;
+          if (held != null) {
+            state = AsyncData(held.copyWith(busyKeys: {..._pending}));
+          }
+        }
+      }
+    });
+    // Xato zanjirni uzmasin — keyingi mutatsiyalar baribir bajarilishi kerak.
+    _queueTail = result.then((_) {}, onError: (Object _) {});
+    return result;
+  }
+
   Future<void> refresh() async {
     final generation = _generation;
     final previous = state.value;
-    if (previous?.busyKeys.isNotEmpty == true) return;
+    if (previous?.hasPendingMutation == true) return;
     if (previous == null) {
       ref.invalidateSelf();
       return;
@@ -132,7 +207,6 @@ class CartController extends AsyncNotifier<CartState> {
     String note = '',
     int quantity = 1,
   }) async {
-    final generation = _generation;
     // inReview — admin tekshiruvidagi mahsulot (server ham checkoutda rad etadi).
     if (!product.isPurchasable || product.inReview || quantity < 1) {
       return false;
@@ -143,9 +217,18 @@ class CartController extends AsyncNotifier<CartState> {
       addons: addons,
       note: note,
     );
-    final current = state.value;
-    if (current == null || current.busyKeys.isNotEmpty) return false;
+    return _mutate(
+      CartMutationKeys.add(configuration),
+      (current) => _addProduct(configuration, current, quantity),
+    );
+  }
 
+  Future<bool> _addProduct(
+    CartConfiguration configuration,
+    CartState current,
+    int quantity,
+  ) async {
+    final generation = _generation;
     CartItem? duplicate;
     for (final item in current.cart.items) {
       if (item.configurationIdentity == configuration.identity) {
@@ -155,21 +238,12 @@ class CartController extends AsyncNotifier<CartState> {
     }
 
     final previous = current;
-    final busy = {...current.busyKeys, configuration.identity};
     if (duplicate != null) {
       final optimistic = duplicate.copyWith(
         quantity: duplicate.quantity + quantity,
       );
       state = AsyncData(
-        current.copyWith(
-          cart: current.cart.replaceItem(optimistic),
-          busyKeys: busy,
-          mutationFailure: () => null,
-        ),
-      );
-    } else {
-      state = AsyncData(
-        current.copyWith(busyKeys: busy, mutationFailure: () => null),
+        current.copyWith(cart: current.cart.replaceItem(optimistic)),
       );
     }
 
@@ -218,12 +292,7 @@ class CartController extends AsyncNotifier<CartState> {
             .read(offlineCartQueueProvider)
             .enqueueSetQuantity(duplicate.id, duplicate.quantity + quantity);
         final held = state.value ?? previous;
-        state = AsyncData(
-          held.copyWith(
-            busyKeys: held.busyKeys.difference({configuration.identity}),
-            mutationFailure: () => null,
-          ),
-        );
+        state = AsyncData(held.copyWith(mutationFailure: () => null));
         return true;
       }
       // Yangi element serverda hali yo'q — ko'rinishda ko'rsata olmaymiz
@@ -235,12 +304,7 @@ class CartController extends AsyncNotifier<CartState> {
             configuration: configuration,
             quantity: quantity,
           );
-      state = AsyncData(
-        previous.copyWith(
-          busyKeys: previous.busyKeys.difference({configuration.identity}),
-          mutationFailure: () => null,
-        ),
-      );
+      state = AsyncData(previous.copyWith(mutationFailure: () => null));
       return true;
     } on ApiFailure catch (failure) {
       if (!ref.mounted || generation != _generation) return false;
@@ -262,132 +326,120 @@ class CartController extends AsyncNotifier<CartState> {
   Future<void> decrement(CartItem item) =>
       item.quantity <= 1 ? remove(item) : _setQuantity(item, item.quantity - 1);
 
-  Future<void> remove(CartItem item) async {
+  Future<void> remove(CartItem item) => _mutate(
+    CartMutationKeys.item(item.id),
+    (current) => _remove(item, current),
+  );
+
+  Future<bool> _remove(CartItem item, CartState current) async {
     final generation = _generation;
-    final current = state.value;
-    final key = 'item:${item.id}';
-    if (current == null || current.busyKeys.isNotEmpty) return;
     final previous = current;
-    state = AsyncData(
-      current.copyWith(
-        cart: current.cart.removeItem(item.id),
-        busyKeys: {...current.busyKeys, key},
-        mutationFailure: () => null,
-      ),
-    );
+    state = AsyncData(current.copyWith(cart: current.cart.removeItem(item.id)));
     try {
       await ref.read(cartApiProvider).deleteItem(item.id);
-      if (!ref.mounted || generation != _generation) return;
+      if (!ref.mounted || generation != _generation) return false;
       await _reconcile();
+      return true;
     } on NetworkFailure {
-      if (!ref.mounted || generation != _generation) return;
+      if (!ref.mounted || generation != _generation) return false;
       // Oflayn: element ekrandan olib tashlangan holicha qoladi.
       await ref.read(offlineCartQueueProvider).enqueueRemove(item.id);
       final held = state.value ?? previous;
-      state = AsyncData(
-        held.copyWith(
-          busyKeys: held.busyKeys.difference({key}),
-          mutationFailure: () => null,
-        ),
-      );
+      state = AsyncData(held.copyWith(mutationFailure: () => null));
+      return true;
     } on ApiFailure catch (failure) {
-      if (!ref.mounted || generation != _generation) return;
+      if (!ref.mounted || generation != _generation) return false;
       state = AsyncData(previous.copyWith(mutationFailure: () => failure));
+      return false;
     }
   }
 
-  Future<void> clear() async {
+  Future<void> clear() => _mutate(CartMutationKeys.clear, _clear);
+
+  Future<bool> _clear(CartState current) async {
     final generation = _generation;
-    final current = state.value;
-    const key = 'clear';
-    if (current == null || current.busyKeys.isNotEmpty) return;
     final previous = current;
     state = AsyncData(
-      CartState(
-        cart: CartData.empty(storeType.wire),
-        busyKeys: {...current.busyKeys, key},
-      ),
+      CartState(cart: CartData.empty(storeType.wire), busyKeys: {..._pending}),
     );
     try {
       await ref.read(cartApiProvider).clear(storeType.wire);
-      if (!ref.mounted || generation != _generation) return;
+      if (!ref.mounted || generation != _generation) return false;
       await _reconcile();
+      return true;
     } on NetworkFailure {
-      if (!ref.mounted || generation != _generation) return;
+      if (!ref.mounted || generation != _generation) return false;
       // Oflayn: boshqa amallar kabi navbatga tushadi, savat bo'sh qoladi.
       await ref.read(offlineCartQueueProvider).enqueueClear(storeType.wire);
       final held = state.value ?? previous;
-      state = AsyncData(
-        held.copyWith(
-          busyKeys: held.busyKeys.difference({key}),
-          mutationFailure: () => null,
-        ),
-      );
+      state = AsyncData(held.copyWith(mutationFailure: () => null));
+      return true;
     } on ApiFailure catch (failure) {
-      if (!ref.mounted || generation != _generation) return;
+      if (!ref.mounted || generation != _generation) return false;
       state = AsyncData(previous.copyWith(mutationFailure: () => failure));
+      return false;
     }
   }
 
-  Future<void> addBundle(String bundleId) async {
+  Future<void> addBundle(String bundleId) => _mutate(
+    CartMutationKeys.bundle(bundleId),
+    (current) => _addBundle(bundleId, current),
+  );
+
+  Future<bool> _addBundle(String bundleId, CartState current) async {
     final generation = _generation;
-    final current = state.value;
-    final key = 'bundle:$bundleId';
-    if (current == null || current.busyKeys.isNotEmpty) return;
     final previous = current;
-    state = AsyncData(
-      current.copyWith(
-        busyKeys: {...current.busyKeys, key},
-        mutationFailure: () => null,
-      ),
-    );
     try {
       final cart = await ref.read(cartApiProvider).addBundle(bundleId);
-      if (!ref.mounted || generation != _generation) return;
+      if (!ref.mounted || generation != _generation) return false;
       if (cart.storeTypeWire == storeType.wire) {
-        state = AsyncData(CartState(cart: cart));
+        state = AsyncData(CartState(cart: cart, busyKeys: {..._pending}));
       } else {
         await _reconcile();
       }
+      return true;
     } on ApiFailure catch (failure) {
-      if (!ref.mounted || generation != _generation) return;
+      if (!ref.mounted || generation != _generation) return false;
       state = AsyncData(previous.copyWith(mutationFailure: () => failure));
+      return false;
     }
   }
 
-  Future<void> _setQuantity(CartItem item, int quantity) async {
+  Future<void> _setQuantity(CartItem item, int quantity) => _mutate(
+    CartMutationKeys.item(item.id),
+    (current) => _applyQuantity(item, quantity, current),
+  );
+
+  Future<bool> _applyQuantity(
+    CartItem item,
+    int quantity,
+    CartState current,
+  ) async {
     final generation = _generation;
-    final current = state.value;
-    final key = 'item:${item.id}';
-    if (current == null || current.busyKeys.isNotEmpty) return;
     final previous = current;
     state = AsyncData(
       current.copyWith(
         cart: current.cart.replaceItem(item.copyWith(quantity: quantity)),
-        busyKeys: {...current.busyKeys, key},
-        mutationFailure: () => null,
       ),
     );
     try {
       await ref.read(cartApiProvider).updateQuantity(item.id, quantity);
-      if (!ref.mounted || generation != _generation) return;
+      if (!ref.mounted || generation != _generation) return false;
       await _reconcile();
+      return true;
     } on NetworkFailure {
-      if (!ref.mounted || generation != _generation) return;
+      if (!ref.mounted || generation != _generation) return false;
       // Oflayn: yangi miqdor ekranda qoladi, amal navbatga tushadi.
       await ref
           .read(offlineCartQueueProvider)
           .enqueueSetQuantity(item.id, quantity);
       final held = state.value ?? previous;
-      state = AsyncData(
-        held.copyWith(
-          busyKeys: held.busyKeys.difference({key}),
-          mutationFailure: () => null,
-        ),
-      );
+      state = AsyncData(held.copyWith(mutationFailure: () => null));
+      return true;
     } on ApiFailure catch (failure) {
-      if (!ref.mounted || generation != _generation) return;
+      if (!ref.mounted || generation != _generation) return false;
       state = AsyncData(previous.copyWith(mutationFailure: () => failure));
+      return false;
     }
   }
 
@@ -396,7 +448,9 @@ class CartController extends AsyncNotifier<CartState> {
     try {
       final cart = await ref.read(cartApiProvider).fetch(storeType.wire);
       if (!ref.mounted || generation != _generation) return false;
-      state = AsyncData(CartState(cart: cart));
+      // Navbatda turgan mutatsiyalarning kalitlari SAQLANADI — aks holda
+      // ular hali bajarilmagan bo'lsa ham spinnerlari yo'qolib ketardi.
+      state = AsyncData(CartState(cart: cart, busyKeys: {..._pending}));
       return true;
     } on Object catch (error) {
       // The write already succeeded. A failed READ must not enqueue/replay it.
@@ -405,7 +459,7 @@ class CartController extends AsyncNotifier<CartState> {
       if (current != null) {
         state = AsyncData(
           current.copyWith(
-            busyKeys: {},
+            busyKeys: {..._pending},
             mutationFailure: () =>
                 error is ApiFailure ? error : const UnknownFailure(),
           ),

@@ -101,7 +101,7 @@ void main() {
         }, 200),
       );
 
-      await api.sendOtp('+998901234567');
+      final result = await api.sendOtp('+998901234567');
 
       final req = adapter.requests.single;
       expect(req.method, 'POST');
@@ -110,6 +110,24 @@ void main() {
         'phone_number': '+998901234567',
         'client_type': 'customer',
       });
+      // Bayroq yo'q bo'lsa 1-tap (SMS User Consent) rejimida qolamiz.
+      expect(result.smsAppHash, isFalse);
+    });
+
+    test('sms_app_hash bayrog\'i o\'qiladi (0-tap rejimi)', () async {
+      final api = build(
+        (_, _) => _json({
+          'success': true,
+          'message': 'OTP yuborildi',
+          'phone_number': '+998901234567',
+          'client_type': 'customer',
+          'sms_app_hash': true,
+        }, 200),
+      );
+
+      final result = await api.sendOtp('+998901234567');
+
+      expect(result.smsAppHash, isTrue);
     });
 
     test('otp_cooldown 429 → AuthCodeFailure', () async {

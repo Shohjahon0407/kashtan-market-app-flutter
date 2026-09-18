@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/localization/failure_l10n.dart';
 import '../../../../core/network/api_failure.dart';
+import '../../../../core/platform/sms_autofill_service.dart';
 import '../../../../core/ui/theme/app_dimens.dart';
 import '../../../../generated/l10n/app_localizations.dart';
 import '../../data/auth_models.dart';
@@ -31,14 +34,39 @@ class _DeleteAccountFlow extends ConsumerStatefulWidget {
 
 class _DeleteAccountFlowState extends ConsumerState<_DeleteAccountFlow> {
   final _codeController = TextEditingController();
+  late final SmsAutofillService _smsAutofill;
+  StreamSubscription<String>? _smsSub;
   bool _codeSent = false;
   bool _busy = false;
   String? _error;
 
   @override
+  void initState() {
+    super.initState();
+    _smsAutofill = ref.read(smsAutofillServiceProvider);
+    _smsSub = _smsAutofill.codes.listen(_applyAutofilledCode);
+  }
+
+  @override
   void dispose() {
+    unawaited(_smsSub?.cancel());
+    unawaited(_smsAutofill.stop());
     _codeController.dispose();
     super.dispose();
+  }
+
+  /// Kodni FAQAT to'ldiradi.
+  ///
+  /// Avtomatik tasdiqlash ATAYLAB yo'q: hisobni o'chirish qaytarib
+  /// bo'lmaydigan amal, qizil tugmani foydalanuvchining o'zi bosadi.
+  void _applyAutofilledCode(String code) {
+    if (!mounted || !_codeSent || _busy) return;
+    if (_codeController.text == code) return;
+    _codeController.value = TextEditingValue(
+      text: code,
+      selection: TextSelection.collapsed(offset: code.length),
+    );
+    setState(() => _error = null);
   }
 
   Future<void> _requestCode() async {
@@ -55,6 +83,7 @@ class _DeleteAccountFlowState extends ConsumerState<_DeleteAccountFlow> {
         _codeSent = true;
         _busy = false;
       });
+      unawaited(_smsAutofill.start(mode: ref.read(smsAutofillModeProvider)));
     } on ApiFailure catch (failure) {
       if (!mounted) return;
       setState(() {

@@ -18,6 +18,7 @@ import '../../auth/domain/auth_controller.dart';
 import '../../cart/domain/main_cart_overview_provider.dart';
 import '../../checkout/data/checkout_models.dart';
 import '../../checkout/domain/addresses_controller.dart';
+import '../../checkout/presentation/address_display.dart';
 import '../../notifications/presentation/notification_bell_button.dart';
 import '../../videos/domain/video_feed_controller.dart';
 import '../../videos/presentation/widgets/video_feed_section.dart';
@@ -325,7 +326,8 @@ class _HomeHeader extends ConsumerWidget {
     final cartQuantity = ref.watch(mainCartOverviewProvider).totalQuantity;
     final addressTitle = switch (addresses) {
       AsyncData(:final value) =>
-        _defaultAddress(value)?.title ?? l10n.homeAddressNotSelected,
+        _defaultAddress(value)?.displayTitle(l10n) ??
+            l10n.homeAddressNotSelected,
       AsyncLoading() => l10n.commonLoading,
       _ => l10n.homeAddressNotSelected,
     };

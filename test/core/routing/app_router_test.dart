@@ -183,7 +183,9 @@ void main() {
   ) async {
     await pumpApp(tester);
     await tester.pumpAndSettle();
-    when(() => api.sendOtp(any())).thenAnswer((_) async {});
+    when(
+      () => api.sendOtp(any()),
+    ).thenAnswer((_) async => const SendOtpResult(smsAppHash: false));
     when(
       () => api.verifyOtp(
         normalizedPhone: any(named: 'normalizedPhone'),
@@ -267,7 +269,9 @@ void main() {
       container.read(appRouterProvider).go(Routes.authPhone);
       await tester.pumpAndSettle();
 
-      when(() => api.sendOtp(any())).thenAnswer((_) async {});
+      when(
+        () => api.sendOtp(any()),
+      ).thenAnswer((_) async => const SendOtpResult(smsAppHash: false));
       when(
         () => api.verifyOtp(
           normalizedPhone: any(named: 'normalizedPhone'),

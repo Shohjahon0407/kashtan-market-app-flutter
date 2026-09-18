@@ -21,6 +21,7 @@ import '../data/checkout_models.dart';
 import '../domain/addresses_controller.dart';
 import '../domain/checkout_controller.dart';
 import '../domain/checkout_rules.dart';
+import 'address_display.dart';
 
 class CheckoutScreen extends ConsumerStatefulWidget {
   const CheckoutScreen({required this.storeType, super.key});
@@ -363,7 +364,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         _prepareFailure != null ||
         cart == null ||
         cart.items.isEmpty ||
-        cartState!.busyKeys.isNotEmpty ||
+        cartState!.hasPendingMutation ||
         cartState.mutationFailure != null) {
       return false;
     }
@@ -771,7 +772,7 @@ class _SelectedAddress extends StatelessWidget {
           color: Theme.of(context).colorScheme.primary,
         ),
         title: Text(
-          selected.title,
+          selected.displayTitle(AppLocalizations.of(context)),
           style: const TextStyle(fontWeight: FontWeight.w700),
         ),
         subtitle: Text(selected.formattedAddress),
@@ -861,7 +862,9 @@ class _AddressChoiceSheet extends StatelessWidget {
                       contentPadding: EdgeInsets.zero,
                       onTap: () => Navigator.pop(context, address.id),
                       leading: const Icon(Icons.location_on_outlined),
-                      title: Text(address.title),
+                      title: Text(
+                        address.displayTitle(AppLocalizations.of(context)),
+                      ),
                       subtitle: Text(address.formattedAddress),
                       trailing: const Icon(Icons.chevron_right),
                     );

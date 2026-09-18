@@ -86,4 +86,32 @@ void main() {
 
     expect(tester.testTextInput.isVisible, isTrue);
   });
+  testWidgets('dasturiy controller yozuvi boxlarni chizadi, lekin onChanged ni '
+      'CHAQIRMAYDI', (tester) async {
+    // Bu — SMS autofill'dagi `_applyAutofilledCode` nima uchun qo'shimcha
+    // ravishda `_onCodeChanged` ni o'zi chaqirishining sababi. Agar
+    // Flutter bu xatti-harakatni o'zgartirsa, test yiqiladi va u yerdagi
+    // qo'lda chaqiruvni qayta ko'rib chiqish kerak bo'ladi.
+    final controller = TextEditingController();
+    addTearDown(controller.dispose);
+    final changes = <String>[];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: OtpCodeField(controller: controller, onChanged: changes.add),
+        ),
+      ),
+    );
+
+    controller.value = const TextEditingValue(
+      text: '654321',
+      selection: TextSelection.collapsed(offset: 6),
+    );
+    await tester.pump();
+
+    expect(find.text('6'), findsOneWidget);
+    expect(find.text('4'), findsOneWidget);
+    expect(changes, isEmpty);
+  });
 }

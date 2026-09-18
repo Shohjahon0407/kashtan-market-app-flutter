@@ -17,6 +17,26 @@ class _AddressesController extends AddressesController {
   Future<List<UserAddress>> build() async => const [];
 }
 
+/// Saqlangan manzilni yozib oladigan stub.
+class _RecordingAddressesController extends AddressesController {
+  static final saved = <UserAddress>[];
+
+  @override
+  Future<List<UserAddress>> build() async => const [];
+
+  @override
+  Future<UserAddress> save(UserAddress address) async {
+    saved.add(address);
+    return UserAddress(
+      id: 'address-1',
+      title: address.title,
+      latitude: address.latitude,
+      longitude: address.longitude,
+      isDefault: address.isDefault,
+    );
+  }
+}
+
 Position _position({
   double latitude = 41.311081,
   double longitude = 69.240562,
@@ -91,7 +111,9 @@ void main() {
     expect(find.text('Xaritada nuqtani tanlang'), findsOneWidget);
     expect(find.text('Men turgan joylashuvni aniqlash'), findsOneWidget);
     expect(find.byType(TextFormField), findsOneWidget);
-    expect(find.text('Manzil nomi *'), findsOneWidget);
+    // Nom endi ixtiyoriy — yorliqda majburiylik yulduzchasi YO'Q.
+    expect(find.text('Manzil nomi (ixtiyoriy)'), findsOneWidget);
+    expect(find.text('Manzil nomi *'), findsNothing);
     expect(find.text('Tuman *'), findsNothing);
     expect(find.text('Mahalla *'), findsNothing);
     expect(find.text("Ko'cha *"), findsNothing);
@@ -179,5 +201,79 @@ void main() {
       closeTo(69.240562, 0.000001),
     );
     expect(map.mapController!.camera.zoom, 16);
+  });
+
+  testWidgets('nom bo\'sh bo\'lsa ham xaritadagi nuqta bilan saqlanadi', (
+    tester,
+  ) async {
+    _RecordingAddressesController.saved.clear();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          addressesControllerProvider.overrideWith(
+            _RecordingAddressesController.new,
+          ),
+          addressLocationResolverProvider.overrideWithValue(
+            () async => throw StateError('location_permission_denied'),
+          ),
+        ],
+        child: const MaterialApp(
+          locale: Locale('uz'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: AddressFormScreen(),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final map = tester.widget<FlutterMap>(find.byType(FlutterMap));
+    map.options.onTap?.call(
+      const TapPosition(Offset.zero, Offset.zero),
+      const LatLng(41.311081, 69.240562),
+    );
+    await tester.pump();
+
+    // Nom kiritilmaydi — faqat xaritadan nuqta tanlangan.
+    await tester.tap(find.byType(FilledButton));
+    await tester.pumpAndSettle();
+
+    expect(_RecordingAddressesController.saved, hasLength(1));
+    final saved = _RecordingAddressesController.saved.single;
+    expect(saved.title, isEmpty);
+    expect(saved.latitude, 41.311081);
+    expect(saved.longitude, 69.240562);
+    // "Nomni kiriting" degan ogohlantirish CHIQMAYDI.
+    expect(find.text('Xaritada lokatsiyani tanlang'), findsNothing);
+  });
+
+  testWidgets('lokatsiya tanlanmasa saqlash tugmasi o\'chiq turadi', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          addressesControllerProvider.overrideWith(_AddressesController.new),
+          addressLocationResolverProvider.overrideWithValue(
+            () async => throw StateError('location_permission_denied'),
+          ),
+        ],
+        child: const MaterialApp(
+          locale: Locale('uz'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: AddressFormScreen(),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    // Nom yozilsa ham lokatsiyasiz saqlab bo'lmaydi.
+    await tester.enterText(find.byType(TextFormField), 'Uy');
+    await tester.pump();
+    expect(
+      tester.widget<FilledButton>(find.byType(FilledButton)).onPressed,
+      isNull,
+    );
   });
 }

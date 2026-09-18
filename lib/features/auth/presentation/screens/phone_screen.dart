@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/config/app_config.dart';
 import '../../../../core/localization/failure_l10n.dart';
+import '../../../../core/platform/sms_autofill_service.dart';
 import '../../../../core/routing/auth_gate.dart';
 import '../../../../core/routing/routes.dart';
 import '../../../../core/ui/theme/app_dimens.dart';
@@ -35,6 +36,12 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen>
     with WidgetsBindingObserver {
   final _phoneController = TextEditingController();
   final _codeController = TextEditingController();
+  // Servis havolasi initState'da olinadi: `dispose` ichida `ref.read`
+  // qilib bo'lmaydi (Riverpod 3).
+  late final SmsAutofillService _smsAutofill;
+  StreamSubscription<String>? _smsSub;
+  ProviderSubscription<bool>? _otpStepSub;
+  bool _smsListening = false;
   Timer? _ticker;
   String? _localError;
   String? _autoSubmittedCode;
@@ -50,6 +57,16 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _smsAutofill = ref.read(smsAutofillServiceProvider);
+    _smsSub = _smsAutofill.codes.listen(_applyAutofilledCode);
+    // OTP bosqichiga kirganda SMS tinglash yoqiladi, chiqqanda o'chadi.
+    // `fireImmediately`: modal to'g'ridan-to'g'ri OTP bosqichida ochilishi
+    // mumkin (ilova fondan qaytganda yoki kod allaqachon yuborilgan bo'lsa).
+    _otpStepSub = ref.listenManual<bool>(
+      authControllerProvider.select(_isOtpStep),
+      (_, isOtpStep) => isOtpStep ? _startSmsAutofill() : _stopSmsAutofill(),
+      fireImmediately: true,
+    );
     _syncCountdown();
     _ticker = Timer.periodic(
       const Duration(seconds: 1),
@@ -65,6 +82,9 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _otpStepSub?.close();
+    unawaited(_smsSub?.cancel());
+    unawaited(_smsAutofill.stop());
     _ticker?.cancel();
     _phoneController.dispose();
     _codeController.dispose();
@@ -73,7 +93,47 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) _syncCountdown();
+    if (state != AppLifecycleState.resumed) return;
+    _syncCountdown();
+    // Faqat IDEMPOTENT start: tizim ruxsat oynasi alohida Activity, u
+    // ochilganda ham shu yerga tushamiz. `stop(); start()` qilinsa uchayotgan
+    // natija yo'qolardi. Listener 5 daqiqadan keyin o'zi o'ladi, shunda
+    // servis "faol emas" holatiga o'tadi va bu chaqiruv uni qayta yoqadi.
+    if (_smsListening && _isOtpStep(ref.read(authControllerProvider))) {
+      unawaited(_smsAutofill.start(mode: ref.read(smsAutofillModeProvider)));
+    }
+  }
+
+  void _startSmsAutofill() {
+    if (_smsListening) return;
+    _smsListening = true;
+    unawaited(_smsAutofill.start(mode: ref.read(smsAutofillModeProvider)));
+  }
+
+  void _stopSmsAutofill() {
+    if (!_smsListening) return;
+    _smsListening = false;
+    unawaited(_smsAutofill.stop());
+  }
+
+  /// SMS'dan kelgan kodni maydonga yozadi va mavjud auto-verify yo'lini
+  /// QO'LDA ishga tushiradi.
+  ///
+  /// `controller` ga dasturiy yozuv `TextField.onChanged` ni CHAQIRMAYDI —
+  /// boxlar qayta chiziladi (ValueListenableBuilder), lekin `_onCodeChanged`
+  /// ishlamaydi. OTP bosqichida "yuborish" tugmasi yo'q, ya'ni kod yozilib
+  /// qolgan holda muzlab qolardi.
+  void _applyAutofilledCode(String code) {
+    if (!mounted || _completed) return;
+    if (!_isOtpStep(ref.read(authControllerProvider))) return;
+    if (_codeController.text == code) return;
+    // `.text =` selection'ni -1 ga tashlaydi va fokusdagi maydonda IME
+    // muammosiga olib keladi — to'liq qiymat yoziladi.
+    _codeController.value = TextEditingValue(
+      text: code,
+      selection: TextSelection.collapsed(offset: code.length),
+    );
+    _onCodeChanged(code);
   }
 
   bool _isOtpStep(AuthState auth) =>
@@ -161,6 +221,10 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen>
   Future<void> _resend() async {
     _codeController.clear();
     _autoSubmittedCode = null;
+    // Eski kod uchun kutayotgan sessiya yopiladi: birinchi SMS kechikib
+    // kelsa, allaqachon bekor qilingan kod avtomatik yuborilmasin.
+    _stopSmsAutofill();
+    _startSmsAutofill();
     setState(() => _suppressFailure = false);
     await ref.read(authControllerProvider.notifier).resendCode();
     _syncCountdown();
@@ -169,6 +233,7 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen>
   void _editPhone() {
     _codeController.clear();
     _autoSubmittedCode = null;
+    _stopSmsAutofill();
     ref.read(authControllerProvider.notifier).editPhone();
     setState(() {
       _localError = null;

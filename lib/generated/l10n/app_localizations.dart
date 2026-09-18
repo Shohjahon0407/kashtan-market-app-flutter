@@ -117,6 +117,12 @@ abstract class AppLocalizations {
   /// **'Qayta urinish'**
   String get commonRetry;
 
+  /// No description provided for @commonFieldRequired.
+  ///
+  /// In uz, this message translates to:
+  /// **'Bu maydonni to\'ldiring'**
+  String get commonFieldRequired;
+
   /// No description provided for @commonCancel.
   ///
   /// In uz, this message translates to:
@@ -1287,6 +1293,18 @@ abstract class AppLocalizations {
   /// **'Manzil nomi'**
   String get addressTitle;
 
+  /// No description provided for @addressTitleOptional.
+  ///
+  /// In uz, this message translates to:
+  /// **'Manzil nomi (ixtiyoriy)'**
+  String get addressTitleOptional;
+
+  /// No description provided for @addressUnnamed.
+  ///
+  /// In uz, this message translates to:
+  /// **'Xaritadagi manzil'**
+  String get addressUnnamed;
+
   /// No description provided for @addressDistrict.
   ///
   /// In uz, this message translates to:
@@ -1359,11 +1377,11 @@ abstract class AppLocalizations {
   /// **'Lokatsiya ruxsati berilmadi. Nuqtani xaritada qo\'lda tanlang.'**
   String get addressLocationDenied;
 
-  /// No description provided for @addressRequiredFields.
+  /// No description provided for @addressLocationRequired.
   ///
   /// In uz, this message translates to:
-  /// **'Manzil nomini kiriting va xaritada lokatsiyani tanlang'**
-  String get addressRequiredFields;
+  /// **'Xaritada lokatsiyani tanlang'**
+  String get addressLocationRequired;
 
   /// No description provided for @addressesEmpty.
   ///

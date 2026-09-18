@@ -145,7 +145,7 @@ void main() {
   );
 
   test(
-    'clear cannot race an in-flight quantity change in the same store',
+    'clear cannot race an in-flight quantity change, but is NOT dropped',
     () async {
       final api = _MockCartApi();
       final pending = Completer<void>();
@@ -155,6 +155,7 @@ void main() {
       when(
         () => api.updateQuantity('item-1', 2),
       ).thenAnswer((_) => pending.future);
+      when(() => api.clear('household')).thenAnswer((_) async {});
       final container = await containerWith(api);
       final provider = cartControllerProvider(StoreType.household);
       final sub = container.listen(provider, (_, _) {});
@@ -163,10 +164,23 @@ void main() {
       final changing = container
           .read(provider.notifier)
           .increment(initial.cart.items.single);
-      await container.read(provider.notifier).clear();
+      final clearing = container.read(provider.notifier).clear();
+
+      // Miqdor so'rovi ketayotganda tozalash HALI yuborilmaydi — ikki yozuv
+      // serverda bir-biriga aralashib ketmasligi kerak.
       verifyNever(() => api.clear(any()));
+      // Ammo u tashlab ham yuborilmaydi: navbatda turadi va bandligi
+      // ko'rinadi (foydalanuvchi tugmani bekorga bosmagan).
+      expect(
+        container.read(provider).value!.isBusy(CartMutationKeys.clear),
+        isTrue,
+      );
+
       pending.complete();
       await changing;
+      await clearing;
+
+      verify(() => api.clear('household')).called(1);
       expect(container.read(provider).value!.busyKeys, isEmpty);
     },
   );

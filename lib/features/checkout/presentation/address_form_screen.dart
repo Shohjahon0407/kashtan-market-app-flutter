@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
@@ -252,7 +253,7 @@ class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
                   ),
                 ),
               const SizedBox(height: AppSpacing.lg),
-              _requiredField(_title, l10n.addressTitle),
+              _optionalField(_title, l10n.addressTitleOptional),
               const SizedBox(height: AppSpacing.sm),
               FilledButton(
                 onPressed: _saving || _latitude == null || _longitude == null
@@ -273,14 +274,16 @@ class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
     );
   }
 
-  Widget _requiredField(TextEditingController controller, String label) =>
+  /// Nom IXTIYORIY: yetkazish uchun xaritadagi nuqta yetarli. Bo'sh qoldirilsa
+  /// ekranlarda umumiy yozuv ko'rsatiladi (`displayTitle`).
+  Widget _optionalField(TextEditingController controller, String label) =>
       Padding(
         padding: const EdgeInsets.only(bottom: AppSpacing.md),
         child: TextFormField(
           controller: controller,
-          decoration: InputDecoration(labelText: '$label *'),
-          validator: (value) =>
-              value == null || value.trim().isEmpty ? '' : null,
+          decoration: InputDecoration(labelText: label),
+          // Serverdagi `max_length=100` bilan mos.
+          inputFormatters: [LengthLimitingTextInputFormatter(100)],
         ),
       );
 
@@ -323,12 +326,11 @@ class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
   Future<void> _save() async {
     if (_saving) return;
     final l10n = AppLocalizations.of(context);
-    if (_formKey.currentState?.validate() != true ||
-        _latitude == null ||
-        _longitude == null) {
+    // Faqat lokatsiya majburiy — nom uchun validator yo'q.
+    if (_latitude == null || _longitude == null) {
       _messenger
         ..hideCurrentSnackBar()
-        ..showSnackBar(SnackBar(content: Text(l10n.addressRequiredFields)));
+        ..showSnackBar(SnackBar(content: Text(l10n.addressLocationRequired)));
       return;
     }
     setState(() => _saving = true);

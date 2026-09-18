@@ -1,5 +1,7 @@
 import 'dart:async' show unawaited;
 
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, kIsWeb, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,6 +11,8 @@ import 'core/diagnostics/crash_reporting.dart';
 import 'core/localization/locale_controller.dart';
 import 'core/network/connectivity_controller.dart';
 import 'core/network/network_providers.dart';
+import 'core/platform/android_sms_autofill_service.dart';
+import 'core/platform/sms_autofill_service.dart';
 import 'core/storage/prefs_store.dart';
 import 'features/auth/domain/auth_controller.dart';
 import 'features/auth/domain/auth_state.dart';
@@ -51,6 +55,17 @@ Future<void> main() async {
         (ref) =>
             () => ref.read(guestCartCoordinatorProvider).mergeIfNeeded(),
       ),
+      // SMS kodini avtomatik to'ldirish faqat Android'da (iOS'da buni
+      // `AutofillHints.oneTimeCode` o'zi qiladi). Provider LAZY — servis
+      // birinchi marta OTP ekrani o'qiganda quriladi, boot'ga ta'sir qilmaydi.
+      smsAutofillServiceProvider.overrideWith((ref) {
+        if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) {
+          return const NoopSmsAutofillService();
+        }
+        final service = AndroidSmsAutofillService();
+        ref.onDispose(service.dispose);
+        return service;
+      }),
     ],
   );
   // Ulanish holati birinchi kadrdan oldin boshlanadi — offline bo'lsa

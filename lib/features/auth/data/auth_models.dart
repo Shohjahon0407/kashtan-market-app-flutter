@@ -7,6 +7,8 @@
 ///   - `auth/me`  : user maydonlari ildizda TEKIS
 library;
 
+import '../../../core/network/json_read.dart';
+
 /// Backenddagi `UserRoleChoices`.
 enum UserRole {
   customer('customer'),
@@ -157,6 +159,21 @@ class VerifyOtpResult {
   final String refresh;
   final AuthUser user;
   final bool isNewUser;
+}
+
+/// `send-otp` javobi.
+///
+/// Faqat autofill uchun kerakli bayroq: kodning o'zi javobda YO'Q
+/// (faqat DEBUG serverda `otp_code` qaytadi, u ishlatilmaydi).
+class SendOtpResult {
+  const SendOtpResult({required this.smsAppHash});
+
+  factory SendOtpResult.fromJson(Map<String, dynamic> json) =>
+      SendOtpResult(smsAppHash: JsonRead.boolean(json['sms_app_hash']));
+
+  /// Server SMS oxiriga Android SMS Retriever hash'ini qo'shadimi.
+  /// `true` bo'lsa ilova 0-tap rejimini yoqadi, aks holda tizim oynasi.
+  final bool smsAppHash;
 }
 
 /// OTP siyosati — server javobida KELMAYDI (tekshirilgan), server

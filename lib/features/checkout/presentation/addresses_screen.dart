@@ -11,6 +11,7 @@ import '../../../generated/l10n/app_localizations.dart';
 import '../../store/presentation/widgets/store_state_views.dart';
 import '../data/checkout_models.dart';
 import '../domain/addresses_controller.dart';
+import 'address_display.dart';
 
 /// Home va checkout bir xil server manzillaridan foydalanadigan global ro'yxat.
 class AddressesScreen extends ConsumerWidget {
@@ -93,7 +94,7 @@ class AddressesScreen extends ConsumerWidget {
       context: context,
       builder: (context) => AlertDialog(
         title: Text(l10n.commonDelete),
-        content: Text(address.title),
+        content: Text(address.displayTitle(l10n)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -180,7 +181,7 @@ class _AddressCard extends StatelessWidget {
                       children: [
                         Flexible(
                           child: Text(
-                            address.title,
+                            address.displayTitle(l10n),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: theme.textTheme.titleSmall?.copyWith(
