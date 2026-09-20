@@ -114,7 +114,10 @@ void main() {
             GlobalCupertinoLocalizations.delegate,
             GlobalWidgetsLocalizations.delegate,
           ],
-          home: const CatalogScreen(storeType: StoreType.household),
+          home: const CatalogScreen(
+            storeType: StoreType.household,
+            searchOnly: true,
+          ),
         ),
       ),
     );

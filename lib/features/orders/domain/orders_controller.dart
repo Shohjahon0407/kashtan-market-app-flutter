@@ -8,6 +8,7 @@ import '../../../core/network/connectivity_controller.dart';
 import '../../../core/network/network_providers.dart';
 import '../../../core/storage/account_scope.dart';
 import '../../../core/store_scope/store_type.dart';
+import '../../auth/domain/auth_controller.dart';
 import '../data/order_models.dart';
 import '../data/orders_api.dart';
 import 'order_realtime_controller.dart';
@@ -63,10 +64,23 @@ enum OrdersPeriod {
   final String wire;
 }
 
-typedef OrdersQuery = ({StoreType storeType, OrdersPeriod period});
+/// `storeType == null` — barcha do'konlar birgalikda (Home'dagi Buyurtmalar
+/// tabi); aks holda bitta do'kon (do'kon shell'idagi tab).
+typedef OrdersQuery = ({StoreType? storeType, OrdersPeriod period});
 
-Iterable<OrdersQuery> orderQueriesForStore(StoreType storeType) =>
+Iterable<OrdersQuery> orderQueriesForStore(StoreType? storeType) =>
     OrdersPeriod.values.map((period) => (storeType: storeType, period: period));
+
+/// Barcha-do'kon so'rovlari (ikkala davr).
+Iterable<OrdersQuery> get allOrderQueries => orderQueriesForStore(null);
+
+/// Bitta do'kon buyurtmasi o'zgarganda YANGILANISHI kerak bo'lgan so'rovlar:
+/// o'sha do'konniki + umumiy ro'yxat. Aks holda Home'dagi Buyurtmalar tabi
+/// eskirib qoladi.
+Iterable<OrdersQuery> orderQueriesAffectedBy(StoreType storeType) => [
+  ...orderQueriesForStore(storeType),
+  ...allOrderQueries,
+];
 
 final ordersControllerProvider = AsyncNotifierProvider.autoDispose
     .family<OrdersController, OrdersState, OrdersQuery>(OrdersController.new);
@@ -87,7 +101,7 @@ class OrdersController extends AsyncNotifier<OrdersState> {
     final api = ref.watch(ordersApiProvider);
     try {
       final page = await api.fetch(
-        storeType: query.storeType.wire,
+        storeType: query.storeType?.wire,
         period: query.period.wire,
       );
       return OrdersState(
@@ -98,7 +112,7 @@ class OrdersController extends AsyncNotifier<OrdersState> {
     } on ApiFailure {
       // Oflayn: oxirgi ko'rilgan buyurtmalar ro'yxati diskdan.
       final cached = await api.cachedOrders(
-        storeType: query.storeType.wire,
+        storeType: query.storeType?.wire,
         period: query.period.wire,
       );
       if (cached == null) rethrow;
@@ -116,7 +130,7 @@ class OrdersController extends AsyncNotifier<OrdersState> {
     try {
       final page = await ref
           .read(ordersApiProvider)
-          .fetch(storeType: query.storeType.wire, period: query.period.wire);
+          .fetch(storeType: query.storeType?.wire, period: query.period.wire);
       if (!ref.mounted || revision != _requestRevision) return;
       state = AsyncData(
         OrdersState(
@@ -144,7 +158,7 @@ class OrdersController extends AsyncNotifier<OrdersState> {
       final page = await ref
           .read(ordersApiProvider)
           .fetch(
-            storeType: query.storeType.wire,
+            storeType: query.storeType?.wire,
             period: query.period.wire,
             nextUrl: current.nextUrl,
           );
@@ -263,3 +277,26 @@ class OrderTrackingController extends AsyncNotifier<OrderTrackingData> {
     _timer = Timer(after, refresh);
   }
 }
+
+/// Home navbar'idagi Buyurtmalar badge'i: bugungi FAOL (yetkazilmagan va
+/// bekor qilinmagan) buyurtmalar soni, barcha do'konlar bo'yicha.
+/// Mehmon uchun 0 va hech qanday so'rov yuborilmaydi.
+final activeOrdersCountProvider = Provider.autoDispose<int>((ref) {
+  final authenticated = ref.watch(
+    authControllerProvider.select((auth) => auth.isAuthenticated),
+  );
+  if (!authenticated) return 0;
+  final orders = ref
+      .watch(
+        ordersControllerProvider((storeType: null, period: OrdersPeriod.today)),
+      )
+      .value;
+  if (orders == null) return 0;
+  return orders.items.where(isActiveCustomerOrder).length;
+});
+
+/// Faol buyurtma — mijoz uchun hali yakunlanmagan.
+bool isActiveCustomerOrder(OrderData order) => switch (order.customerStage) {
+  CustomerOrderStage.delivered || CustomerOrderStage.cancelled => false,
+  _ => true,
+};

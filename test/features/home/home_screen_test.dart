@@ -121,6 +121,26 @@ const _videos = [
   ),
 ];
 
+/// Kuchli fling testlari uchun uzunroq lenta — 2 ta reel bilan "o'tib
+/// ketish"ni ko'rib bo'lmaydi.
+List<StoreVideo> _manyVideos(int count) => [
+  for (var i = 1; i <= count; i++)
+    StoreVideo(
+      id: 'video-$i',
+      videoUrl: 'https://example.com/video-$i.mp4',
+      title: 'Video $i',
+      store: const VideoStore(
+        id: 'store-1',
+        name: 'Xozmak',
+        storeType: 'household',
+      ),
+      likesCount: 0,
+      commentsCount: 0,
+      isLiked: false,
+      publishedAt: null,
+    ),
+];
+
 const _rail = VideoProductRail(
   products: [],
   storeType: 'household',
@@ -350,6 +370,38 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  /// Fling tugaguncha kadrma-kadr pump qilib, ko'rsatilgan reel tepasining
+  /// ENG KICHIK `dy` qiymatini qaytaradi — ya'ni foydalanuvchi uni qanchalik
+  /// "o'tib ketganini" o'lchaydi (manfiy = reel tepadan yuqoriga chiqib ketdi).
+  Future<double> pumpFlingTrackingMinTop(
+    WidgetTester tester,
+    Finder reel,
+  ) async {
+    var minTop = double.infinity;
+    for (var frame = 0; frame < 120; frame++) {
+      await tester.pump(const Duration(milliseconds: 16));
+      if (reel.evaluate().isNotEmpty) {
+        final top = tester.getTopLeft(reel).dy;
+        if (top < minTop) minTop = top;
+      }
+    }
+    return minTop;
+  }
+
+  /// `pumpAndSettle` bu ekranda ishlamaydi: video kartadagi spinner cheksiz
+  /// animatsiya. Spring simulyatsiyasi ~1 s ichida albatta tinchiydi.
+  Future<void> settle(WidgetTester tester) async {
+    for (var frame = 0; frame < 75; frame++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+  }
+
+  Future<void> enterReels(WidgetTester tester, Finder scroll) async {
+    // Do'konlar qismidan reels'ga: fling 1-reel tepasida to'xtashi kerak.
+    await tester.fling(scroll, const Offset(0, -400), 2500);
+    await settle(tester);
+  }
+
   testWidgets('har vertikal swipe faqat bitta to‘liq reelga snap qiladi', (
     tester,
   ) async {
@@ -368,32 +420,95 @@ void main() {
     final scroll = find.byKey(const PageStorageKey('home-scroll'));
     final first = find.byKey(const ValueKey('home-reel-page-video-1'));
     final second = find.byKey(const ValueKey('home-reel-page-video-2'));
-    expect(tester.getSize(first).height, 800);
 
-    await tester.drag(scroll, const Offset(0, -180));
-    for (var frame = 0; frame < 20; frame++) {
-      await tester.pump(const Duration(milliseconds: 20));
-    }
+    await enterReels(tester, scroll);
+    expect(tester.getSize(first).height, 800);
     expect(tester.getTopLeft(first).dy, closeTo(0, 2));
 
-    await tester.drag(scroll, const Offset(0, -180));
-    for (var frame = 0; frame < 20; frame++) {
-      await tester.pump(const Duration(milliseconds: 20));
-    }
+    await tester.fling(scroll, const Offset(0, -200), 1500);
+    await settle(tester);
     expect(tester.getTopLeft(second).dy, closeTo(0, 2));
 
-    await tester.drag(scroll, const Offset(0, 180));
-    for (var frame = 0; frame < 20; frame++) {
-      await tester.pump(const Duration(milliseconds: 20));
-    }
+    await tester.fling(scroll, const Offset(0, 200), 1500);
+    await settle(tester);
     expect(tester.getTopLeft(first).dy, closeTo(0, 2));
 
-    await tester.drag(scroll, const Offset(0, 180));
-    for (var frame = 0; frame < 20; frame++) {
-      await tester.pump(const Duration(milliseconds: 20));
-    }
-    expect(tester.getTopLeft(first).dy, greaterThan(680));
+    // 1-reeldan yuqoriga: Home kontentiga tabiiy qaytish.
+    await tester.fling(scroll, const Offset(0, 300), 2500);
+    await settle(tester);
+    expect(tester.getTopLeft(first).dy, greaterThan(400));
     expect(find.text('Besh Kashtan'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'juda kuchli fling ham FAQAT bitta reel o‘tadi va orqaga qaytmaydi',
+    (tester) async {
+      // Shikoyat: qattiq scroll'da 2-3 reel o'tib ketib, keyin orqaga
+      // qaytardi (avval ballistik o'tib ketish, so'ng alohida snap
+      // animatsiyasi). Endi snap simulyatsiyaning o'zida — bitta sahifa,
+      // bitta harakat.
+      VisibilityDetectorController.instance.updateInterval = Duration.zero;
+      await tester.binding.setSurfaceSize(const Size(390, 800));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final container = await pumpHome(
+        tester,
+        videos: _manyVideos(6),
+        fetch: () async => const HomeData(banners: [], storeHub: _hub),
+      );
+      addTearDown(container.dispose);
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+
+      final scroll = find.byKey(const PageStorageKey('home-scroll'));
+      final first = find.byKey(const ValueKey('home-reel-page-video-1'));
+      final second = find.byKey(const ValueKey('home-reel-page-video-2'));
+
+      await enterReels(tester, scroll);
+      expect(tester.getTopLeft(first).dy, closeTo(0, 2));
+
+      // Juda kuchli fling.
+      await tester.fling(scroll, const Offset(0, -700), 9000);
+      final minSecondTop = await pumpFlingTrackingMinTop(tester, second);
+      await settle(tester);
+
+      expect(
+        tester.getTopLeft(second).dy,
+        closeTo(0, 2),
+        reason: 'ikkinchi reel tepada bo\'lishi kerak (uchinchisi emas)',
+      );
+      // Chegara: sahifaning 1% i. Spring nishonda tinchayotganda bir-ikki
+      // pikselga o'tib qaytadi (PageView'da ham shunday) — ko'zga ko'rinmaydi.
+      // Tuzatishdan oldin bu qiymat −3279 px edi (4 sahifa o'tib ketardi).
+      expect(
+        minSecondTop,
+        greaterThanOrEqualTo(-8),
+        reason:
+            'ikkinchi reel tepadan sezilarli o\'tib ketmasligi kerak — '
+            'aks holda "o\'tib ketib, orqaga qaytish" bo\'lgan',
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('reel sahifalari lazy quriladi — uzoqdagilari mounted emas', (
+    tester,
+  ) async {
+    VisibilityDetectorController.instance.updateInterval = Duration.zero;
+    await tester.binding.setSurfaceSize(const Size(390, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final container = await pumpHome(
+      tester,
+      videos: _manyVideos(8),
+      fetch: () async => const HomeData(banners: [], storeHub: _hub),
+    );
+    addTearDown(container.dispose);
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+
+    // 8 ta reel = 6400 px; sahifa boshida faqat ko'rinish + cache
+    // oynasidagi reel'lar quriladi, oxirgisi esa yo'q.
+    expect(find.byKey(const ValueKey('home-reel-page-video-8')), findsNothing);
     expect(tester.takeException(), isNull);
   });
 }

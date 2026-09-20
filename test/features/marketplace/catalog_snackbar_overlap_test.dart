@@ -136,7 +136,10 @@ void main() {
           // ScaffoldMessenger tashqi Scaffold'ni nishonga oladi va snackbar
           // ichki mini savat panelini to'sib qo'yadi.
           home: Scaffold(
-            body: const CatalogScreen(storeType: StoreType.household),
+            body: const CatalogScreen(
+              storeType: StoreType.household,
+              searchOnly: true,
+            ),
             bottomNavigationBar: NavigationBar(
               destinations: const [
                 NavigationDestination(

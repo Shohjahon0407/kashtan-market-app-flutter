@@ -73,6 +73,14 @@ void main() {
       Routes.storeCatalog('household', categoryId: ''),
       '/store/household/catalog',
     );
+    expect(
+      Routes.storeCatalogSearch('household'),
+      '/store/household/catalog/search',
+    );
+    expect(
+      Routes.storeCategoryProducts('household', 'category / 1'),
+      '/store/household/catalog/category/category%20%2F%201',
+    );
   });
 
   test('store tab helper har bir navbar indexini root routega map qiladi', () {

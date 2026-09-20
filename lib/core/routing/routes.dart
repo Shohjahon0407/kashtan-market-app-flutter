@@ -9,6 +9,11 @@ abstract final class Routes {
   static const String authPhone = '/auth/phone';
   static const String authOtp = '/auth/otp';
   static const String home = '/';
+
+  /// Home shell tablari (Asosiy = [home]) — qarang [HomeTab].
+  static const String videos = '/videos';
+  static const String stores = '/stores';
+  static const String allOrders = '/orders';
   static const String search = '/search';
   static const String cart = '/cart';
   static const String profile = '/profile';
@@ -62,6 +67,12 @@ abstract final class Routes {
         : Uri(path: path, queryParameters: {'category': categoryId}).toString();
   }
 
+  static String storeCatalogSearch(String storeType) =>
+      '${storeCatalog(storeType)}/search';
+
+  static String storeCategoryProducts(String storeType, String categoryId) =>
+      '${storeCatalog(storeType)}/category/${Uri.encodeComponent(categoryId)}';
+
   static String storeFavorites(String storeType) =>
       '${storeRoot(storeType)}/favorites';
   static String storeCart(String storeType) => '${storeRoot(storeType)}/cart';
@@ -107,3 +118,14 @@ abstract final class Routes {
         : Uri(path: path, queryParameters: query).toString();
   }
 }
+
+/// Bosh sahifa pastki navbar tablari. Tartib `StatefulShellRoute`
+/// branch'lari tartibi bilan bir xil (index = branch).
+enum HomeTab { home, videos, stores, orders }
+
+String homeTabLocation(HomeTab tab) => switch (tab) {
+  HomeTab.home => Routes.home,
+  HomeTab.videos => Routes.videos,
+  HomeTab.stores => Routes.stores,
+  HomeTab.orders => Routes.allOrders,
+};

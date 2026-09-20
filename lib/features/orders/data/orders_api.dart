@@ -18,8 +18,10 @@ class OrdersApi {
   final JsonDiskCache? cache;
   final String Function()? cacheKeySuffix;
 
+  /// [storeType] `null` — BARCHA do'konlar (server `store_type`ni ixtiyoriy
+  /// qabul qiladi va har qatorda `store_type` qaytaradi).
   Future<OffsetPage<OrderData>> fetch({
-    required String storeType,
+    String? storeType,
     String? period,
     String? nextUrl,
   }) async {
@@ -27,14 +29,14 @@ class OrdersApi {
         ? await _client.get(
             Api.orders,
             query: {
-              'store_type': storeType,
+              'store_type': ?storeType,
               'page_size': 20,
               if (period != null && period.isNotEmpty) 'period': period,
             },
           )
         : await _client.getUrl(nextUrl);
     if (nextUrl == null && data is Map<String, dynamic>) {
-      _cacheOrders(storeType, period, data);
+      _cacheOrders(storeType ?? 'all', period, data);
     }
     return PageDecoder.offset(data, OrderData.fromJson);
   }
@@ -56,14 +58,14 @@ class OrdersApi {
 
   /// Oflaynda ko'rsatiladigan oxirgi ro'yxat.
   Future<OffsetPage<OrderData>?> cachedOrders({
-    required String storeType,
+    String? storeType,
     String? period,
   }) async {
     try {
       final suffix = cacheKeySuffix?.call();
       if (cache == null || suffix == null) return null;
       final raw = await cache!.read(
-        ordersCacheKey(storeType, period ?? 'all', suffix),
+        ordersCacheKey(storeType ?? 'all', period ?? 'all', suffix),
       );
       if (raw == null) return null;
       return PageDecoder.offset(raw, OrderData.fromJson);

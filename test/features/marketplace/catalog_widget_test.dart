@@ -9,6 +9,7 @@ import 'package:beshkashtan_customer/features/catalog/data/catalog_api.dart';
 import 'package:beshkashtan_customer/features/catalog/data/product_models.dart';
 import 'package:beshkashtan_customer/features/catalog/domain/catalog_controller.dart';
 import 'package:beshkashtan_customer/features/catalog/presentation/catalog_screen.dart';
+import 'package:beshkashtan_customer/features/catalog/presentation/widgets/household_category_landing.dart';
 import 'package:beshkashtan_customer/features/catalog/presentation/widgets/product_card.dart';
 import 'package:beshkashtan_customer/features/favorites/data/favorite_models.dart';
 import 'package:beshkashtan_customer/features/favorites/data/favorites_api.dart';
@@ -125,6 +126,7 @@ void main() {
     StoreLandingData landing = _landing,
     CartData? cart,
     String? initialCategoryId,
+    bool? searchOnly,
   }) async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await PrefsStore.load();
@@ -187,6 +189,9 @@ void main() {
           home: CatalogScreen(
             storeType: storeType,
             initialCategoryId: initialCategoryId,
+            searchOnly:
+                searchOnly ??
+                (storeType == StoreType.household && initialCategoryId == null),
           ),
         ),
       ),
@@ -194,6 +199,67 @@ void main() {
     await tester.pumpAndSettle();
     return _CatalogHarness(catalogApi);
   }
+
+  test('household 19 categoryni 5 bo‘limga ajratib YesPOSni yashiradi', () {
+    const names = [
+      'Arra zapchastlari',
+      'Kiyim-kechak',
+      'Ko‘k yashil to‘r',
+      'Konstovar',
+      'Maishiy texnika',
+      'Mashina aksessuarlari',
+      'MP3 va elektronika',
+      'Oshxona anjomlari',
+      'O‘yinchoqlar',
+      'Oyoq kiyim',
+      'Parfyumeriya',
+      'Plastmassa',
+      'Qurilish mollari',
+      'Salafan va dasturxon',
+      'Telefon zapchastlari',
+      'Turli xil mahsulotlar',
+      'Ustachilik asboblari',
+      'Velosiped zapchastlari',
+      'YesPOS Imported',
+    ];
+    final sections = buildHouseholdCategorySections([
+      for (var index = 0; index < names.length; index++)
+        ProductCategory(
+          id: 'category-$index',
+          name: names[index],
+          canonicalName: names[index],
+          storeTypeWire: 'household',
+          productCount: 1,
+        ),
+    ]);
+
+    expect(sections, hasLength(5));
+    final items = sections.expand((section) => section.items).toList();
+    expect(items, hasLength(18));
+    expect(
+      items.any((item) => item.category.name == 'YesPOS Imported'),
+      isFalse,
+    );
+    expect(items.every((item) => item.assetPath != null), isTrue);
+    expect(items.first.category.name, 'Qurilish mollari');
+  });
+
+  test('household asset mapping o‘zbek kirill yozuvida ham ishlaydi', () {
+    final sections = buildHouseholdCategorySections(const [
+      ProductCategory(
+        id: 'construction',
+        name: 'Қурилиш моллари',
+        canonicalName: 'Қурилиш моллари',
+        storeTypeWire: 'household',
+        productCount: 1,
+      ),
+    ]);
+
+    expect(
+      sections.single.items.single.assetPath,
+      endsWith('construction.webp'),
+    );
+  });
 
   testWidgets('katalog aynan 2 ustun va ikki ProductCard chizadi', (
     tester,
@@ -223,126 +289,62 @@ void main() {
     );
   });
 
-  testWidgets('household category rail va filter sheetni chiqaradi', (
+  testWidgets('household root rasmli category landingni ko‘rsatadi', (
     tester,
   ) async {
-    await pumpCatalog(tester, ThemeMode.light);
+    final harness = await pumpCatalog(
+      tester,
+      ThemeMode.light,
+      searchOnly: false,
+    );
 
-    expect(find.text('1005 xil mahsulot'), findsOneWidget);
-    expect(find.byKey(const ValueKey('catalog-category-rail')), findsOneWidget);
-    expect(find.byType(ChoiceChip), findsNWidgets(3));
+    expect(find.text('Xozmak'), findsOneWidget);
     expect(find.text('Asboblar'), findsOneWidget);
-    expect(find.text('Bo‘sh kategoriya'), findsOneWidget);
-    expect(find.byIcon(Icons.arrow_back), findsOneWidget);
+    expect(find.text('Bo‘sh kategoriya'), findsNothing);
+    expect(find.byType(ProductCard), findsNothing);
     expect(
-      find.byKey(const ValueKey('household-category-filter')),
+      find.byKey(const ValueKey('household-search-button')),
       findsOneWidget,
     );
-
-    await tester.tap(find.byKey(const ValueKey('household-category-filter')));
-    await tester.pumpAndSettle();
-    expect(find.text('Kategoriyalar'), findsOneWidget);
-    expect(find.text('Barchasi'), findsNWidgets(2));
-    expect(find.text('Asboblar'), findsNWidgets(2));
-    expect(find.text('Bo‘sh kategoriya'), findsNWidgets(2));
+    expect(find.byKey(const ValueKey('catalog-search-field')), findsNothing);
+    verifyNever(() => harness.catalogApi.fetchProducts(storeType: 'household'));
   });
 
-  testWidgets('household rail category bosilganda mahsulotlarni filtrlaydi', (
+  testWidgets('category card bosilishi tanlangan kategoriyani qaytaradi', (
     tester,
   ) async {
-    final harness = await pumpCatalog(tester, ThemeMode.light);
-    when(
-      () => harness.catalogApi.fetchProducts(
-        storeType: 'household',
-        categoryId: 'category-1',
-        query: '',
-      ),
-    ).thenAnswer(
-      (_) async => CursorPage(
-        items: [_product('rail-result', name: 'Rail natija')],
-        nextUrl: null,
+    ProductCategory? selected;
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('uz'),
+        supportedLocales: const [Locale('uz')],
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+        ],
+        home: Scaffold(
+          body: CustomScrollView(
+            slivers: [
+              HouseholdCategoryLandingSliver(
+                categories: _landing.categories,
+                onCategoryTap: (value) => selected = value,
+              ),
+            ],
+          ),
+        ),
       ),
     );
-
-    await tester.tap(find.text('Asboblar'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Rail natija'), findsOneWidget);
-    final chip = tester.widget<ChoiceChip>(
-      find.widgetWithText(ChoiceChip, 'Asboblar'),
-    );
-    expect(chip.selected, isTrue);
-    verify(
-      () => harness.catalogApi.fetchProducts(
-        storeType: 'household',
-        categoryId: 'category-1',
-        query: '',
-      ),
-    ).called(1);
-  });
-
-  testWidgets('household category tanlaydi va filter active ko‘rinadi', (
-    tester,
-  ) async {
-    final harness = await pumpCatalog(tester, ThemeMode.light);
-    when(
-      () => harness.catalogApi.fetchProducts(
-        storeType: 'household',
-        categoryId: 'category-1',
-        query: '',
-      ),
-    ).thenAnswer(
-      (_) async => CursorPage(
-        items: [_product('category-result', name: 'Category natija')],
-        nextUrl: null,
-      ),
-    );
-    when(
-      () => harness.catalogApi.fetchProducts(
-        storeType: 'household',
-        categoryId: null,
-        query: '',
-      ),
-    ).thenAnswer(
-      (_) async => CursorPage(
-        items: [_product('all-result', name: 'Barcha natija')],
-        nextUrl: null,
-      ),
-    );
-
-    final filter = find.byKey(const ValueKey('household-category-filter'));
-    await tester.tap(filter);
-    await tester.pumpAndSettle();
     await tester.tap(
-      find.byKey(const ValueKey('household-category-category-1')),
+      find.byKey(const ValueKey('household-category-card-category-1')),
     );
-    await tester.pumpAndSettle();
-
-    expect(find.text('Category natija'), findsOneWidget);
-    final badge = tester.widget<Badge>(
-      find.descendant(of: filter, matching: find.byType(Badge)),
-    );
-    expect(badge.isLabelVisible, isTrue);
-    verify(
-      () => harness.catalogApi.fetchProducts(
-        storeType: 'household',
-        categoryId: 'category-1',
-        query: '',
-      ),
-    ).called(1);
-
-    await tester.tap(filter);
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('household-category-all')));
-    await tester.pumpAndSettle();
-    expect(find.text('Barcha natija'), findsOneWidget);
-    final clearedBadge = tester.widget<Badge>(
-      find.descendant(of: filter, matching: find.byType(Badge)),
-    );
-    expect(clearedBadge.isLabelVisible, isFalse);
+    expect(selected?.id, 'category-1');
   });
 
-  testWidgets('direct-link household category filterini active qiladi', (
+  testWidgets('direct-link household category mahsulotlarini ochadi', (
     tester,
   ) async {
     final harness = await pumpCatalog(
@@ -351,11 +353,9 @@ void main() {
       initialCategoryId: 'category-1',
     );
 
-    final filter = find.byKey(const ValueKey('household-category-filter'));
-    final badge = tester.widget<Badge>(
-      find.descendant(of: filter, matching: find.byType(Badge)),
-    );
-    expect(badge.isLabelVisible, isTrue);
+    expect(find.text('Asboblar'), findsOneWidget);
+    expect(find.byType(ProductCard), findsOneWidget);
+    expect(find.byKey(const ValueKey('catalog-search-field')), findsNothing);
     verify(
       () => harness.catalogApi.fetchProducts(
         storeType: 'household',
@@ -366,7 +366,7 @@ void main() {
   });
 
   testWidgets('qidiruv paneli pinned appbar ichida qoladi', (tester) async {
-    await pumpCatalog(tester, ThemeMode.light);
+    await pumpCatalog(tester, ThemeMode.light, searchOnly: true);
 
     final appBar = tester.widget<SliverAppBar>(find.byType(SliverAppBar));
     expect(appBar.pinned, isTrue);
@@ -441,113 +441,6 @@ void main() {
       ).called(1);
     },
   );
-
-  testWidgets('qidiruv boshlanganda household category bekor qilinadi', (
-    tester,
-  ) async {
-    final harness = await pumpCatalog(tester, ThemeMode.light);
-    when(
-      () => harness.catalogApi.fetchProducts(
-        storeType: 'household',
-        categoryId: 'category-1',
-        query: '',
-      ),
-    ).thenAnswer(
-      (_) async =>
-          CursorPage(items: [_product('category-result')], nextUrl: null),
-    );
-    when(
-      () => harness.catalogApi.fetchProducts(
-        storeType: 'household',
-        categoryId: null,
-        query: 'bolg‘a',
-      ),
-    ).thenAnswer(
-      (_) async => CursorPage(
-        items: [_product('search-result', name: 'Bolg‘a natija')],
-        nextUrl: null,
-      ),
-    );
-
-    final filter = find.byKey(const ValueKey('household-category-filter'));
-    await tester.tap(filter);
-    await tester.pumpAndSettle();
-    await tester.tap(
-      find.byKey(const ValueKey('household-category-category-1')),
-    );
-    await tester.pumpAndSettle();
-
-    await tester.enterText(
-      find.byKey(const ValueKey('catalog-search-field')),
-      'bolg‘a',
-    );
-    await tester.pump();
-    final badge = tester.widget<Badge>(
-      find.descendant(of: filter, matching: find.byType(Badge)),
-    );
-    expect(badge.isLabelVisible, isFalse);
-    await tester.pump(const Duration(milliseconds: 350));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Bolg‘a natija'), findsOneWidget);
-    verify(
-      () => harness.catalogApi.fetchProducts(
-        storeType: 'household',
-        categoryId: null,
-        query: 'bolg‘a',
-      ),
-    ).called(1);
-  });
-
-  testWidgets('qidiruv paytida category tanlansa matn tozalanadi', (
-    tester,
-  ) async {
-    final harness = await pumpCatalog(tester, ThemeMode.light);
-    when(
-      () => harness.catalogApi.fetchProducts(
-        storeType: 'household',
-        categoryId: null,
-        query: 'sovun',
-      ),
-    ).thenAnswer(
-      (_) async =>
-          CursorPage(items: [_product('search-result')], nextUrl: null),
-    );
-    when(
-      () => harness.catalogApi.fetchProducts(
-        storeType: 'household',
-        categoryId: 'category-1',
-        query: '',
-      ),
-    ).thenAnswer(
-      (_) async => CursorPage(
-        items: [_product('category-result', name: 'Category natija')],
-        nextUrl: null,
-      ),
-    );
-
-    final search = find.byKey(const ValueKey('catalog-search-field'));
-    await tester.enterText(search, 'sovun');
-    await tester.pump(const Duration(milliseconds: 350));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.byKey(const ValueKey('household-category-filter')));
-    await tester.pumpAndSettle();
-    await tester.tap(
-      find.byKey(const ValueKey('household-category-category-1')),
-    );
-    await tester.pumpAndSettle();
-
-    expect(tester.widget<TextField>(search).controller?.text, isEmpty);
-    expect(find.text('Category natija'), findsOneWidget);
-    verify(
-      () => harness.catalogApi.fetchProducts(
-        storeType: 'household',
-        categoryId: 'category-1',
-        query: '',
-      ),
-    ).called(1);
-  });
 
   testWidgets('lupa, Enter va clear darhol ishlaydi', (tester) async {
     final landing = _landingFor(

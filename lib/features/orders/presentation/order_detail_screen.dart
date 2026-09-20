@@ -121,7 +121,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
       await operation();
       ref.invalidate(orderDetailProvider(widget.orderId));
       ref.invalidate(orderTrackingControllerProvider(widget.orderId));
-      for (final query in orderQueriesForStore(widget.storeType)) {
+      for (final query in orderQueriesAffectedBy(widget.storeType)) {
         ref.invalidate(ordersControllerProvider(query));
       }
     } on ApiFailure catch (failure) {

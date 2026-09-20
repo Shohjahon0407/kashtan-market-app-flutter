@@ -100,7 +100,7 @@ class _CustomerNotificationBootstrapState
     ref.read(notificationUnreadCountProvider.notifier).refresh();
     final storeType = StoreType.fromWire(message.storeTypeWire ?? '');
     if (storeType != null) {
-      for (final query in orderQueriesForStore(storeType)) {
+      for (final query in orderQueriesAffectedBy(storeType)) {
         ref.invalidate(ordersControllerProvider(query));
       }
     }

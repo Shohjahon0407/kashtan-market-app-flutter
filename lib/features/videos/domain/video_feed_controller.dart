@@ -1,8 +1,10 @@
+import 'package:flutter/foundation.dart' show protected;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/localization/locale_controller.dart';
 import '../../../core/network/connectivity_controller.dart';
 import '../../../core/network/network_providers.dart';
+import '../../../core/network/paginated.dart';
 import '../data/video_api.dart';
 import '../data/video_models.dart';
 
@@ -66,14 +68,20 @@ class VideoFeedController extends AsyncNotifier<VideoFeedState> {
       if (state.hasError && !state.hasValue) await refresh();
     });
     ref.watch(apiLangProvider);
-    final page = await ref.watch(videoApiProvider).fetchFeed();
+    final page = await fetchFirstPage(ref.watch(videoApiProvider));
     return VideoFeedState(items: page.items, nextUrl: page.nextUrl);
   }
+
+  /// Birinchi sahifa so'rovi — vorislar tartibni o'zgartiradi (masalan
+  /// [ReelsFeedController] seed bilan). Keyingi sahifalar `next` URL orqali.
+  @protected
+  Future<CursorPage<StoreVideo>> fetchFirstPage(VideoApi api) =>
+      api.fetchFeed();
 
   Future<void> refresh() async {
     final previous = state.value;
     try {
-      final page = await ref.read(videoApiProvider).fetchFeed();
+      final page = await fetchFirstPage(ref.read(videoApiProvider));
       state = AsyncData(
         VideoFeedState(items: page.items, nextUrl: page.nextUrl),
       );

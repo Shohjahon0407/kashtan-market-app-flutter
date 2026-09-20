@@ -117,7 +117,7 @@ class CheckoutController extends Notifier<CheckoutSubmissionState> {
       if (!ref.mounted) return order;
       await ref.read(cartControllerProvider(storeType).notifier).refresh();
       if (!ref.mounted) return order;
-      for (final query in orderQueriesForStore(storeType)) {
+      for (final query in orderQueriesAffectedBy(storeType)) {
         ref.invalidate(ordersControllerProvider(query));
       }
       state = CheckoutSubmissionState(lastOrder: order);

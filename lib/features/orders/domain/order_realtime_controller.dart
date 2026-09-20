@@ -321,7 +321,7 @@ class OrderRealtimeController extends Notifier<OrderRealtimeState> {
   void _refreshLists() {
     if (_disposed) return;
     for (final storeType in StoreType.values) {
-      for (final query in orderQueriesForStore(storeType)) {
+      for (final query in orderQueriesAffectedBy(storeType)) {
         ref.invalidate(ordersControllerProvider(query));
       }
     }

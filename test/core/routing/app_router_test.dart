@@ -25,6 +25,8 @@ import 'package:beshkashtan_customer/features/home/presentation/home_screen.dart
 import 'package:beshkashtan_customer/features/home/presentation/profile_screen.dart';
 import 'package:beshkashtan_customer/features/notifications/data/notifications_api.dart';
 import 'package:beshkashtan_customer/features/notifications/domain/notifications_controller.dart';
+import 'package:beshkashtan_customer/features/orders/data/orders_api.dart';
+import 'package:beshkashtan_customer/features/orders/domain/orders_controller.dart';
 import 'package:beshkashtan_customer/features/videos/data/video_api.dart';
 import 'package:beshkashtan_customer/features/videos/data/video_models.dart';
 import 'package:beshkashtan_customer/features/videos/domain/video_feed_controller.dart';
@@ -45,6 +47,8 @@ class _MockCartApi extends Mock implements CartApi {}
 class _MockCheckoutApi extends Mock implements CheckoutApi {}
 
 class _MockNotificationsApi extends Mock implements NotificationsApi {}
+
+class _MockOrdersApi extends Mock implements OrdersApi {}
 
 const _user = AuthUser(
   id: 'u-1',
@@ -75,6 +79,18 @@ const _homeWithStore = HomeData(
 void main() {
   late _MockAuthApi api;
   late ProviderContainer container;
+  var containerDisposed = false;
+
+  /// Kirgan foydalanuvchida Home shell badge uchun `OrdersController`
+  /// (yarim tungi refresh Timer'i) tirik — testdan oldin daraxt bilan birga
+  /// container ham yopiladi, aks holda `!timersPending` xatosi.
+  Future<void> unmountApp(WidgetTester tester) async {
+    await tester.pumpWidget(const SizedBox.shrink());
+    if (!containerDisposed) {
+      containerDisposed = true;
+      container.dispose();
+    }
+  }
 
   Future<void> pumpApp(
     WidgetTester tester, {
@@ -90,7 +106,16 @@ void main() {
     final cartApi = _MockCartApi();
     final checkoutApi = _MockCheckoutApi();
     final notificationsApi = _MockNotificationsApi();
+    final ordersApi = _MockOrdersApi();
     when(() => homeApi.fetch()).thenAnswer((_) async => homeData);
+    when(
+      () => ordersApi.fetch(
+        storeType: any(named: 'storeType'),
+        period: any(named: 'period'),
+      ),
+    ).thenAnswer(
+      (_) async => const OffsetPage(items: [], nextUrl: null, count: 0),
+    );
     when(() => videoApi.fetchFeed()).thenAnswer(
       (_) async => const CursorPage<StoreVideo>(items: [], nextUrl: null),
     );
@@ -112,9 +137,16 @@ void main() {
         cartApiProvider.overrideWithValue(cartApi),
         checkoutApiProvider.overrideWithValue(checkoutApi),
         notificationsApiProvider.overrideWithValue(notificationsApi),
+        ordersApiProvider.overrideWithValue(ordersApi),
       ],
     );
-    addTearDown(container.dispose);
+    containerDisposed = false;
+    addTearDown(() {
+      if (!containerDisposed) {
+        containerDisposed = true;
+        container.dispose();
+      }
+    });
 
     await tester.pumpWidget(
       UncontrolledProviderScope(
@@ -245,6 +277,7 @@ void main() {
     verify(
       () => api.verifyOtp(normalizedPhone: '+998901234567', code: '482913'),
     ).called(1);
+    await unmountApp(tester);
   });
 
   testWidgets(
@@ -300,6 +333,7 @@ void main() {
 
       // Onboarding YO'Q — to'g'ri Home
       expect(find.byType(HomeScreen), findsOneWidget);
+      await unmountApp(tester);
     },
   );
 
@@ -313,6 +347,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(HomeScreen), findsOneWidget);
+    await unmountApp(tester);
   });
 
   testWidgets('logout → guest Home ekraniga qaytadi', (tester) async {

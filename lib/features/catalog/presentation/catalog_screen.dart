@@ -20,6 +20,7 @@ import '../../store/domain/store_landing_controller.dart';
 import '../../store/presentation/widgets/store_state_views.dart';
 import '../data/product_models.dart';
 import '../domain/catalog_controller.dart';
+import 'widgets/household_category_landing.dart';
 import 'widgets/product_card.dart';
 import 'widgets/product_image.dart';
 
@@ -27,11 +28,13 @@ class CatalogScreen extends ConsumerStatefulWidget {
   const CatalogScreen({
     required this.storeType,
     this.initialCategoryId,
+    this.searchOnly = false,
     super.key,
   });
 
   final StoreType storeType;
   final String? initialCategoryId;
+  final bool searchOnly;
 
   @override
   ConsumerState<CatalogScreen> createState() => _CatalogScreenState();
@@ -42,14 +45,17 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
   final _searchController = TextEditingController();
   final _debouncer = Debouncer(const Duration(milliseconds: 350));
   var _initialCategoryLoading = false;
-  String? _householdCategoryId;
+
+  bool get _isHouseholdLanding =>
+      widget.storeType == StoreType.household &&
+      !widget.searchOnly &&
+      (widget.initialCategoryId?.isEmpty ?? true);
 
   @override
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
     _initialCategoryLoading = widget.initialCategoryId?.isNotEmpty ?? false;
-    _householdCategoryId = widget.initialCategoryId;
     if (_initialCategoryLoading) {
       WidgetsBinding.instance.addPostFrameCallback(
         (_) => _applyInitialCategory(),
@@ -68,6 +74,7 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
   }
 
   void _onScroll() {
+    if (_isHouseholdLanding) return;
     if (_scrollController.position.extentAfter < 500) {
       ref.read(catalogControllerProvider(widget.storeType).notifier).loadMore();
     }
@@ -86,9 +93,7 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
   }
 
   void _onSearchChanged(String value) {
-    setState(() {
-      if (value.trim().isNotEmpty) _householdCategoryId = null;
-    });
+    setState(() {});
     _debouncer(() {
       _applySearch(value);
     });
@@ -111,26 +116,8 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
     // Controller.clear web/text-input implementatsiyasida onChanged'ni ham
     // uyg'otishi mumkin; u rejalashtirgan ikkinchi so'rovni bekor qilamiz.
     _debouncer.cancel();
-    setState(() => _householdCategoryId = null);
+    setState(() {});
     _applySearch('');
-  }
-
-  Future<void> _showHouseholdCategoryFilter(
-    List<ProductCategory> categories,
-  ) async {
-    if (categories.isEmpty) return;
-    final result = await showModalBottomSheet<_CategoryFilterResult>(
-      context: context,
-      showDragHandle: true,
-      isScrollControlled: true,
-      builder: (context) => _CategoryFilterSheet(
-        categories: categories,
-        selectedId: _householdCategoryId,
-      ),
-    );
-    if (!mounted || result == null) return;
-
-    await _selectCategory(result.categoryId);
   }
 
   Future<void> _selectCategory(String? categoryId) async {
@@ -139,9 +126,6 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
     // Controller.clear ayrim Web text-input implementatsiyalarida callback
     // rejalashtirishi mumkin; category so'rovini u bosib ketmasin.
     _debouncer.cancel();
-    if (widget.storeType == StoreType.household && mounted) {
-      setState(() => _householdCategoryId = categoryId);
-    }
     await ref
         .read(catalogControllerProvider(widget.storeType).notifier)
         .applyFilter(categoryId: categoryId);
@@ -150,28 +134,52 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
   void _goBack() {
     if (context.canPop()) {
       context.pop();
+    } else if (widget.storeType == StoreType.household &&
+        (widget.searchOnly || widget.initialCategoryId != null)) {
+      context.go(Routes.storeCatalog(widget.storeType.wire));
     } else {
       context.go(Routes.home);
     }
   }
 
+  void _openHouseholdSearch() {
+    context.push(Routes.storeCatalogSearch(widget.storeType.wire));
+  }
+
+  void _openHouseholdCategory(ProductCategory category) {
+    context.push(
+      Routes.storeCategoryProducts(widget.storeType.wire, category.id),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final landing = ref.watch(storeLandingProvider(widget.storeType));
+    final cart = ref
+        .watch(cartControllerProvider(widget.storeType))
+        .value
+        ?.cart;
+    final cartQuantity = cart?.totalQuantity ?? 0;
+
+    if (_isHouseholdLanding) {
+      return _buildHouseholdLanding(
+        context,
+        l10n: l10n,
+        landing: landing,
+        cartQuantity: cartQuantity,
+      );
+    }
+
     final watchedCatalog = ref.watch(
       catalogControllerProvider(widget.storeType),
     );
     final catalog = _initialCategoryLoading
         ? const AsyncValue<CatalogState>.loading()
         : watchedCatalog;
-    final landing = ref.watch(storeLandingProvider(widget.storeType));
     final isSearching = _searchController.text.trim().isNotEmpty;
-    final householdCategories = landing.value?.categories;
-    final cart = ref
-        .watch(cartControllerProvider(widget.storeType))
-        .value
-        ?.cart;
-    final cartQuantity = cart?.totalQuantity ?? 0;
+    final showSearchField =
+        widget.storeType != StoreType.household || widget.searchOnly;
 
     // Snackbar'lar SHU ekranning Scaffold'i bo'yicha joylashsin: floating
     // snackbar o'z Scaffold'ining bottomNavigationBar'idan YUQORIDA chiziladi.
@@ -198,8 +206,24 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
                   onPressed: _goBack,
                   icon: const Icon(Icons.arrow_back),
                 ),
-                title: Text(_storeTitle(l10n, widget.storeType, landing.value)),
+                title: Text(
+                  _catalogTitle(
+                    l10n,
+                    widget.storeType,
+                    landing.value,
+                    categoryId: widget.initialCategoryId,
+                    searchOnly: widget.searchOnly,
+                  ),
+                ),
                 actions: [
+                  if (widget.storeType == StoreType.household &&
+                      !widget.searchOnly)
+                    IconButton(
+                      key: const ValueKey('household-search-button'),
+                      tooltip: l10n.commonSearch,
+                      onPressed: _openHouseholdSearch,
+                      icon: const Icon(Icons.search),
+                    ),
                   IconButton(
                     key: const ValueKey('catalog-cart-button'),
                     tooltip: l10n.navCart,
@@ -212,84 +236,57 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
                     ),
                   ),
                 ],
-                bottom: PreferredSize(
-                  preferredSize: const Size.fromHeight(68),
-                  child: ColoredBox(
-                    color: Theme.of(context).scaffoldBackgroundColor,
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(
-                        AppSpacing.screenH,
-                        AppSpacing.xs,
-                        AppSpacing.screenH,
-                        AppSpacing.sm,
-                      ),
-                      child: TextField(
-                        key: const ValueKey('catalog-search-field'),
-                        controller: _searchController,
-                        onChanged: _onSearchChanged,
-                        onSubmitted: _submitSearch,
-                        textInputAction: TextInputAction.search,
-                        decoration: InputDecoration(
-                          hintText: l10n.catalogSearchHint,
-                          prefixIcon: IconButton(
-                            tooltip: l10n.commonSearch,
-                            onPressed: _submitSearch,
-                            icon: const Icon(Icons.search),
-                          ),
-                          suffixIcon: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              if (_searchController.text.isNotEmpty)
-                                IconButton(
-                                  onPressed: _clearSearch,
-                                  icon: const Icon(Icons.close),
+                bottom: showSearchField
+                    ? PreferredSize(
+                        preferredSize: const Size.fromHeight(68),
+                        child: ColoredBox(
+                          color: Theme.of(context).scaffoldBackgroundColor,
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(
+                              AppSpacing.screenH,
+                              AppSpacing.xs,
+                              AppSpacing.screenH,
+                              AppSpacing.sm,
+                            ),
+                            child: TextField(
+                              key: const ValueKey('catalog-search-field'),
+                              controller: _searchController,
+                              autofocus: widget.searchOnly,
+                              onChanged: _onSearchChanged,
+                              onSubmitted: _submitSearch,
+                              textInputAction: TextInputAction.search,
+                              decoration: InputDecoration(
+                                hintText: l10n.catalogSearchHint,
+                                prefixIcon: IconButton(
+                                  tooltip: l10n.commonSearch,
+                                  onPressed: _submitSearch,
+                                  icon: const Icon(Icons.search),
                                 ),
-                              if (widget.storeType == StoreType.household)
-                                IconButton(
-                                  key: const ValueKey(
-                                    'household-category-filter',
-                                  ),
-                                  tooltip: l10n.catalogCategoryFilter,
-                                  onPressed:
-                                      householdCategories == null ||
-                                          householdCategories.isEmpty
-                                      ? null
-                                      : () => _showHouseholdCategoryFilter(
-                                          householdCategories,
-                                        ),
-                                  icon: Badge(
-                                    isLabelVisible:
-                                        !isSearching &&
-                                        _householdCategoryId != null,
-                                    smallSize: 7,
-                                    child: Icon(
-                                      Icons.tune_rounded,
-                                      color:
-                                          !isSearching &&
-                                              _householdCategoryId != null
-                                          ? Theme.of(
-                                              context,
-                                            ).colorScheme.primary
-                                          : null,
-                                    ),
+                                suffixIcon: _searchController.text.isEmpty
+                                    ? null
+                                    : IconButton(
+                                        tooltip: l10n.commonClose,
+                                        onPressed: _clearSearch,
+                                        icon: const Icon(Icons.close),
+                                      ),
+                                suffixIconConstraints: const BoxConstraints(
+                                  minHeight: 48,
+                                ),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(
+                                    AppRadius.pill,
                                   ),
                                 ),
-                            ],
+                                isDense: true,
+                              ),
+                            ),
                           ),
-                          suffixIconConstraints: const BoxConstraints(
-                            minHeight: 48,
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(AppRadius.pill),
-                          ),
-                          isDense: true,
                         ),
-                      ),
-                    ),
-                  ),
-                ),
+                      )
+                    : null,
               ),
-              if (!isSearching) ..._landingSlivers(context, landing),
+              if (!isSearching && widget.storeType != StoreType.household)
+                ..._landingSlivers(context, landing),
               ..._catalogSlivers(context, catalog, isSearching: isSearching),
               SliverToBoxAdapter(
                 child: SizedBox(
@@ -307,6 +304,84 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
                 onTap: () =>
                     goToStoreTab(context, widget.storeType, StoreTab.cart),
               ),
+      ),
+    );
+  }
+
+  Widget _buildHouseholdLanding(
+    BuildContext context, {
+    required AppLocalizations l10n,
+    required AsyncValue<StoreLandingData> landing,
+    required int cartQuantity,
+  }) {
+    final title = landing.value?.header.label.trim();
+    return ScaffoldMessenger(
+      child: Scaffold(
+        body: RefreshIndicator(
+          onRefresh: () async {
+            ref.invalidate(storeLandingProvider(widget.storeType));
+            await ref.read(storeLandingProvider(widget.storeType).future);
+          },
+          child: CustomScrollView(
+            key: const PageStorageKey('catalog-household-categories'),
+            controller: _scrollController,
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              SliverAppBar(
+                pinned: true,
+                leading: IconButton(
+                  tooltip: MaterialLocalizations.of(context).backButtonTooltip,
+                  onPressed: _goBack,
+                  icon: const Icon(Icons.arrow_back),
+                ),
+                title: Text(
+                  title == null || title.isEmpty ? l10n.storeHousehold : title,
+                ),
+                actions: [
+                  IconButton(
+                    key: const ValueKey('household-search-button'),
+                    tooltip: l10n.commonSearch,
+                    onPressed: _openHouseholdSearch,
+                    icon: const Icon(Icons.search),
+                  ),
+                  IconButton(
+                    key: const ValueKey('catalog-cart-button'),
+                    tooltip: l10n.navCart,
+                    onPressed: () =>
+                        goToStoreTab(context, widget.storeType, StoreTab.cart),
+                    icon: Badge(
+                      isLabelVisible: cartQuantity > 0,
+                      label: Text(cartQuantity > 99 ? '99+' : '$cartQuantity'),
+                      child: const Icon(Icons.shopping_bag_outlined),
+                    ),
+                  ),
+                ],
+              ),
+              ...switch (landing) {
+                AsyncData(:final value) => [
+                  HouseholdCategoryLandingSliver(
+                    categories: value.categories,
+                    onCategoryTap: _openHouseholdCategory,
+                  ),
+                ],
+                AsyncError(:final error) => [
+                  SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: StoreErrorView(
+                      message: error is ApiFailure
+                          ? error.localize(l10n)
+                          : l10n.errorUnknown,
+                      onRetry: () => ref.invalidate(
+                        storeLandingProvider(widget.storeType),
+                      ),
+                    ),
+                  ),
+                ],
+                _ => const [HouseholdCategoryLandingSkeleton()],
+              },
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -483,113 +558,6 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
           .read(cartControllerProvider(widget.storeType).notifier)
           .addBundle(bundleId);
     }
-  }
-}
-
-class _CategoryFilterResult {
-  const _CategoryFilterResult(this.categoryId);
-
-  final String? categoryId;
-}
-
-class _CategoryFilterSheet extends StatelessWidget {
-  const _CategoryFilterSheet({
-    required this.categories,
-    required this.selectedId,
-  });
-
-  final List<ProductCategory> categories;
-  final String? selectedId;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final preferredHeight = 78.0 + ((categories.length + 1) * 52.0);
-    final maxHeight = MediaQuery.sizeOf(context).height * 0.68;
-    final height = preferredHeight.clamp(180.0, maxHeight).toDouble();
-    return SafeArea(
-      top: false,
-      child: SizedBox(
-        height: height,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.screenH,
-                0,
-                AppSpacing.screenH,
-                AppSpacing.sm,
-              ),
-              child: Text(
-                l10n.catalogCategoryFilter,
-                style: Theme.of(
-                  context,
-                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
-              ),
-            ),
-            const Divider(height: 1),
-            Expanded(
-              child: ListView(
-                children: [
-                  _CategoryFilterTile(
-                    key: const ValueKey('household-category-all'),
-                    label: l10n.commonAll,
-                    selected: selectedId == null,
-                    onTap: () => Navigator.pop(
-                      context,
-                      const _CategoryFilterResult(null),
-                    ),
-                  ),
-                  for (final category in categories)
-                    _CategoryFilterTile(
-                      key: ValueKey('household-category-${category.id}'),
-                      label: category.name,
-                      selected: selectedId == category.id,
-                      onTap: () => Navigator.pop(
-                        context,
-                        _CategoryFilterResult(category.id),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _CategoryFilterTile extends StatelessWidget {
-  const _CategoryFilterTile({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-    super.key,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return ListTile(
-      dense: true,
-      title: Text(
-        label,
-        style: TextStyle(
-          color: selected ? colors.primary : colors.onSurface,
-          fontWeight: selected ? FontWeight.w800 : FontWeight.w500,
-        ),
-      ),
-      trailing: selected
-          ? Icon(Icons.check_rounded, color: colors.primary)
-          : null,
-      onTap: onTap,
-    );
   }
 }
 
@@ -847,29 +815,20 @@ String _storeName(AppLocalizations l10n, StoreType storeType) =>
       StoreType.meat => l10n.storeMeat,
     };
 
-String _storeTitle(
+String _catalogTitle(
   AppLocalizations l10n,
   StoreType storeType,
-  StoreLandingData? landing,
-) {
+  StoreLandingData? landing, {
+  String? categoryId,
+  bool searchOnly = false,
+}) {
+  if (searchOnly) return l10n.commonSearch;
   if (storeType != StoreType.household) return _storeName(l10n, storeType);
-
-  final headerLabel = landing?.header.label.trim().toLowerCase() ?? '';
-  String? description;
-  if (headerLabel.isNotEmpty) {
-    for (final store in landing?.stores ?? const <StoreInfo>[]) {
-      if (store.name.trim().toLowerCase() == headerLabel &&
-          store.description.trim().isNotEmpty) {
-        description = store.description;
-        break;
-      }
+  if (categoryId != null) {
+    for (final category in landing?.categories ?? const <ProductCategory>[]) {
+      if (category.id == categoryId) return category.name;
     }
   }
-
-  final rawCount = RegExp(
-    r'\d[\d\s.,]*',
-  ).firstMatch(description ?? '')?.group(0);
-  final digits = rawCount?.replaceAll(RegExp(r'\D'), '');
-  final count = int.tryParse(digits ?? '') ?? 1005;
-  return l10n.catalogProductVarietyCount(count);
+  final label = landing?.header.label.trim();
+  return label == null || label.isEmpty ? l10n.storeHousehold : label;
 }

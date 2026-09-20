@@ -267,11 +267,11 @@ class _RecordingOrdersApi extends Fake implements OrdersApi {
   _RecordingOrdersApi({this.paginateToday = false});
 
   final bool paginateToday;
-  final List<({String storeType, String? period, String? nextUrl})> calls = [];
+  final List<({String? storeType, String? period, String? nextUrl})> calls = [];
 
   @override
   Future<OffsetPage<OrderData>> fetch({
-    required String storeType,
+    String? storeType,
     String? period,
     String? nextUrl,
   }) async {
@@ -305,7 +305,7 @@ class _RacingOrdersApi extends Fake implements OrdersApi {
 
   @override
   Future<OffsetPage<OrderData>> fetch({
-    required String storeType,
+    String? storeType,
     String? period,
     String? nextUrl,
   }) async {

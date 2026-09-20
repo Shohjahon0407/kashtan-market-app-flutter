@@ -8,6 +8,7 @@ import '../../features/auth/domain/auth_controller.dart';
 import '../../features/auth/domain/auth_state.dart';
 import '../../features/auth/presentation/screens/phone_screen.dart';
 import '../../features/cart/presentation/cart_screen.dart';
+import '../../features/catalog/domain/catalog_controller.dart';
 import '../../features/catalog/presentation/catalog_screen.dart';
 import '../../features/catalog/presentation/product_detail_screen.dart';
 import '../../features/checkout/presentation/address_form_screen.dart';
@@ -16,7 +17,9 @@ import '../../features/checkout/presentation/checkout_screen.dart';
 import '../../features/dev/presentation/api_playground_screen.dart';
 import '../../features/favorites/presentation/favorites_screen.dart';
 import '../../features/home/presentation/home_screen.dart';
+import '../../features/home/presentation/home_shell.dart';
 import '../../features/home/presentation/profile_screen.dart';
+import '../../features/home/presentation/stores_screen.dart';
 import '../../features/notifications/presentation/notifications_screen.dart';
 import '../../features/orders/presentation/order_detail_screen.dart';
 import '../../features/orders/presentation/orders_screen.dart';
@@ -26,6 +29,7 @@ import '../../features/store/presentation/store_shell.dart';
 import '../../features/store/presentation/unsupported_store_screen.dart';
 import '../../features/support/presentation/support_center_screen.dart';
 import '../../features/ugc/presentation/blocked_users_screen.dart';
+import '../../features/videos/presentation/reels_screen.dart';
 import '../store_scope/current_store_type_provider.dart';
 import '../store_scope/store_type.dart';
 import 'route_not_found_screen.dart';
@@ -110,10 +114,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: Routes.authOtp,
         pageBuilder: (context, state) => _authPromptPage(state),
       ),
-      GoRoute(
-        path: Routes.home,
-        builder: (context, state) => const HomeScreen(),
-      ),
+      _homeShellRoute(),
       GoRoute(
         path: Routes.search,
         builder: (context, state) => const SearchScreen(),
@@ -223,6 +224,48 @@ CustomTransitionPage<bool> _authPromptPage(GoRouterState state) =>
       },
     );
 
+/// Bosh sahifa qobig'i: Asosiy | Videolar | Do'konlar | Buyurtmalar.
+/// Branch tartibi [HomeTab] bilan bir xil. Do'kon shell'lari bu yerga
+/// KIRMAYDI — ular alohida sibling route (o'z navbar'i bilan).
+StatefulShellRoute _homeShellRoute() => StatefulShellRoute.indexedStack(
+  builder: (context, state, navigationShell) =>
+      HomeShell(navigationShell: navigationShell),
+  branches: [
+    StatefulShellBranch(
+      routes: [
+        GoRoute(
+          path: Routes.home,
+          builder: (context, state) => const HomeScreen(),
+        ),
+      ],
+    ),
+    StatefulShellBranch(
+      routes: [
+        GoRoute(
+          path: Routes.videos,
+          builder: (context, state) => const ReelsScreen(),
+        ),
+      ],
+    ),
+    StatefulShellBranch(
+      routes: [
+        GoRoute(
+          path: Routes.stores,
+          builder: (context, state) => const StoresScreen(),
+        ),
+      ],
+    ),
+    StatefulShellBranch(
+      routes: [
+        GoRoute(
+          path: Routes.allOrders,
+          builder: (context, state) => const OrdersScreen(),
+        ),
+      ],
+    ),
+  ],
+);
+
 StatefulShellRoute _storeShellRoute(
   StoreType storeType,
 ) => StatefulShellRoute.indexedStack(
@@ -236,14 +279,53 @@ StatefulShellRoute _storeShellRoute(
       routes: [
         GoRoute(
           path: Routes.storeCatalog(storeType.wire),
-          builder: (context, state) => CatalogScreen(
-            key: ValueKey(
-              'catalog-${storeType.wire}-${state.uri.queryParameters['category'] ?? ''}',
+          builder: (context, state) => ProviderScope(
+            overrides: [
+              catalogControllerProvider(
+                storeType,
+              ).overrideWith(() => CatalogController(storeType)),
+            ],
+            child: CatalogScreen(
+              key: ValueKey(
+                'catalog-${storeType.wire}-${state.uri.queryParameters['category'] ?? ''}',
+              ),
+              storeType: storeType,
+              initialCategoryId: state.uri.queryParameters['category'],
             ),
-            storeType: storeType,
-            initialCategoryId: state.uri.queryParameters['category'],
           ),
           routes: [
+            GoRoute(
+              path: 'search',
+              builder: (context, state) => ProviderScope(
+                overrides: [
+                  catalogControllerProvider(
+                    storeType,
+                  ).overrideWith(() => CatalogController(storeType)),
+                ],
+                child: CatalogScreen(
+                  key: ValueKey('catalog-${storeType.wire}-search'),
+                  storeType: storeType,
+                  searchOnly: true,
+                ),
+              ),
+            ),
+            GoRoute(
+              path: 'category/:categoryId',
+              builder: (context, state) => ProviderScope(
+                overrides: [
+                  catalogControllerProvider(
+                    storeType,
+                  ).overrideWith(() => CatalogController(storeType)),
+                ],
+                child: CatalogScreen(
+                  key: ValueKey(
+                    'catalog-${storeType.wire}-category-${state.pathParameters['categoryId'] ?? ''}',
+                  ),
+                  storeType: storeType,
+                  initialCategoryId: state.pathParameters['categoryId'],
+                ),
+              ),
+            ),
             GoRoute(
               path: 'product/:productId',
               builder: (context, state) => ProductDetailScreen(
@@ -313,6 +395,7 @@ StatefulShellRoute _storeShellRoute(
 bool _requiresAuthentication(String path) {
   if (path == Routes.profile ||
       path.startsWith('${Routes.profile}/') ||
+      path == Routes.allOrders ||
       path == Routes.notifications ||
       path == Routes.addresses ||
       path.startsWith('${Routes.addresses}/') ||

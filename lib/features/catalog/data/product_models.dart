@@ -8,6 +8,7 @@ class ProductCategory {
     required this.name,
     required this.storeTypeWire,
     this.parentId,
+    this.canonicalName,
     this.imageUrl,
     this.iconUrl,
     this.productCount = 0,
@@ -20,6 +21,10 @@ class ProductCategory {
         name: JsonRead.string(json['name']),
         storeTypeWire: JsonRead.string(json['store_type']),
         parentId: JsonRead.nullableString(json['parent']),
+        // UI uchun `name` locale bo'yicha almashadi. Lokal category asset va
+        // tartib esa tarjimaga bog'lanmasligi uchun canonical o'zbek nomini
+        // alohida saqlaymiz.
+        canonicalName: JsonRead.nullableString(json['name_uz']),
         imageUrl: AppConfig.resolveMediaUrl(
           JsonRead.nullableString(json['image_url'] ?? json['image']),
         ),
@@ -34,6 +39,7 @@ class ProductCategory {
   final String name;
   final String storeTypeWire;
   final String? parentId;
+  final String? canonicalName;
   final String? imageUrl;
   final String? iconUrl;
   final int productCount;

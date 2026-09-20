@@ -813,6 +813,18 @@ abstract class AppLocalizations {
   /// **'Qo\'shish'**
   String get commonAdd;
 
+  /// No description provided for @navHome.
+  ///
+  /// In uz, this message translates to:
+  /// **'Asosiy'**
+  String get navHome;
+
+  /// No description provided for @navVideos.
+  ///
+  /// In uz, this message translates to:
+  /// **'Videolar'**
+  String get navVideos;
+
   /// No description provided for @navProducts.
   ///
   /// In uz, this message translates to:
@@ -872,6 +884,36 @@ abstract class AppLocalizations {
   /// In uz, this message translates to:
   /// **'Kategoriyalar'**
   String get catalogCategoryFilter;
+
+  /// No description provided for @householdSectionHomeTools.
+  ///
+  /// In uz, this message translates to:
+  /// **'Uy, qurilish va ustachilik'**
+  String get householdSectionHomeTools;
+
+  /// No description provided for @householdSectionTechTransport.
+  ///
+  /// In uz, this message translates to:
+  /// **'Texnika va transport'**
+  String get householdSectionTechTransport;
+
+  /// No description provided for @householdSectionKitchenLiving.
+  ///
+  /// In uz, this message translates to:
+  /// **'Oshxona va ro‘zg‘or'**
+  String get householdSectionKitchenLiving;
+
+  /// No description provided for @householdSectionClothingCare.
+  ///
+  /// In uz, this message translates to:
+  /// **'Kiyim va shaxsiy parvarish'**
+  String get householdSectionClothingCare;
+
+  /// No description provided for @householdSectionKidsHobbyOther.
+  ///
+  /// In uz, this message translates to:
+  /// **'Bolalar, hobbi va boshqa'**
+  String get householdSectionKidsHobbyOther;
 
   /// No description provided for @catalogFeatured.
   ///

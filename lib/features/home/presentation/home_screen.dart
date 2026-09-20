@@ -5,13 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:shimmer/shimmer.dart';
 
 import '../../../core/localization/failure_l10n.dart';
 import '../../../core/network/api_failure.dart';
 import '../../../core/routing/auth_gate.dart';
 import '../../../core/routing/routes.dart';
-import '../../../core/store_scope/store_type.dart';
 import '../../../core/ui/theme/app_dimens.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../../auth/domain/auth_controller.dart';
@@ -24,9 +22,9 @@ import '../../videos/domain/video_feed_controller.dart';
 import '../../videos/presentation/widgets/video_feed_section.dart';
 import '../data/home_models.dart';
 import '../domain/home_controller.dart';
-import 'home_reels_snap.dart';
+import 'home_reels_physics.dart';
 import 'widgets/language_picker.dart';
-import 'widgets/store_grid.dart';
+import 'widgets/stores_section.dart';
 
 /// Ixcham marketplace bosh sahifasi:
 /// header -> do'konlar -> yo'q tovar murojaati -> video lenta.
@@ -42,9 +40,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   final _reelsStartKey = GlobalKey(debugLabel: 'home-reels-start');
   final _activeReelIndex = ValueNotifier<int>(-1);
   var _settledReelIndex = -1;
-  var _lastScrollDelta = 0.0;
-  var _snapping = false;
   double? _viewportExtent;
+
+  /// Reels hududi boshining scroll offset'i — KESH.
+  ///
+  /// Physics buni `createBallisticSimulation` ichida o'qiydi, u esa layout
+  /// PAYTIDA ham chaqiriladi (`applyContentDimensions` → `goBallistic`).
+  /// O'sha paytda `getOffsetToReveal` hali o'lchanmagan box'ga tegib
+  /// assertion beradi — shuning uchun o'lchash faqat kadr tugagach qilinadi.
+  double? _reelsStart;
 
   @override
   void dispose() {
@@ -75,12 +79,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         child: LayoutBuilder(
           builder: (context, constraints) {
             _handleViewportResize(constraints.maxHeight, reelCount);
+            // Har build'dan keyin (header/do'konlar balandligi o'zgargan
+            // bo'lishi mumkin) reels boshi qayta o'lchanadi.
+            WidgetsBinding.instance.addPostFrameCallback(
+              (_) => _measureReelsStart(),
+            );
             return NotificationListener<ScrollNotification>(
-              onNotification: (notification) => _handleScrollNotification(
-                notification,
-                reelCount: reelCount,
-                viewportExtent: constraints.maxHeight,
-              ),
+              onNotification: _handleScrollNotification,
               child: RefreshIndicator(
                 onRefresh: () async {
                   await Future.wait([
@@ -96,6 +101,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     constraints: const BoxConstraints(maxWidth: 560),
                     child: _HomeList(
                       controller: _scrollController,
+                      // Snap physics ichida: fling bitta sahifada tugaydi.
+                      // Getter'lar — Scrollable birinchi physics instansiyasini
+                      // saqlab qoladi, qiymatlar esa jonli bo'lishi shart.
+                      physics: HomeReelsScrollPhysics(
+                        reelsStart: () => _reelsStart,
+                        pageExtent: () => _viewportExtent ?? 0,
+                        reelCount: _reelCount,
+                        parent: const AlwaysScrollableScrollPhysics(),
+                      ),
                       home: home,
                       addresses: addresses,
                       reelPageExtent: constraints.maxHeight,
@@ -114,94 +128,40 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  bool _handleScrollNotification(
-    ScrollNotification notification, {
-    required int reelCount,
-    required double viewportExtent,
-  }) {
+  int _reelCount() =>
+      ref.read(videoFeedControllerProvider).value?.items.length ?? 0;
+
+  bool _handleScrollNotification(ScrollNotification notification) {
     if (notification.metrics.axis != Axis.vertical || notification.depth != 0) {
       return false;
     }
-    if (_snapping) return false;
-
-    if (notification case ScrollStartNotification()) {
-      _restoreSettledIndex(viewportExtent, reelCount);
-    } else if (notification case ScrollUpdateNotification(
-      :final scrollDelta?,
-    )) {
-      if (scrollDelta.abs() > .01) _lastScrollDelta = scrollDelta;
-    } else if (notification case OverscrollNotification(:final overscroll)) {
-      if (overscroll.abs() > .01) _lastScrollDelta = overscroll;
-    } else if (notification case ScrollEndNotification()) {
-      final delta = _lastScrollDelta;
-      _lastScrollDelta = 0;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        unawaited(
-          _snapAfterScroll(
-            reelCount: reelCount,
-            viewportExtent: viewportExtent,
-            scrollDelta: delta,
-          ),
-        );
-      });
+    // Physics fling'ni sahifa chegarasida tugatadi — ScrollEnd endi aynan
+    // o'sha joyda bir marta keladi; faol reel shundan hisoblanadi.
+    if (notification is ScrollEndNotification) {
+      // Gesture/animatsiya callback'i — layout tashqarisi, o'lchash xavfsiz.
+      _measureReelsStart();
+      _syncSettledReelFromPosition();
     }
     return false;
   }
 
-  Future<void> _snapAfterScroll({
-    required int reelCount,
-    required double viewportExtent,
-    required double scrollDelta,
-  }) async {
-    if (!mounted || !_scrollController.hasClients || _snapping) return;
-    final reelsStart = _reelsStartOffset();
-    if (reelsStart == null) return;
-    final position = _scrollController.position;
-    final decision = calculateHomeReelsSnap(
-      settledIndex: _settledReelIndex,
-      pixels: position.pixels,
-      viewportExtent: viewportExtent,
-      reelsStart: reelsStart,
-      reelCount: reelCount,
-      scrollDelta: scrollDelta,
-    );
-    if (decision == null) return;
-
-    final target = decision.offset.clamp(
-      position.minScrollExtent,
-      position.maxScrollExtent,
-    );
-    if ((position.pixels - target).abs() < 1) {
-      _setSettledReel(decision.settledIndex);
-      return;
-    }
-
-    _snapping = true;
-    try {
-      await _scrollController.animateTo(
-        target,
-        duration: const Duration(milliseconds: 280),
-        curve: Curves.easeOutCubic,
-      );
-      if (!mounted || !_scrollController.hasClients) return;
-      if ((_scrollController.position.pixels - target).abs() < 2) {
-        _setSettledReel(decision.settledIndex);
-      }
-    } finally {
-      _snapping = false;
-    }
+  void _measureReelsStart() {
+    if (!mounted) return;
+    _reelsStart = _reelsStartOffset();
   }
 
-  void _restoreSettledIndex(double viewportExtent, int reelCount) {
-    if (_settledReelIndex >= 0 || reelCount <= 0) return;
-    final reelsStart = _reelsStartOffset();
-    if (reelsStart == null || !_scrollController.hasClients) return;
-    final pixels = _scrollController.position.pixels;
-    if (pixels < reelsStart - 2) return;
-    _setSettledReel(
-      ((pixels - reelsStart) / viewportExtent).round().clamp(0, reelCount - 1),
-    );
+  void _syncSettledReelFromPosition() {
+    if (!mounted || !_scrollController.hasClients) return;
+    final reelsStart = _reelsStart;
+    final extent = _viewportExtent;
+    final reelCount = _reelCount();
+    if (reelsStart == null || extent == null || extent <= 0 || reelCount <= 0) {
+      _setSettledReel(-1);
+      return;
+    }
+    final page = ((_scrollController.position.pixels - reelsStart) / extent)
+        .round();
+    _setSettledReel(page < 0 ? -1 : page.clamp(0, reelCount - 1));
   }
 
   void _setSettledReel(int index) {
@@ -222,8 +182,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     if (previous == null || (previous - extent).abs() < 1) return;
     if (_settledReelIndex < 0 || reelCount <= 0) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_scrollController.hasClients || _snapping) return;
-      final reelsStart = _reelsStartOffset();
+      if (!mounted || !_scrollController.hasClients) return;
+      _measureReelsStart();
+      final reelsStart = _reelsStart;
       if (reelsStart == null) return;
       final target = (reelsStart + _settledReelIndex * extent).clamp(
         _scrollController.position.minScrollExtent,
@@ -237,6 +198,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 class _HomeList extends ConsumerWidget {
   const _HomeList({
     required this.controller,
+    required this.physics,
     required this.home,
     required this.addresses,
     required this.reelPageExtent,
@@ -246,6 +208,7 @@ class _HomeList extends ConsumerWidget {
   });
 
   final ScrollController controller;
+  final ScrollPhysics physics;
   final AsyncValue<HomeData> home;
   final AsyncValue<List<UserAddress>> addresses;
   final double reelPageExtent;
@@ -259,7 +222,7 @@ class _HomeList extends ConsumerWidget {
     return CustomScrollView(
       key: const PageStorageKey('home-scroll'),
       controller: controller,
-      physics: const AlwaysScrollableScrollPhysics(),
+      physics: physics,
       slivers: [
         SliverToBoxAdapter(
           child: Padding(
@@ -279,7 +242,7 @@ class _HomeList extends ConsumerWidget {
                     horizontal: AppSpacing.screenH,
                   ),
                   child: switch (home) {
-                    AsyncData(:final value) => _StoresSection(
+                    AsyncData(:final value) => StoresSection(
                       items: value.storeHub,
                       onMissingProductTap: () => pushAuthenticated(
                         context,
@@ -287,25 +250,24 @@ class _HomeList extends ConsumerWidget {
                         Routes.requestsFor(kind: 'missing_product'),
                       ),
                     ),
-                    AsyncError(:final error) => _HomeError(
+                    AsyncError(:final error) => HomeErrorView(
                       message: error is ApiFailure
                           ? error.localize(l10n)
                           : l10n.errorUnknown,
                       onRetry: onRetry,
                     ),
-                    _ => const _StoresSkeleton(),
+                    _ => const StoresSkeleton(),
                   },
                 ),
               ],
             ),
           ),
         ),
-        SliverToBoxAdapter(
-          child: VideoFeedSection(
-            pageExtent: reelPageExtent,
-            reelsStartKey: reelsStartKey,
-            activeIndexListenable: activeReelIndex,
-          ),
+        // Sliver: reel sahifalari lazy quriladi (ilgari hammasi Column'da).
+        VideoFeedSection(
+          pageExtent: reelPageExtent,
+          reelsStartKey: reelsStartKey,
+          activeIndexListenable: activeReelIndex,
         ),
         const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.xxxl)),
       ],
@@ -430,201 +392,6 @@ class _HomeHeader extends ConsumerWidget {
   }
 }
 
-class _StoresSection extends StatelessWidget {
-  const _StoresSection({
-    required this.items,
-    required this.onMissingProductTap,
-  });
-
-  final List<StoreHubItem> items;
-  final VoidCallback onMissingProductTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
-    final orderedItems = [...items]..sort(_compareHomeStores);
-    final totalCardCount = orderedItems.length + 1;
-    final count = totalCardCount.toString().padLeft(2, '0');
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                l10n.homeStoresTitle.toUpperCase(),
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1,
-                ),
-              ),
-            ),
-            Text(
-              '$count / $count',
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-                fontSize: 9,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        StoreGrid(
-          items: orderedItems,
-          trailingCard: _MissingProductGridCard(
-            number: totalCardCount,
-            onTap: onMissingProductTap,
-          ),
-          onTap: (item) =>
-              context.push(Routes.storeCatalog(item.storeTypeWire)),
-        ),
-      ],
-    );
-  }
-
-  static int _compareHomeStores(StoreHubItem left, StoreHubItem right) {
-    final priority = _homeStorePriority(
-      left.storeType,
-    ).compareTo(_homeStorePriority(right.storeType));
-    if (priority != 0) return priority;
-    return left.sortOrder.compareTo(right.sortOrder);
-  }
-
-  static int _homeStorePriority(StoreType? storeType) => switch (storeType) {
-    StoreType.household => 0,
-    StoreType.grocery => 1,
-    StoreType.shashlik => 2,
-    StoreType.restaurant => 3,
-    StoreType.meat => 4,
-    null => 5,
-  };
-}
-
-class _MissingProductGridCard extends StatelessWidget {
-  const _MissingProductGridCard({required this.number, required this.onTap});
-
-  final int number;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
-    return Material(
-      key: const ValueKey('home-missing-product-card'),
-      color: colors.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppRadius.xs),
-        side: BorderSide(color: colors.outlineVariant),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(
-              flex: 6,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  Image.asset(
-                    'assets/stores/missing_product.webp',
-                    key: const ValueKey('home-missing-product-image'),
-                    fit: BoxFit.cover,
-                    alignment: Alignment.center,
-                    errorBuilder: (_, _, _) => ColoredBox(
-                      color: colors.primaryContainer,
-                      child: Icon(
-                        Icons.add_shopping_cart_rounded,
-                        color: colors.primary,
-                        size: 34,
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    left: 0,
-                    top: 0,
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(color: colors.primary),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 7,
-                          vertical: 4,
-                        ),
-                        child: Text(
-                          number.toString().padLeft(2, '0'),
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: colors.onPrimary,
-                            fontSize: 9,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 0.7,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              flex: 4,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(8, 7, 7, 6),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            l10n.supportMissingProductTitle.toUpperCase(),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.labelSmall?.copyWith(
-                              fontSize: 10.5,
-                              height: 1.08,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            l10n.supportMissingProductSubtitle,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.labelSmall?.copyWith(
-                              color: colors.onSurfaceVariant,
-                              fontSize: 9,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    Icon(
-                      Icons.arrow_forward_rounded,
-                      size: 16,
-                      color: colors.primary,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _HeaderIconButton extends StatelessWidget {
   const _HeaderIconButton({
     required this.tooltip,
@@ -674,89 +441,4 @@ class _HeaderIconButton extends StatelessWidget {
       child: SizedBox(width: 48, height: 48, child: Center(child: visual)),
     );
   }
-}
-
-class _HomeError extends StatelessWidget {
-  const _HomeError({required this.message, required this.onRetry});
-
-  final String message;
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final colors = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.xl),
-      decoration: BoxDecoration(
-        border: Border.all(color: colors.outlineVariant),
-        borderRadius: BorderRadius.circular(AppRadius.xs),
-      ),
-      child: Column(
-        children: [
-          Icon(Icons.cloud_off_outlined, color: colors.outline),
-          const SizedBox(height: AppSpacing.sm),
-          Text(message, textAlign: TextAlign.center),
-          TextButton(onPressed: onRetry, child: Text(l10n.commonRetry)),
-        ],
-      ),
-    );
-  }
-}
-
-class _StoresSkeleton extends StatelessWidget {
-  const _StoresSkeleton();
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    final base = colors.surfaceContainerHighest;
-    return Shimmer.fromColors(
-      baseColor: base,
-      highlightColor: colors.surface,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              _box(base, height: 12, width: 84),
-              const Spacer(),
-              _box(base, height: 10, width: 42),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          for (var row = 0; row < 3; row++) ...[
-            Row(
-              children: [
-                Expanded(child: _card(base)),
-                const SizedBox(width: AppSpacing.lg),
-                Expanded(child: _card(base)),
-              ],
-            ),
-            if (row < 2) const SizedBox(height: AppSpacing.lg),
-          ],
-        ],
-      ),
-    );
-  }
-
-  static Widget _box(Color color, {required double height, double? width}) =>
-      Container(
-        height: height,
-        width: width,
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(AppRadius.xs),
-        ),
-      );
-
-  static Widget _card(Color color) => AspectRatio(
-    aspectRatio: 0.90,
-    child: Container(
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(AppRadius.xs),
-      ),
-    ),
-  );
 }

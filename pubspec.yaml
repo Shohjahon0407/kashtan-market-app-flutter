@@ -112,6 +112,8 @@ flutter:
     # Do'kon kartochkalari uchun rasmlar (store_type nomi bilan).
     # Backend `image` maydonini to'ldirsa, u shulardan ustun bo'ladi.
     - assets/stores/
+    # Xozmak category landing uchun lokal, oflaynda ham ishlaydigan fallbacklar.
+    - assets/categories/household/
 
   fonts:
     # Inter Variable — lotin + kirill qamrovi bitta faylda, barcha og'irliklar.

@@ -399,6 +399,12 @@ class AppLocalizationsUz extends AppLocalizations {
   String get commonAdd => 'Qo\'shish';
 
   @override
+  String get navHome => 'Asosiy';
+
+  @override
+  String get navVideos => 'Videolar';
+
+  @override
   String get navProducts => 'Mahsulotlar';
 
   @override
@@ -429,6 +435,21 @@ class AppLocalizationsUz extends AppLocalizations {
 
   @override
   String get catalogCategoryFilter => 'Kategoriyalar';
+
+  @override
+  String get householdSectionHomeTools => 'Uy, qurilish va ustachilik';
+
+  @override
+  String get householdSectionTechTransport => 'Texnika va transport';
+
+  @override
+  String get householdSectionKitchenLiving => 'Oshxona va ro‘zg‘or';
+
+  @override
+  String get householdSectionClothingCare => 'Kiyim va shaxsiy parvarish';
+
+  @override
+  String get householdSectionKidsHobbyOther => 'Bolalar, hobbi va boshqa';
 
   @override
   String get catalogFeatured => 'Tavsiya etamiz';
@@ -1548,6 +1569,12 @@ class AppLocalizationsUzCyrl extends AppLocalizationsUz {
   String get commonAdd => 'Қўшиш';
 
   @override
+  String get navHome => 'Асосий';
+
+  @override
+  String get navVideos => 'Видеолар';
+
+  @override
   String get navProducts => 'Маҳсулотлар';
 
   @override
@@ -1578,6 +1605,21 @@ class AppLocalizationsUzCyrl extends AppLocalizationsUz {
 
   @override
   String get catalogCategoryFilter => 'Категориялар';
+
+  @override
+  String get householdSectionHomeTools => 'Уй, қурилиш ва устачилик';
+
+  @override
+  String get householdSectionTechTransport => 'Техника ва транспорт';
+
+  @override
+  String get householdSectionKitchenLiving => 'Ошхона ва рўзғор';
+
+  @override
+  String get householdSectionClothingCare => 'Кийим ва шахсий парвариш';
+
+  @override
+  String get householdSectionKidsHobbyOther => 'Болалар, ҳобби ва бошқа';
 
   @override
   String get catalogFeatured => 'Тавсия этамиз';

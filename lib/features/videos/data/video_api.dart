@@ -10,9 +10,11 @@ class VideoApi {
 
   final ApiClient _client;
 
-  Future<CursorPage<StoreVideo>> fetchFeed({String? nextUrl}) async {
+  /// [seed] — sessiyaviy tasodifiy tartib (1..1000000). `next` URL seed'ni
+  /// o'z ichida olib yuradi, shuning uchun keyingi sahifalarda berilmaydi.
+  Future<CursorPage<StoreVideo>> fetchFeed({String? nextUrl, int? seed}) async {
     final data = nextUrl == null
-        ? await _client.get(Api.videos, query: {'page_size': 10})
+        ? await _client.get(Api.videos, query: {'page_size': 10, 'seed': ?seed})
         : await _client.getUrl(nextUrl);
     return PageDecoder.cursor(data, StoreVideo.fromJson);
   }

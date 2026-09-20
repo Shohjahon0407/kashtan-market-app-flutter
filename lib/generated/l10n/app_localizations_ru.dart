@@ -400,6 +400,12 @@ class AppLocalizationsRu extends AppLocalizations {
   String get commonAdd => 'Добавить';
 
   @override
+  String get navHome => 'Главная';
+
+  @override
+  String get navVideos => 'Видео';
+
+  @override
   String get navProducts => 'Товары';
 
   @override
@@ -430,6 +436,21 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get catalogCategoryFilter => 'Категории';
+
+  @override
+  String get householdSectionHomeTools => 'Дом, ремонт и инструменты';
+
+  @override
+  String get householdSectionTechTransport => 'Техника и транспорт';
+
+  @override
+  String get householdSectionKitchenLiving => 'Кухня и хозяйство';
+
+  @override
+  String get householdSectionClothingCare => 'Одежда и уход';
+
+  @override
+  String get householdSectionKidsHobbyOther => 'Дети, хобби и другое';
 
   @override
   String get catalogFeatured => 'Рекомендуем';

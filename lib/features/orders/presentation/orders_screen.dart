@@ -11,15 +11,19 @@ import '../../../core/ui/formatters/uzs.dart';
 import '../../../core/ui/theme/app_dimens.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../../catalog/presentation/widgets/product_image.dart';
+import '../../home/data/home_models.dart';
+import '../../home/domain/home_controller.dart';
 import '../../store/presentation/widgets/store_state_views.dart';
 import '../data/order_models.dart';
 import '../domain/orders_controller.dart';
 import 'widgets/order_status_badge.dart';
 
+/// [storeType] `null` — barcha do'konlardan buyurtmalar (Home'dagi
+/// Buyurtmalar tabi); har kartada do'kon nomi ko'rsatiladi.
 class OrdersScreen extends StatelessWidget {
-  const OrdersScreen({required this.storeType, super.key});
+  const OrdersScreen({this.storeType, super.key});
 
-  final StoreType storeType;
+  final StoreType? storeType;
 
   @override
   Widget build(BuildContext context) {
@@ -53,7 +57,7 @@ class OrdersScreen extends StatelessWidget {
 class _OrdersPeriodView extends ConsumerStatefulWidget {
   const _OrdersPeriodView({required this.storeType, required this.period});
 
-  final StoreType storeType;
+  final StoreType? storeType;
   final OrdersPeriod period;
 
   @override
@@ -95,6 +99,15 @@ class _OrdersPeriodViewState extends ConsumerState<_OrdersPeriodView>
     super.build(context);
     final l10n = AppLocalizations.of(context);
     final orders = ref.watch(ordersControllerProvider(_query));
+    // Barcha-do'kon ro'yxatida kartaga do'kon nomi (hub label) qo'shiladi.
+    final storeLabels = widget.storeType == null
+        ? {
+            for (final item
+                in ref.watch(homeControllerProvider).value?.storeHub ??
+                    const <StoreHubItem>[])
+              item.storeTypeWire: item.label,
+          }
+        : const <String, String>{};
     return RefreshIndicator(
       onRefresh: () =>
           ref.read(ordersControllerProvider(_query).notifier).refresh(),
@@ -109,7 +122,7 @@ class _OrdersPeriodViewState extends ConsumerState<_OrdersPeriodView>
         ),
         AsyncData(:final value) => ListView.separated(
           key: PageStorageKey(
-            'orders-${widget.storeType.wire}-${widget.period.wire}',
+            'orders-${widget.storeType?.wire ?? 'all'}-${widget.period.wire}',
           ),
           controller: _scroll,
           physics: const AlwaysScrollableScrollPhysics(),
@@ -138,8 +151,16 @@ class _OrdersPeriodViewState extends ConsumerState<_OrdersPeriodView>
             final order = value.items[index];
             return OrderSummaryCard(
               order: order,
+              storeLabel: widget.storeType == null
+                  ? (storeLabels[order.storeTypeWire] ??
+                        StoreType.fromWire(order.storeTypeWire)?.wire ??
+                        order.storeTypeWire)
+                  : null,
               onTap: () => context.push(
-                Routes.orderDetail(widget.storeType.wire, order.id),
+                Routes.orderDetail(
+                  widget.storeType?.wire ?? order.storeTypeWire,
+                  order.id,
+                ),
               ),
             );
           },
@@ -159,10 +180,18 @@ class _OrdersPeriodViewState extends ConsumerState<_OrdersPeriodView>
 
 @visibleForTesting
 class OrderSummaryCard extends StatelessWidget {
-  const OrderSummaryCard({required this.order, required this.onTap, super.key});
+  const OrderSummaryCard({
+    required this.order,
+    required this.onTap,
+    this.storeLabel,
+    super.key,
+  });
 
   final OrderData order;
   final VoidCallback onTap;
+
+  /// Barcha-do'kon ro'yxatida do'kon nomi; bitta do'kon ekranida `null`.
+  final String? storeLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -199,6 +228,20 @@ class OrderSummaryCard extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        if (storeLabel case final label?) ...[
+                          Text(
+                            label.toUpperCase(),
+                            key: ValueKey('order-store-label-${order.id}'),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: theme.colorScheme.primary,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: .8,
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.xs),
+                        ],
                         Text(
                           firstItem == null
                               ? l10n.orderItems
