@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 
-import '../../../core/routing/routes.dart';
+import '../../../core/routing/back_navigation.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import 'widgets/store_state_views.dart';
 
@@ -24,7 +23,7 @@ class UnsupportedStoreScreen extends StatelessWidget {
             storeTypeWire!,
         ].join('\n'),
         action: FilledButton(
-          onPressed: () => context.go(Routes.home),
+          onPressed: () => appBack(context),
           child: Text(l10n.unsupportedStoreBack),
         ),
       ),

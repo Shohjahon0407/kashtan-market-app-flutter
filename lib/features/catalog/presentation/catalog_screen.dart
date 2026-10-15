@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/localization/failure_l10n.dart';
 import '../../../core/network/api_failure.dart';
 import '../../../core/routing/auth_gate.dart';
+import '../../../core/routing/back_navigation.dart';
 import '../../../core/routing/routes.dart';
 import '../../../core/routing/store_navigation.dart';
 import '../../../core/store_scope/store_type.dart';
@@ -15,14 +16,22 @@ import '../../../core/ui/theme/contrast.dart';
 import '../../../core/utils/debouncer.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../../cart/domain/cart_controller.dart';
+import '../../recommendations/domain/interaction_tracker.dart';
+import '../../recommendations/presentation/similar_products_rail.dart';
 import '../../store/data/store_models.dart';
 import '../../store/domain/store_landing_controller.dart';
 import '../../store/presentation/widgets/store_state_views.dart';
 import '../data/product_models.dart';
 import '../domain/catalog_controller.dart';
+import 'widgets/catalog_loading_skeleton.dart';
 import 'widgets/household_category_landing.dart';
+import 'widgets/imageless_reveal.dart';
+import 'widgets/meat_product_card.dart';
+import 'widgets/photo_category_landing.dart';
 import 'widgets/product_card.dart';
 import 'widgets/product_image.dart';
+import 'widgets/restaurant_category_landing.dart';
+import 'widgets/shashlik_catalog.dart';
 
 class CatalogScreen extends ConsumerStatefulWidget {
   const CatalogScreen({
@@ -45,9 +54,118 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
   final _searchController = TextEditingController();
   final _debouncer = Debouncer(const Duration(milliseconds: 350));
   var _initialCategoryLoading = false;
+  var _shashlikSection = ShashlikSection.kebabs;
 
-  bool get _isHouseholdLanding =>
-      widget.storeType == StoreType.household &&
+  /// User ochib qaytgan mahsulotlar — grid'da shu mahsulot qatoridan keyin
+  /// "«X»ga o'xshashlar" qatori chiqadi (keyingi scrollda ko'proq shunga
+  /// o'xshash narsalar).
+  final List<ProductViewSignal> _inlineSimilar = [];
+  static const _maxInlineRails = 4;
+  static const _minItemsBetweenRails = 12;
+  static const _gridColumns = 2;
+
+  void _onProductViewed(ProductViewSignal? signal) {
+    if (signal == null || signal.storeType != widget.storeType) return;
+    if (_isPhotoCategoryLanding || _isMeatCatalog || _isShashlikCatalog) return;
+    final state = ref.read(catalogControllerProvider(widget.storeType)).value;
+    if (state == null || state.query.isNotEmpty) return;
+    final index = state.items.indexWhere((p) => p.id == signal.productId);
+    if (index < 0) return;
+    if (_inlineSimilar.any((s) => s.productId == signal.productId)) return;
+    final tooClose = _inlineSimilar.any((existing) {
+      final other = state.items.indexWhere((p) => p.id == existing.productId);
+      return other >= 0 && (other - index).abs() < _minItemsBetweenRails;
+    });
+    if (tooClose) return;
+    setState(() {
+      _inlineSimilar.add(signal);
+      while (_inlineSimilar.length > _maxInlineRails) {
+        _inlineSimilar.removeAt(0);
+      }
+    });
+  }
+
+  /// Grid'ni o'xshashlar qatorlari bilan bo'laklarga ajratadi.
+  List<Widget> _gridWithInlineRails(List<ProductSummary> items) {
+    final breaks = <int, ProductViewSignal>{};
+    for (final signal in _inlineSimilar) {
+      final index = items.indexWhere((p) => p.id == signal.productId);
+      if (index < 0) continue;
+      // Shu mahsulot turgan qatorning oxiridan keyin.
+      final rowEnd = ((index ~/ _gridColumns) + 1) * _gridColumns;
+      if (rowEnd >= items.length) continue;
+      breaks[rowEnd] = signal;
+    }
+    final cuts = breaks.keys.toList()..sort();
+    final slivers = <Widget>[];
+    var start = 0;
+    for (final cut in [...cuts, items.length]) {
+      if (cut > start) {
+        slivers.add(_gridChunk(items, start, cut));
+      }
+      final signal = breaks[cut];
+      if (signal != null) {
+        slivers.add(
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenH),
+            sliver: SliverToBoxAdapter(
+              child: SimilarProductsRail(
+                productId: signal.productId,
+                productName: signal.name,
+                storeType: widget.storeType,
+                imagesOnly: true,
+              ),
+            ),
+          ),
+        );
+      }
+      start = cut;
+    }
+    return slivers;
+  }
+
+  Widget _gridChunk(List<ProductSummary> items, int start, int end) =>
+      SliverPadding(
+        padding: EdgeInsets.fromLTRB(
+          AppSpacing.screenH,
+          start == 0 ? AppSpacing.md : AppSpacing.sm,
+          AppSpacing.screenH,
+          0,
+        ),
+        sliver: SliverGrid(
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: _gridColumns,
+            crossAxisSpacing: AppSpacing.sm,
+            mainAxisSpacing: AppSpacing.sm,
+            childAspectRatio: 0.70,
+          ),
+          delegate: SliverChildBuilderDelegate(
+            (context, index) => ProductCard(
+              product: items[start + index],
+              storeType: widget.storeType,
+              catalogStyle: true,
+            ),
+            childCount: end - start,
+          ),
+        ),
+      );
+
+  bool get _supportsPhotoCategoryLanding =>
+      widget.storeType == StoreType.household ||
+      widget.storeType == StoreType.restaurant;
+
+  bool get _isPhotoCategoryLanding =>
+      _supportsPhotoCategoryLanding &&
+      !widget.searchOnly &&
+      (widget.initialCategoryId?.isEmpty ?? true);
+
+  bool get _isMeatCatalog =>
+      widget.storeType == StoreType.meat &&
+      !widget.searchOnly &&
+      (widget.initialCategoryId?.isEmpty ?? true);
+
+  bool get _isShashlikCatalog =>
+      widget.storeType == StoreType.shashlik &&
       !widget.searchOnly &&
       (widget.initialCategoryId?.isEmpty ?? true);
 
@@ -74,16 +192,53 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
   }
 
   void _onScroll() {
-    if (_isHouseholdLanding) return;
+    if (!mounted ||
+        !_scrollController.hasClients ||
+        _isPhotoCategoryLanding ||
+        _isShashlikCatalog ||
+        _isMeatCatalog) {
+      return;
+    }
     if (_scrollController.position.extentAfter < 500) {
+      final value = ref.read(catalogControllerProvider(widget.storeType)).value;
+      if (value?.loadMoreFailure != null) return;
       ref.read(catalogControllerProvider(widget.storeType).notifier).loadMore();
     }
   }
+
+  void _revealImageless() {
+    ref
+        .read(catalogControllerProvider(widget.storeType).notifier)
+        .revealImageless();
+  }
+
+  Widget _revealBoundary(CatalogState? value, Widget child, {bool? enabled}) =>
+      ImagelessRevealBoundary(
+        controller: _scrollController,
+        enabled: enabled ?? (value?.canRevealImageless ?? false),
+        onReveal: _revealImageless,
+        child: child,
+      );
+
+  Widget? _shashlikRevealPrompt(CatalogState value) =>
+      !value.imagelessRevealed &&
+          ShashlikCatalogGroups.fromProducts(
+            value.items,
+          ).hasImageless(_shashlikSection)
+      ? ImagelessRevealPrompt(onReveal: _revealImageless)
+      : null;
 
   Future<void> _applyInitialCategory() async {
     try {
       await ref.read(catalogControllerProvider(widget.storeType).future);
       if (!mounted) return;
+      if (ref
+              .read(catalogControllerProvider(widget.storeType))
+              .value
+              ?.categoryId ==
+          widget.initialCategoryId) {
+        return;
+      }
       await ref
           .read(catalogControllerProvider(widget.storeType).notifier)
           .applyFilter(categoryId: widget.initialCategoryId);
@@ -131,22 +286,13 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
         .applyFilter(categoryId: categoryId);
   }
 
-  void _goBack() {
-    if (context.canPop()) {
-      context.pop();
-    } else if (widget.storeType == StoreType.household &&
-        (widget.searchOnly || widget.initialCategoryId != null)) {
-      context.go(Routes.storeCatalog(widget.storeType.wire));
-    } else {
-      context.go(Routes.home);
-    }
-  }
+  void _goBack() => appBack(context);
 
-  void _openHouseholdSearch() {
+  void _openCategorySearch() {
     context.push(Routes.storeCatalogSearch(widget.storeType.wire));
   }
 
-  void _openHouseholdCategory(ProductCategory category) {
+  void _openPhotoCategory(ProductCategory category) {
     context.push(
       Routes.storeCategoryProducts(widget.storeType.wire, category.id),
     );
@@ -154,6 +300,10 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<ProductViewSignal?>(
+      lastProductViewProvider,
+      (_, next) => _onProductViewed(next),
+    );
     final l10n = AppLocalizations.of(context);
     final landing = ref.watch(storeLandingProvider(widget.storeType));
     final cart = ref
@@ -162,8 +312,8 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
         ?.cart;
     final cartQuantity = cart?.totalQuantity ?? 0;
 
-    if (_isHouseholdLanding) {
-      return _buildHouseholdLanding(
+    if (_isPhotoCategoryLanding) {
+      return _buildPhotoCategoryLanding(
         context,
         l10n: l10n,
         landing: landing,
@@ -174,12 +324,35 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
     final watchedCatalog = ref.watch(
       catalogControllerProvider(widget.storeType),
     );
-    final catalog = _initialCategoryLoading
+    final initialCategory = widget.initialCategoryId;
+    final hasMatchingInitialCategory =
+        initialCategory != null &&
+        watchedCatalog.value?.categoryId == initialCategory;
+    final catalog = _initialCategoryLoading && !hasMatchingInitialCategory
         ? const AsyncValue<CatalogState>.loading()
         : watchedCatalog;
+    if (_isMeatCatalog) {
+      return _buildMeatCatalog(
+        context,
+        l10n: l10n,
+        catalog: catalog,
+        cartQuantity: cartQuantity,
+        cartSubtotal: cart?.subtotal ?? '0',
+      );
+    }
+    if (_isShashlikCatalog) {
+      return _buildShashlikCatalog(
+        context,
+        l10n: l10n,
+        catalog: catalog,
+        cartQuantity: cartQuantity,
+      );
+    }
     final isSearching = _searchController.text.trim().isNotEmpty;
-    final showSearchField =
-        widget.storeType != StoreType.household || widget.searchOnly;
+    final showSearchField = !_supportsPhotoCategoryLanding || widget.searchOnly;
+    if (catalog.value?.canAutoLoadMore ?? false) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _onScroll());
+    }
 
     // Snackbar'lar SHU ekranning Scaffold'i bo'yicha joylashsin: floating
     // snackbar o'z Scaffold'ining bottomNavigationBar'idan YUQORIDA chiziladi.
@@ -187,113 +360,122 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
     // "SAVAT" panelini to'sib qo'yardi.
     return ScaffoldMessenger(
       child: Scaffold(
-        body: RefreshIndicator(
-          onRefresh: () async {
-            ref.invalidate(storeLandingProvider(widget.storeType));
-            await ref
-                .read(catalogControllerProvider(widget.storeType).notifier)
-                .refresh();
-          },
-          child: CustomScrollView(
-            key: PageStorageKey('catalog-${widget.storeType.wire}'),
-            controller: _scrollController,
-            physics: const AlwaysScrollableScrollPhysics(),
-            slivers: [
-              SliverAppBar(
-                pinned: true,
-                leading: IconButton(
-                  tooltip: MaterialLocalizations.of(context).backButtonTooltip,
-                  onPressed: _goBack,
-                  icon: const Icon(Icons.arrow_back),
-                ),
-                title: Text(
-                  _catalogTitle(
-                    l10n,
-                    widget.storeType,
-                    landing.value,
-                    categoryId: widget.initialCategoryId,
-                    searchOnly: widget.searchOnly,
+        body: _revealBoundary(
+          catalog.value,
+          RefreshIndicator(
+            onRefresh: () async {
+              ref.invalidate(storeLandingProvider(widget.storeType));
+              await ref
+                  .read(catalogControllerProvider(widget.storeType).notifier)
+                  .refresh();
+            },
+            child: CustomScrollView(
+              key: PageStorageKey('catalog-${widget.storeType.wire}'),
+              controller: _scrollController,
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: [
+                SliverAppBar(
+                  pinned: true,
+                  leading: IconButton(
+                    tooltip: MaterialLocalizations.of(
+                      context,
+                    ).backButtonTooltip,
+                    onPressed: _goBack,
+                    icon: const Icon(Icons.arrow_back),
                   ),
-                ),
-                actions: [
-                  if (widget.storeType == StoreType.household &&
-                      !widget.searchOnly)
+                  title: Text(
+                    _catalogTitle(
+                      l10n,
+                      widget.storeType,
+                      landing.value,
+                      categoryId: widget.initialCategoryId,
+                      searchOnly: widget.searchOnly,
+                    ),
+                  ),
+                  actions: [
+                    if (_supportsPhotoCategoryLanding && !widget.searchOnly)
+                      IconButton(
+                        key: ValueKey('${widget.storeType.wire}-search-button'),
+                        tooltip: l10n.commonSearch,
+                        onPressed: _openCategorySearch,
+                        icon: const Icon(Icons.search),
+                      ),
                     IconButton(
-                      key: const ValueKey('household-search-button'),
-                      tooltip: l10n.commonSearch,
-                      onPressed: _openHouseholdSearch,
-                      icon: const Icon(Icons.search),
+                      key: const ValueKey('catalog-cart-button'),
+                      tooltip: l10n.navCart,
+                      onPressed: () => goToStoreTab(
+                        context,
+                        widget.storeType,
+                        StoreTab.cart,
+                      ),
+                      icon: Badge(
+                        isLabelVisible: cartQuantity > 0,
+                        label: Text(
+                          cartQuantity > 99 ? '99+' : '$cartQuantity',
+                        ),
+                        child: const Icon(Icons.shopping_bag_outlined),
+                      ),
                     ),
-                  IconButton(
-                    key: const ValueKey('catalog-cart-button'),
-                    tooltip: l10n.navCart,
-                    onPressed: () =>
-                        goToStoreTab(context, widget.storeType, StoreTab.cart),
-                    icon: Badge(
-                      isLabelVisible: cartQuantity > 0,
-                      label: Text(cartQuantity > 99 ? '99+' : '$cartQuantity'),
-                      child: const Icon(Icons.shopping_bag_outlined),
-                    ),
-                  ),
-                ],
-                bottom: showSearchField
-                    ? PreferredSize(
-                        preferredSize: const Size.fromHeight(68),
-                        child: ColoredBox(
-                          color: Theme.of(context).scaffoldBackgroundColor,
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(
-                              AppSpacing.screenH,
-                              AppSpacing.xs,
-                              AppSpacing.screenH,
-                              AppSpacing.sm,
-                            ),
-                            child: TextField(
-                              key: const ValueKey('catalog-search-field'),
-                              controller: _searchController,
-                              autofocus: widget.searchOnly,
-                              onChanged: _onSearchChanged,
-                              onSubmitted: _submitSearch,
-                              textInputAction: TextInputAction.search,
-                              decoration: InputDecoration(
-                                hintText: l10n.catalogSearchHint,
-                                prefixIcon: IconButton(
-                                  tooltip: l10n.commonSearch,
-                                  onPressed: _submitSearch,
-                                  icon: const Icon(Icons.search),
-                                ),
-                                suffixIcon: _searchController.text.isEmpty
-                                    ? null
-                                    : IconButton(
-                                        tooltip: l10n.commonClose,
-                                        onPressed: _clearSearch,
-                                        icon: const Icon(Icons.close),
-                                      ),
-                                suffixIconConstraints: const BoxConstraints(
-                                  minHeight: 48,
-                                ),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(
-                                    AppRadius.pill,
+                  ],
+                  bottom: showSearchField
+                      ? PreferredSize(
+                          preferredSize: const Size.fromHeight(68),
+                          child: ColoredBox(
+                            color: Theme.of(context).scaffoldBackgroundColor,
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(
+                                AppSpacing.screenH,
+                                AppSpacing.xs,
+                                AppSpacing.screenH,
+                                AppSpacing.sm,
+                              ),
+                              child: TextField(
+                                key: const ValueKey('catalog-search-field'),
+                                controller: _searchController,
+                                autofocus: widget.searchOnly,
+                                onChanged: _onSearchChanged,
+                                onSubmitted: _submitSearch,
+                                textInputAction: TextInputAction.search,
+                                decoration: InputDecoration(
+                                  hintText: l10n.catalogSearchHint,
+                                  prefixIcon: IconButton(
+                                    tooltip: l10n.commonSearch,
+                                    onPressed: _submitSearch,
+                                    icon: const Icon(Icons.search),
                                   ),
+                                  suffixIcon: _searchController.text.isEmpty
+                                      ? null
+                                      : IconButton(
+                                          tooltip: l10n.commonClose,
+                                          onPressed: _clearSearch,
+                                          icon: const Icon(Icons.close),
+                                        ),
+                                  suffixIconConstraints: const BoxConstraints(
+                                    minHeight: 48,
+                                  ),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(
+                                      AppRadius.pill,
+                                    ),
+                                  ),
+                                  isDense: true,
                                 ),
-                                isDense: true,
                               ),
                             ),
                           ),
-                        ),
-                      )
-                    : null,
-              ),
-              if (!isSearching && widget.storeType != StoreType.household)
-                ..._landingSlivers(context, landing),
-              ..._catalogSlivers(context, catalog, isSearching: isSearching),
-              SliverToBoxAdapter(
-                child: SizedBox(
-                  height: cartQuantity > 0 ? AppSpacing.huge : AppSpacing.xxl,
+                        )
+                      : null,
                 ),
-              ),
-            ],
+                if (!isSearching && !_supportsPhotoCategoryLanding)
+                  ..._landingSlivers(context, landing),
+                ..._catalogSlivers(context, catalog, isSearching: isSearching),
+                SliverToBoxAdapter(
+                  child: SizedBox(
+                    height: cartQuantity > 0 ? AppSpacing.huge : AppSpacing.xxl,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
         bottomNavigationBar: cartQuantity == 0
@@ -308,7 +490,201 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
     );
   }
 
-  Widget _buildHouseholdLanding(
+  Widget _buildMeatCatalog(
+    BuildContext context, {
+    required AppLocalizations l10n,
+    required AsyncValue<CatalogState> catalog,
+    required int cartQuantity,
+    required String cartSubtotal,
+  }) => ScaffoldMessenger(
+    child: Scaffold(
+      appBar: AppBar(
+        leading: IconButton(
+          tooltip: MaterialLocalizations.of(context).backButtonTooltip,
+          onPressed: _goBack,
+          icon: const Icon(Icons.arrow_back),
+        ),
+        title: Text(l10n.storeMeat),
+        actions: [
+          IconButton(
+            key: const ValueKey('catalog-cart-button'),
+            tooltip: l10n.navCart,
+            onPressed: () =>
+                goToStoreTab(context, StoreType.meat, StoreTab.cart),
+            icon: Badge(
+              isLabelVisible: cartQuantity > 0,
+              label: Text(cartQuantity > 99 ? '99+' : '$cartQuantity'),
+              child: const Icon(Icons.shopping_bag_outlined),
+            ),
+          ),
+        ],
+      ),
+      body: _revealBoundary(
+        catalog.value,
+        RefreshIndicator(
+          onRefresh: () => ref
+              .read(catalogControllerProvider(StoreType.meat).notifier)
+              .refresh(),
+          child: switch (catalog) {
+            AsyncData(:final value) when value.items.isNotEmpty =>
+              MeatCatalogList(
+                products: value.visibleItems,
+                controller: _scrollController,
+                footer: value.canRevealImageless
+                    ? ImagelessRevealPrompt(onReveal: _revealImageless)
+                    : null,
+              ),
+            AsyncData() => CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: [
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: StoreEmptyView(
+                    icon: Icons.inventory_2_outlined,
+                    title: l10n.catalogEmpty,
+                  ),
+                ),
+              ],
+            ),
+            AsyncError(:final error) => CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: [
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: StoreErrorView(
+                    message: error is ApiFailure
+                        ? error.localize(l10n)
+                        : l10n.errorUnknown,
+                    onRetry: () => ref
+                        .read(
+                          catalogControllerProvider(StoreType.meat).notifier,
+                        )
+                        .refresh(),
+                  ),
+                ),
+              ],
+            ),
+            _ => const MeatCatalogSkeleton(),
+          },
+        ),
+      ),
+      bottomNavigationBar: cartQuantity == 0
+          ? null
+          : _MiniCartBar(
+              quantity: cartQuantity,
+              subtotal: cartSubtotal,
+              onTap: () => goToStoreTab(context, StoreType.meat, StoreTab.cart),
+            ),
+    ),
+  );
+
+  Widget _buildShashlikCatalog(
+    BuildContext context, {
+    required AppLocalizations l10n,
+    required AsyncValue<CatalogState> catalog,
+    required int cartQuantity,
+  }) => ScaffoldMessenger(
+    child: Scaffold(
+      appBar: AppBar(
+        leading: IconButton(
+          tooltip: MaterialLocalizations.of(context).backButtonTooltip,
+          onPressed: _goBack,
+          icon: const Icon(Icons.arrow_back),
+        ),
+        title: Text(l10n.storeShashlik),
+        actions: [
+          IconButton(
+            key: const ValueKey('catalog-cart-button'),
+            tooltip: l10n.navCart,
+            onPressed: () =>
+                goToStoreTab(context, StoreType.shashlik, StoreTab.cart),
+            icon: Badge(
+              isLabelVisible: cartQuantity > 0,
+              label: Text(cartQuantity > 99 ? '99+' : '$cartQuantity'),
+              child: const Icon(Icons.shopping_bag_outlined),
+            ),
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          ShashlikSectionSelector(
+            selected: _shashlikSection,
+            onSelected: (value) {
+              if (value != _shashlikSection) {
+                ref
+                    .read(
+                      catalogControllerProvider(StoreType.shashlik).notifier,
+                    )
+                    .hideImageless();
+                setState(() => _shashlikSection = value);
+              }
+            },
+          ),
+          Expanded(
+            child: _revealBoundary(
+              catalog.value,
+              RefreshIndicator(
+                onRefresh: () => ref
+                    .read(
+                      catalogControllerProvider(StoreType.shashlik).notifier,
+                    )
+                    .refresh(),
+                child: switch (catalog) {
+                  AsyncData(:final value) when value.items.isNotEmpty =>
+                    ShashlikCatalogList(
+                      groups: ShashlikCatalogGroups.fromProducts(value.items),
+                      section: _shashlikSection,
+                      includeImageless: value.imagelessRevealed,
+                      controller: _scrollController,
+                      footer: _shashlikRevealPrompt(value),
+                    ),
+                  AsyncData() => CustomScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    slivers: [
+                      SliverFillRemaining(
+                        hasScrollBody: false,
+                        child: StoreEmptyView(
+                          icon: Icons.inventory_2_outlined,
+                          title: l10n.catalogEmpty,
+                        ),
+                      ),
+                    ],
+                  ),
+                  AsyncError(:final error) => CustomScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    slivers: [
+                      SliverFillRemaining(
+                        hasScrollBody: false,
+                        child: StoreErrorView(
+                          message: error is ApiFailure
+                              ? error.localize(l10n)
+                              : l10n.errorUnknown,
+                          onRetry: () => ref
+                              .read(
+                                catalogControllerProvider(
+                                  StoreType.shashlik,
+                                ).notifier,
+                              )
+                              .refresh(),
+                        ),
+                      ),
+                    ],
+                  ),
+                  _ => const CatalogRowsSkeleton(),
+                },
+              ),
+              enabled:
+                  catalog.value != null &&
+                  _shashlikRevealPrompt(catalog.value!) != null,
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  Widget _buildPhotoCategoryLanding(
     BuildContext context, {
     required AppLocalizations l10n,
     required AsyncValue<StoreLandingData> landing,
@@ -323,7 +699,7 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
             await ref.read(storeLandingProvider(widget.storeType).future);
           },
           child: CustomScrollView(
-            key: const PageStorageKey('catalog-household-categories'),
+            key: PageStorageKey('catalog-${widget.storeType.wire}-categories'),
             controller: _scrollController,
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
@@ -335,13 +711,15 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
                   icon: const Icon(Icons.arrow_back),
                 ),
                 title: Text(
-                  title == null || title.isEmpty ? l10n.storeHousehold : title,
+                  title == null || title.isEmpty
+                      ? _storeName(l10n, widget.storeType)
+                      : title,
                 ),
                 actions: [
                   IconButton(
-                    key: const ValueKey('household-search-button'),
+                    key: ValueKey('${widget.storeType.wire}-search-button'),
                     tooltip: l10n.commonSearch,
-                    onPressed: _openHouseholdSearch,
+                    onPressed: _openCategorySearch,
                     icon: const Icon(Icons.search),
                   ),
                   IconButton(
@@ -359,10 +737,16 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
               ),
               ...switch (landing) {
                 AsyncData(:final value) => [
-                  HouseholdCategoryLandingSliver(
-                    categories: value.categories,
-                    onCategoryTap: _openHouseholdCategory,
-                  ),
+                  if (widget.storeType == StoreType.household)
+                    HouseholdCategoryLandingSliver(
+                      categories: value.categories,
+                      onCategoryTap: _openPhotoCategory,
+                    )
+                  else
+                    RestaurantCategoryLandingSliver(
+                      categories: value.categories,
+                      onCategoryTap: _openPhotoCategory,
+                    ),
                 ],
                 AsyncError(:final error) => [
                   SliverFillRemaining(
@@ -377,7 +761,12 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
                     ),
                   ),
                 ],
-                _ => const [HouseholdCategoryLandingSkeleton()],
+                _ => [
+                  if (widget.storeType == StoreType.restaurant)
+                    const RestaurantCategoryLandingSkeleton()
+                  else
+                    const PhotoCategoryLandingSkeleton(),
+                ],
               },
             ],
           ),
@@ -393,26 +782,22 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
     final data = landing.value;
     if (data == null) {
       if (landing.isLoading) {
-        return const [
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: EdgeInsets.all(AppSpacing.xxl),
-              child: Center(child: CircularProgressIndicator()),
-            ),
-          ),
-        ];
+        return const [CatalogLandingSkeletonSliver()];
       }
       return const [];
     }
 
     final visibleCategories = data.categories;
     final heroBanner = data.banners.isEmpty ? null : data.banners.first;
+    final showHero =
+        widget.storeType != StoreType.meat &&
+        (heroBanner != null ||
+            (data.header.showHeader &&
+                (data.header.label.isNotEmpty ||
+                    data.header.subtitle.isNotEmpty ||
+                    data.header.imageUrl != null)));
     return [
-      if (heroBanner != null ||
-          (data.header.showHeader &&
-              (data.header.label.isNotEmpty ||
-                  data.header.subtitle.isNotEmpty ||
-                  data.header.imageUrl != null)))
+      if (showHero)
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(
             AppSpacing.screenH,
@@ -474,37 +859,15 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
         ),
       ],
       AsyncData(:final value) => [
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.screenH,
-            AppSpacing.md,
-            AppSpacing.screenH,
-            0,
+        if (value.query.isEmpty)
+          ..._gridWithInlineRails(value.visibleItems)
+        else
+          _gridChunk(value.items, 0, value.items.length),
+        if (value.canRevealImageless)
+          SliverToBoxAdapter(
+            child: ImagelessRevealPrompt(onReveal: _revealImageless),
           ),
-          sliver: SliverGrid(
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: AppSpacing.sm,
-              mainAxisSpacing: AppSpacing.sm,
-              childAspectRatio: 0.70,
-            ),
-            delegate: SliverChildBuilderDelegate(
-              (context, index) => ProductCard(
-                product: value.items[index],
-                storeType: widget.storeType,
-                catalogStyle: true,
-              ),
-              childCount: value.items.length,
-            ),
-          ),
-        ),
-        if (value.isLoadingMore)
-          const SliverToBoxAdapter(
-            child: Padding(
-              padding: EdgeInsets.all(AppSpacing.lg),
-              child: Center(child: CircularProgressIndicator()),
-            ),
-          ),
+        if (value.isLoadingMore) const CatalogGridSkeletonSliver(itemCount: 2),
         if (value.loadMoreFailure != null)
           SliverToBoxAdapter(
             child: Center(
@@ -530,12 +893,7 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
           ),
         ),
       ],
-      _ => const [
-        SliverFillRemaining(
-          hasScrollBody: false,
-          child: Center(child: CircularProgressIndicator()),
-        ),
-      ],
+      _ => const [CatalogGridSkeletonSliver()],
     };
   }
 
@@ -823,12 +1181,14 @@ String _catalogTitle(
   bool searchOnly = false,
 }) {
   if (searchOnly) return l10n.commonSearch;
-  if (storeType != StoreType.household) return _storeName(l10n, storeType);
+  final usesPhotoCategories =
+      storeType == StoreType.household || storeType == StoreType.restaurant;
+  if (!usesPhotoCategories) return _storeName(l10n, storeType);
   if (categoryId != null) {
     for (final category in landing?.categories ?? const <ProductCategory>[]) {
       if (category.id == categoryId) return category.name;
     }
   }
   final label = landing?.header.label.trim();
-  return label == null || label.isEmpty ? l10n.storeHousehold : label;
+  return label == null || label.isEmpty ? _storeName(l10n, storeType) : label;
 }

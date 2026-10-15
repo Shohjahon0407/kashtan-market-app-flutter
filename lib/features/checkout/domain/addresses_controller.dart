@@ -17,6 +17,13 @@ final checkoutApiProvider = Provider<CheckoutApi>(
   ),
 );
 
+final deliveryCoverageProvider = FutureProvider.autoDispose
+    .family<List<DeliveryCoverageBranch>, String>((ref, storeType) {
+      ref.watch(accountScopeProvider);
+      ref.watch(apiLangProvider);
+      return ref.watch(checkoutApiProvider).fetchCoverage(storeType);
+    });
+
 final addressesControllerProvider =
     AsyncNotifierProvider<AddressesController, List<UserAddress>>(
       AddressesController.new,

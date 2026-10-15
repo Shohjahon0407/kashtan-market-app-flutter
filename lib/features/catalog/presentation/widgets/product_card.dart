@@ -8,6 +8,7 @@ import '../../../../core/store_scope/store_type.dart';
 import '../../../../core/ui/formatters/uzs.dart';
 import '../../../../core/ui/theme/app_buttons.dart';
 import '../../../../core/ui/theme/app_dimens.dart';
+import '../../../../core/ui/widgets/smooth_press.dart';
 import '../../../../generated/l10n/app_localizations.dart';
 import '../../../cart/data/cart_models.dart';
 import '../../../cart/domain/cart_controller.dart';
@@ -374,6 +375,7 @@ class ProductCartControl extends ConsumerWidget {
     this.inReview = false,
     this.iconOnlyWhenEmpty = false,
     this.inlineCompact = false,
+    this.quantityLabelBuilder,
     super.key,
   });
 
@@ -383,6 +385,7 @@ class ProductCartControl extends ConsumerWidget {
   final bool inReview;
   final bool iconOnlyWhenEmpty;
   final bool inlineCompact;
+  final String Function(int quantity)? quantityLabelBuilder;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -392,19 +395,13 @@ class ProductCartControl extends ConsumerWidget {
     // Butun CartState emas, faqat shu mahsulotga kerakli qismlar — savatdagi
     // har bir o'zgarish grid'dagi barcha kartalarni qayta qurmasin.
     // Faqat SHU kartaga tegishli holat kuzatiladi: bitta mahsulot
-    // qo'shilayotganda grid'dagi boshqa kartalar spinnerga aylanmaydi.
+    // o'zgarganda grid'dagi qolgan kartalar qayta qurilmaydi.
     final view = ref.watch(
       provider.select((async) {
         final value = async.value;
         final line = _simpleLine(value?.cart.items ?? const []);
         return (
           line: line,
-          addBusy: value?.isBusy(_simpleIdentity) ?? false,
-          itemBusy:
-              line != null &&
-              (value?.isBusy(CartMutationKeys.item(line.id)) ?? false),
-          unconfirmed:
-              value?.unconfirmedKeys.contains(_simpleIdentity) ?? false,
           waiting: async.isLoading && value == null,
           hasError: async.hasError,
         );
@@ -412,10 +409,6 @@ class ProductCartControl extends ConsumerWidget {
     );
     final simpleLine = view.line;
     final controller = ref.read(provider.notifier);
-    // Serverga yozilgan, lekin hali ko'rinishda tasdiqlanmagan qo'shish —
-    // tugma spinner bo'lib turadi, qayta bosib 2 dona qilib bo'lmaydi.
-    final addBusy = view.addBusy || (simpleLine == null && view.unconfirmed);
-    final itemBusy = view.itemBusy;
     final waitingForCart = view.waiting;
     final height = inlineCompact
         ? 34.0
@@ -423,11 +416,15 @@ class ProductCartControl extends ConsumerWidget {
         ? 32.0
         : 40.0;
 
-    // Tekshiruvda: stepper ham chiqmaydi — miqdor o'zgartirish ham bloklanadi.
+    // Optimistic satr birinchi bosishdayoq stepperga aylanadi.
     if (simpleLine != null && !product.requiresConfiguration && !inReview) {
       return SizedBox(
         key: ValueKey('product-card-stepper-${product.id}'),
-        width: inlineCompact ? 104 : double.infinity,
+        width: inlineCompact
+            ? quantityLabelBuilder == null
+                  ? 104
+                  : 156
+            : double.infinity,
         height: height,
         child: DecoratedBox(
           decoration: BoxDecoration(
@@ -437,44 +434,42 @@ class ProductCartControl extends ConsumerWidget {
           child: Row(
             children: [
               Expanded(
+                flex: 1,
                 child: _SmallStepButton(
                   icon: Icons.remove,
-                  onPressed: itemBusy
-                      ? null
-                      : () => _runMutation(
-                          context,
-                          ref,
-                          () => controller.decrement(simpleLine),
-                        ),
+                  onPressed: () => _runMutation(
+                    context,
+                    ref,
+                    () => controller.decrement(simpleLine),
+                  ),
                 ),
               ),
               Expanded(
+                flex: quantityLabelBuilder == null ? 1 : 2,
                 child: Center(
-                  child: itemBusy
-                      ? const SizedBox.square(
-                          dimension: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : Text(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      quantityLabelBuilder?.call(simpleLine.quantity) ??
                           '${simpleLine.quantity}',
-                          style: Theme.of(context).textTheme.labelLarge
-                              ?.copyWith(
-                                color: colors.onPrimaryContainer,
-                                fontWeight: FontWeight.w800,
-                              ),
-                        ),
+                      maxLines: 1,
+                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                        color: colors.onPrimaryContainer,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
                 ),
               ),
               Expanded(
+                flex: 1,
                 child: _SmallStepButton(
                   icon: Icons.add,
-                  onPressed: itemBusy
-                      ? null
-                      : () => _runMutation(
-                          context,
-                          ref,
-                          () => controller.increment(simpleLine),
-                        ),
+                  onPressed: () => _runMutation(
+                    context,
+                    ref,
+                    () => controller.increment(simpleLine),
+                  ),
                 ),
               ),
             ],
@@ -483,12 +478,7 @@ class ProductCartControl extends ConsumerWidget {
       );
     }
 
-    final child = waitingForCart || addBusy
-        ? const SizedBox.square(
-            dimension: 16,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          )
-        : iconOnlyWhenEmpty
+    final child = iconOnlyWhenEmpty
         ? const Icon(Icons.add, size: 18)
         : Text(
             inReview ? l10n.productInReview : l10n.productBuy,
@@ -496,11 +486,7 @@ class ProductCartControl extends ConsumerWidget {
             overflow: TextOverflow.ellipsis,
           );
     final onPressed =
-        inReview ||
-            !product.isPurchasable ||
-            waitingForCart ||
-            view.hasError ||
-            addBusy
+        inReview || !product.isPurchasable || waitingForCart || view.hasError
         ? null
         : product.requiresConfiguration
         ? () => openStoreProduct(context, storeType, product.id)
@@ -509,36 +495,36 @@ class ProductCartControl extends ConsumerWidget {
     return SizedBox(
       width: inlineCompact ? 36 : double.infinity,
       height: height,
-      child: iconOnlyWhenEmpty
-          ? FilledButton(
-              key: ValueKey('product-card-buy-${product.id}'),
-              onPressed: onPressed,
-              style: FilledButton.styleFrom(
-                padding: EdgeInsets.zero,
-                shape: const RoundedRectangleBorder(),
-              ),
-              child: child,
-            )
-          : FilledButton.tonal(
-              key: ValueKey('product-card-buy-${product.id}'),
-              style: FilledButton.styleFrom(
-                padding: EdgeInsets.symmetric(
-                  horizontal: compact ? AppSpacing.xs : AppSpacing.sm,
+      child: SmoothPress(
+        enabled: onPressed != null,
+        child: iconOnlyWhenEmpty
+            ? FilledButton(
+                key: ValueKey('product-card-buy-${product.id}'),
+                onPressed: onPressed,
+                style: FilledButton.styleFrom(
+                  padding: EdgeInsets.zero,
+                  shape: const RoundedRectangleBorder(),
                 ),
-                textStyle:
-                    (compact
-                            ? Theme.of(context).textTheme.labelSmall
-                            : Theme.of(context).textTheme.labelLarge)
-                        ?.copyWith(fontWeight: FontWeight.w700),
+                child: child,
+              )
+            : FilledButton.tonal(
+                key: ValueKey('product-card-buy-${product.id}'),
+                style: FilledButton.styleFrom(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: compact ? AppSpacing.xs : AppSpacing.sm,
+                  ),
+                  textStyle:
+                      (compact
+                              ? Theme.of(context).textTheme.labelSmall
+                              : Theme.of(context).textTheme.labelLarge)
+                          ?.copyWith(fontWeight: FontWeight.w700),
+                ),
+                onPressed: onPressed,
+                child: child,
               ),
-              onPressed: onPressed,
-              child: child,
-            ),
+      ),
     );
   }
-
-  String get _simpleIdentity =>
-      CartConfiguration(productId: product.id).identity;
 
   CartItem? _simpleLine(List<CartItem> items) {
     for (final item in items) {
@@ -622,11 +608,14 @@ class _SmallStepButton extends StatelessWidget {
   final VoidCallback? onPressed;
 
   @override
-  Widget build(BuildContext context) => IconButton(
-    onPressed: onPressed,
-    icon: Icon(icon, size: 18),
-    visualDensity: VisualDensity.compact,
-    constraints: const BoxConstraints.expand(),
-    padding: EdgeInsets.zero,
+  Widget build(BuildContext context) => SmoothPress(
+    enabled: onPressed != null,
+    child: IconButton(
+      onPressed: onPressed,
+      icon: Icon(icon, size: 18),
+      visualDensity: VisualDensity.compact,
+      constraints: const BoxConstraints.expand(),
+      padding: EdgeInsets.zero,
+    ),
   );
 }

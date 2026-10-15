@@ -20,6 +20,7 @@ import 'features/cart/domain/cart_controller.dart';
 import 'features/cart/domain/offline_cart_queue.dart';
 import 'features/notifications/domain/customer_push_service.dart';
 import 'features/orders/domain/order_realtime_controller.dart';
+import 'features/recommendations/domain/interaction_tracker.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -118,6 +119,10 @@ class _AuthenticatedRuntimeServices {
             state == AppLifecycleState.hidden;
         if (background && _orders != null) {
           container.read(orderRealtimeProvider.notifier).pause();
+        }
+        // Yig'ilgan ko'rish/qidiruv hodisalari ilova yopilguncha ketsin.
+        if (background) {
+          unawaited(container.read(interactionTrackerProvider).flush());
         }
       },
       onResume: () {

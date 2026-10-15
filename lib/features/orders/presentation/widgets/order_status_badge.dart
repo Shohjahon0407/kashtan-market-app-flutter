@@ -129,8 +129,8 @@ class _StatusIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final icon = switch (stage) {
-      CustomerOrderStage.searching => Icons.radar_rounded,
-      CustomerOrderStage.accepted => Icons.check_circle_outline_rounded,
+      CustomerOrderStage.searching => Icons.hourglass_top_rounded,
+      CustomerOrderStage.accepted => Icons.soup_kitchen_rounded,
       CustomerOrderStage.onWay => Icons.delivery_dining_rounded,
       CustomerOrderStage.delivered => Icons.check_circle_rounded,
       CustomerOrderStage.cancelled => Icons.cancel_rounded,
@@ -176,12 +176,12 @@ class _OrderStatusVisual {
     final l10n = AppLocalizations.of(context);
     return switch (stage) {
       CustomerOrderStage.searching => _OrderStatusVisual(
-        label: l10n.orderSearchingCourier,
+        label: l10n.orderStatusAwaiting,
         background: const Color(0xFFFFF3D0),
         foreground: const Color(0xFF8A5A00),
       ),
       CustomerOrderStage.accepted => _OrderStatusVisual(
-        label: l10n.orderStatusAccepted,
+        label: l10n.orderStatusPreparing,
         background: const Color(0xFFE5F0FF),
         foreground: const Color(0xFF175EA8),
       ),

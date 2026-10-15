@@ -28,6 +28,7 @@ import 'package:beshkashtan_customer/features/orders/data/orders_api.dart';
 import 'package:beshkashtan_customer/features/orders/domain/order_realtime_controller.dart';
 import 'package:beshkashtan_customer/features/orders/domain/orders_controller.dart';
 import 'package:beshkashtan_customer/features/orders/presentation/orders_screen.dart';
+import 'package:beshkashtan_customer/features/recommendations/domain/interaction_tracker.dart';
 import 'package:beshkashtan_customer/features/videos/data/video_api.dart';
 import 'package:beshkashtan_customer/features/videos/data/video_models.dart';
 import 'package:beshkashtan_customer/features/videos/domain/video_feed_controller.dart';
@@ -38,6 +39,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../helpers/fake_recommendations_api.dart';
 
 class _MockAuthApi extends Mock implements AuthApi {}
 
@@ -143,6 +146,7 @@ void main() {
         ),
         authApiProvider.overrideWithValue(authApi),
         homeApiProvider.overrideWithValue(homeApi),
+        recommendationsApiProvider.overrideWithValue(FakeRecommendationsApi()),
         videoApiProvider.overrideWithValue(videoApi),
         cartApiProvider.overrideWithValue(cartApi),
         checkoutApiProvider.overrideWithValue(checkoutApi),
@@ -213,13 +217,17 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('auth-prompt-close')));
       await tester.pumpAndSettle();
 
-      // Android "orqa" — Do'konlar tabidan Asosiy'ga.
+      // Android back traverses the visited tabs: Stores → Videos → Home.
       expect(find.byType(StoresScreen), findsOneWidget);
       await tester.binding.defaultBinaryMessenger.handlePlatformMessage(
         'flutter/navigation',
         const JSONMethodCodec().encodeMethodCall(const MethodCall('popRoute')),
         (_) {},
       );
+      await tester.pumpAndSettle();
+      expect(find.byType(ReelsScreen), findsOneWidget);
+      expect(container.read(homeTabProvider), HomeTab.videos);
+      await tester.binding.handlePopRoute();
       await tester.pumpAndSettle();
       expect(find.byType(HomeScreen), findsOneWidget);
       expect(container.read(homeTabProvider), HomeTab.home);

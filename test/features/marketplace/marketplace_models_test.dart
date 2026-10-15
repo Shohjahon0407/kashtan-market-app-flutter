@@ -132,6 +132,10 @@ void main() {
           'name': 'Taomlar',
           'store_type': 'restaurant',
           'product_count': 4,
+          'preview_images': [
+            '/media/products/thumbnails/osh.webp',
+            '/media/products/images/shorva.webp',
+          ],
         },
       ],
       'stores': [
@@ -153,9 +157,24 @@ void main() {
 
     expect(landing.header.storeTypeWire, 'restaurant');
     expect(landing.categories.single.productCount, 4);
+    expect(landing.categories.single.previewImageUrls, hasLength(2));
+    expect(
+      landing.categories.single.previewImageUrls.first,
+      contains('/media/products/thumbnails/osh.webp'),
+    );
     expect(landing.banners.single.targetProductId, 'product-1');
     expect(landing.sections.single.id, 'featured');
     expect(landing.sections.single.products.single.id, 'product-1');
+  });
+
+  test('eski category payloadida preview rasmlar bo‘sh ro‘yxat bo‘ladi', () {
+    final category = ProductCategory.fromJson({
+      'id': 'category-1',
+      'name': 'Taomlar',
+      'store_type': 'restaurant',
+    });
+
+    expect(category.previewImageUrls, isEmpty);
   });
 
   test(
@@ -296,6 +315,48 @@ void main() {
     expect(order('accepted').canCancel, isTrue);
     expect(order('preparing').canCancel, isFalse);
     expect(order('completed').canCancel, isFalse);
+  });
+
+  test('yetkazish oynasi deadline\'dan 10 daqiqa, filial koordinatasi', () {
+    OrderData order(String userStatus, {String option = 'same_day'}) =>
+        OrderData.fromJson({
+          'id': 'o',
+          'order_number': 'BK',
+          'store_type': 'grocery',
+          'fulfillment_type': 'delivery',
+          'status': userStatus,
+          'user_status': userStatus,
+          'subtotal': '1',
+          'delivery_fee': '0',
+          'total': '1',
+          'delivery_option': option,
+          'delivery_deadline_at': '2026-10-08T10:26:00Z',
+          'picked_up_at': '2026-10-08T10:00:00Z',
+          'pickup_branch': {
+            'id': 'b',
+            'name': 'Markaz',
+            'address': '',
+            'phone': '',
+            'store_name': 'S',
+            'latitude': '41.32',
+            'longitude': '69.55',
+          },
+          'items': <Object>[],
+          'created_at': '2026-10-08T09:00:00Z',
+        });
+
+    final accepted = order('accepted');
+    expect(accepted.deliveryWindow, isNotNull);
+    expect(accepted.deliveryWindow!.end.toUtc().minute, 26);
+    expect(accepted.deliveryWindow!.start.toUtc().minute, 16);
+    expect(accepted.courierPhase, CourierPhase.toStore);
+    expect(order('on_way').courierPhase, CourierPhase.toCustomer);
+    expect(order('reviewing').deliveryWindow, isNull);
+    expect(order('reviewing').courierPhase, CourierPhase.none);
+    expect(order('accepted', option: 'one_day').deliveryWindow, isNull);
+    expect(accepted.pickupBranch!.hasCoordinates, isTrue);
+    expect(accepted.pickupBranch!.latitude, closeTo(41.32, 1e-6));
+    expect(accepted.pickedUpAt?.toUtc().hour, 10);
   });
 
   test('order 1–2 kunlik yetkazish tanlovini parse qiladi', () {

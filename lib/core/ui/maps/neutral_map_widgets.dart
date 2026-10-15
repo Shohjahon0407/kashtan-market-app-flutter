@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../config/app_config.dart';
 
-/// Barcha xaritalar uchun bir xil, chalg'itmaydigan oq-kulrang tile ko'rinishi.
+/// Shared, cached map tiles with optional neutral colors.
 ///
 /// Tile manbasi o'zgarmaydi: filtr faqat clientda ranglarni neytrallashtiradi.
 class NeutralMapTiles extends StatelessWidget {
@@ -12,12 +13,18 @@ class NeutralMapTiles extends StatelessWidget {
     required this.urlTemplate,
     required this.userAgentPackageName,
     this.maxZoom = 20,
+    this.onTileError,
+    this.neutralize = false,
     super.key,
   });
 
   final String urlTemplate;
   final String userAgentPackageName;
   final double maxZoom;
+  final VoidCallback? onTileError;
+
+  /// Keep provider colors by default so roads and parks remain legible.
+  final bool neutralize;
 
   static const _neutralFilter = ColorFilter.matrix(<double>[
     0.2126,
@@ -43,24 +50,39 @@ class NeutralMapTiles extends StatelessWidget {
   ]);
 
   @override
-  Widget build(BuildContext context) => ColorFiltered(
-    colorFilter: _neutralFilter,
-    child: TileLayer(
+  Widget build(BuildContext context) {
+    // Mapbox's 512px tiles cover four 256px tiles. Match the projection with
+    // a zoom offset; native retina tiles keep labels sharp without fetching
+    // four extra tiles. NetworkTileProvider preserves its built-in HTTP cache.
+    final largeTiles =
+        Uri.tryParse(urlTemplate)?.host == 'api.mapbox.com' &&
+        urlTemplate.contains('/tiles/512/');
+    final tiles = TileLayer(
       urlTemplate: urlTemplate,
       userAgentPackageName: userAgentPackageName,
+      tileDimension: largeTiles ? 512 : 256,
+      zoomOffset: largeTiles ? -1 : 0,
+      retinaMode: largeTiles && RetinaMode.isHighDensity(context),
       maxZoom: maxZoom,
-    ),
-  );
+      errorTileCallback: (_, _, _) => onTileError?.call(),
+    );
+    return neutralize
+        ? ColorFiltered(colorFilter: _neutralFilter, child: tiles)
+        : tiles;
+  }
 }
 
 /// Tile provayderining litsenziya attribution'i har doim xarita ustida
 /// ko'rinadi. Mapbox OSM ma'lumotlaridan foydalangani uchun ikkala manba ham
 /// ko'rsatiladi; debug OSM fallbackda faqat OpenStreetMap chiqadi.
 class MapTileAttribution extends StatelessWidget {
-  const MapTileAttribution({super.key});
+  const MapTileAttribution({this.useMapbox, super.key});
+
+  final bool? useMapbox;
 
   static final _mapboxUrl = Uri.parse('https://www.mapbox.com/about/maps/');
   static final _osmUrl = Uri.parse('https://www.openstreetmap.org/copyright');
+  static final _feedbackUrl = Uri.parse('https://apps.mapbox.com/feedback/');
 
   @override
   Widget build(BuildContext context) => Material(
@@ -68,14 +90,35 @@ class MapTileAttribution extends StatelessWidget {
     borderRadius: BorderRadius.circular(4),
     child: Padding(
       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
-      child: Row(
+      child: Column(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          if (AppConfig.usesMapboxTiles) ...[
-            _AttributionLink(label: '© Mapbox', uri: _mapboxUrl),
-            const Text(' · ', style: TextStyle(fontSize: 10)),
-          ],
-          _AttributionLink(label: '© OpenStreetMap', uri: _osmUrl),
+          if (useMapbox ?? AppConfig.usesMapboxTiles)
+            InkWell(
+              onTap: () =>
+                  launchUrl(_mapboxUrl, mode: LaunchMode.externalApplication),
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 3),
+                child: SvgPicture.asset(
+                  'assets/brand/mapbox-logo-black.svg',
+                  height: 30,
+                  semanticsLabel: 'Mapbox',
+                ),
+              ),
+            ),
+          Wrap(
+            alignment: WrapAlignment.end,
+            spacing: 6,
+            runSpacing: 2,
+            children: [
+              if (useMapbox ?? AppConfig.usesMapboxTiles)
+                _AttributionLink(label: '© Mapbox', uri: _mapboxUrl),
+              _AttributionLink(label: '© OpenStreetMap', uri: _osmUrl),
+              if (useMapbox ?? AppConfig.usesMapboxTiles)
+                _AttributionLink(label: 'Improve this map', uri: _feedbackUrl),
+            ],
+          ),
         ],
       ),
     ),

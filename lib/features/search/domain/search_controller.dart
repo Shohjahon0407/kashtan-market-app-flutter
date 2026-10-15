@@ -10,6 +10,7 @@ import '../../../core/network/connectivity_controller.dart';
 import '../../../core/network/network_providers.dart';
 import '../../../core/network/paginated.dart';
 import '../../catalog/data/product_models.dart';
+import '../../recommendations/domain/interaction_tracker.dart';
 
 final searchControllerProvider =
     NotifierProvider.autoDispose<ProductSearchController, SearchState>(
@@ -121,6 +122,7 @@ class ProductSearchController extends Notifier<SearchState> {
         isLoading: false,
         searched: true,
       );
+      ref.read(interactionTrackerProvider).recordSearch(trimmed);
     } on CancelledFailure {
       // Yangi so'rov eskisini bekor qildi — hech narsa qilmaymiz.
     } on ApiFailure catch (failure) {

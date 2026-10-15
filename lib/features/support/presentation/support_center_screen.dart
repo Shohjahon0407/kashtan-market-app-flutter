@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
@@ -11,7 +10,7 @@ import 'package:record/record.dart';
 
 import '../../../core/localization/failure_l10n.dart';
 import '../../../core/network/api_failure.dart';
-import '../../../core/routing/routes.dart';
+import '../../../core/routing/back_navigation.dart';
 import '../../../core/store_scope/store_type.dart';
 import '../../../core/ui/theme/app_buttons.dart';
 import '../../../core/ui/theme/app_dimens.dart';
@@ -334,8 +333,7 @@ class _SupportCenterScreenState extends ConsumerState<SupportCenterScreen> {
       appBar: AppBar(
         leading: IconButton(
           tooltip: l10n.commonClose,
-          onPressed: () =>
-              context.canPop() ? context.pop() : context.go(Routes.home),
+          onPressed: () => appBack(context),
           icon: const Icon(Icons.close),
         ),
         titleSpacing: 0,

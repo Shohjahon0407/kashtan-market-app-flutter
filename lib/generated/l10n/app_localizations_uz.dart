@@ -9,6 +9,94 @@ class AppLocalizationsUz extends AppLocalizations {
   AppLocalizationsUz([String locale = 'uz']) : super(locale);
 
   @override
+  String get appUpdateTitle => 'Yangilanish mavjud';
+
+  @override
+  String appUpdateBody(String version) {
+    return 'Ilovaning $version versiyasi chiqdi. Yangi imkoniyatlar va yaxshilanishlardan foydalanish uchun yangilang.';
+  }
+
+  @override
+  String get appUpdateDownload => 'Yuklab olish';
+
+  @override
+  String get appUpdateLater => 'Keyinroq';
+
+  @override
+  String get appUpdateOpenFailed =>
+      'Google Play’ni ochib bo‘lmadi. Qayta urinib ko‘ring yoki keyinroq yangilang.';
+
+  @override
+  String get checkoutAddressActionHint =>
+      'Xaritadan joy belgilang yoki saqlangan manzilni tanlang';
+
+  @override
+  String get checkoutReceiptTitle => 'Mahsulotlar cheki';
+
+  @override
+  String checkoutCartCount(int count) {
+    return '$count ta mahsulot';
+  }
+
+  @override
+  String get checkoutOptional => 'Ixtiyoriy';
+
+  @override
+  String get checkoutPaymentHint => 'Qulay usulni tanlang';
+
+  @override
+  String get checkoutPayOnline => 'Onlayn to‘lov';
+
+  @override
+  String get checkoutPayOnReceipt => 'Qabul qilganda';
+
+  @override
+  String get checkoutPayOnPickup => 'Olib ketganda';
+
+  @override
+  String get checkoutNotePlaceholder =>
+      'Masalan, eshik kodi yoki yetkazish bo‘yicha izoh...';
+
+  @override
+  String get checkoutNoteNoBell => 'Eshik qo‘ng‘irog‘ini chalmang';
+
+  @override
+  String get checkoutNoteCall => 'Yetib kelganda qo‘ng‘iroq qiling';
+
+  @override
+  String get checkoutNoteNoOnion => 'Piyozsiz bo‘lsin';
+
+  @override
+  String get checkoutCostBreakdown => 'Hisob-kitob';
+
+  @override
+  String get checkoutGrandTotal => 'Jami to‘lov';
+
+  @override
+  String get checkoutSelectedAddress => 'Tanlangan';
+
+  @override
+  String get checkoutReviewHint =>
+      'Tasdiqlashdan oldin manzil va buyurtmani tekshiring';
+
+  @override
+  String get checkoutHelpTitle => 'Buyurtma haqida';
+
+  @override
+  String get checkoutHelpBody =>
+      'Yetkazish manzilini va to‘lov usulini tanlang. Yetkazish hududi xaritada ko‘rsatilgan. Buyurtma faqat manzil va yetkazish narxi tekshirilgach tasdiqlanadi. Olib ketishda mos filialni tanlang.';
+
+  @override
+  String get catalogImagelessPull =>
+      'Rasmsiz mahsulotlarni ko‘rish uchun yana yuqoriga torting';
+
+  @override
+  String get catalogImagelessRelease => 'Qo‘yib yuboring';
+
+  @override
+  String get catalogImagelessShow => 'Rasmsizlarni ko‘rsatish';
+
+  @override
   String get addressLocationUnavailable =>
       'Lokatsiyani aniqlab bo‘lmadi. GPS’ni tekshiring yoki xaritada nuqtani qo‘lda tanlang.';
 
@@ -190,6 +278,109 @@ class AppLocalizationsUz extends AppLocalizations {
 
   @override
   String get storeMeat => 'Go\'sht mahsulotlari';
+
+  @override
+  String get meatProductLamb => 'Qo‘y go‘shti';
+
+  @override
+  String get meatProductBeef => 'Mol go‘shti';
+
+  @override
+  String get meatProductHorse => 'Ot go‘shti';
+
+  @override
+  String get meatProductQazi => 'Qazi';
+
+  @override
+  String get meatProductBeefLiver => 'Mol jigar';
+
+  @override
+  String get meatProductLambLiver => 'Qo‘y jigar';
+
+  @override
+  String get shashlikSectionKebabs => 'Shashliklar';
+
+  @override
+  String get shashlikSectionCharcoal => 'Ko‘mir';
+
+  @override
+  String get shashlikSectionOther => 'Boshqa';
+
+  @override
+  String get shashlikFamilyBeefJazz => 'Mol jazz';
+
+  @override
+  String get shashlikFamilyLambJazz => 'Qo‘y jazz';
+
+  @override
+  String get shashlikFamilyChicken => 'Tovuq';
+
+  @override
+  String get shashlikFamilyLiver => 'Jigar';
+
+  @override
+  String get shashlikFamilyMince => 'Qiyma';
+
+  @override
+  String get shashlikOptionSkewered => 'Zixlangan';
+
+  @override
+  String get shashlikOptionByKilo => 'Kilolik';
+
+  @override
+  String get shashlikOptionMince => 'Qiyma';
+
+  @override
+  String get shashlikOptionBreadMince => 'Non qiyma';
+
+  @override
+  String get shashlikOptionKiloMince => 'Kilolik qiyma';
+
+  @override
+  String get shashlikChooseProduct => 'Mahsulot turini va miqdorini tanlang';
+
+  @override
+  String get shashlikQuantity => 'Miqdor';
+
+  @override
+  String get shashlikAddToCart => 'Savatga qo‘shish';
+
+  @override
+  String shashlikPriceFrom(String price) {
+    return '$price dan';
+  }
+
+  @override
+  String shashlikKilogramPrice(String price) {
+    return 'Kilogrammi $price';
+  }
+
+  @override
+  String shashlikPieceQuantity(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count dona',
+      one: '1 dona',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String shashlikKilogramQuantity(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count kilogram',
+      one: '1 kilogram',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String shashlikInCart(int count) {
+    return 'Savatda: $count ta';
+  }
 
   @override
   String get cartTitle => 'Savat';
@@ -452,6 +643,18 @@ class AppLocalizationsUz extends AppLocalizations {
   String get householdSectionKidsHobbyOther => 'Bolalar, hobbi va boshqa';
 
   @override
+  String get restaurantSectionTraditional => 'An’anaviy taomlar';
+
+  @override
+  String get restaurantSectionGrillTandoor => 'Grill va tandir';
+
+  @override
+  String get restaurantSectionSaladsTable => 'Salatlar va dasturxon';
+
+  @override
+  String get restaurantSectionDessertsDrinks => 'Shirinlik va ichimliklar';
+
+  @override
   String get catalogFeatured => 'Tavsiya etamiz';
 
   @override
@@ -556,6 +759,17 @@ class AppLocalizationsUz extends AppLocalizations {
 
   @override
   String get productRelated => 'O\'xshash mahsulotlar';
+
+  @override
+  String get homeForYou => 'Siz uchun';
+
+  @override
+  String get homeForYouSubtitle => 'Qiziqishlaringizga qarab tanladik';
+
+  @override
+  String catalogSimilarTo(String name) {
+    return '«$name»ga o\'xshashlar';
+  }
 
   @override
   String get productVariant => 'Variantni tanlang';
@@ -743,6 +957,9 @@ class AppLocalizationsUz extends AppLocalizations {
 
   @override
   String get ordersLoadMore => 'Yana ko\'rsatish';
+
+  @override
+  String get ordersRecommendedTitle => 'Sizga yoqishi mumkin';
 
   @override
   String get orderItems => 'Mahsulotlar';
@@ -965,36 +1182,104 @@ class AppLocalizationsUz extends AppLocalizations {
   String get videoYou => 'Siz';
 
   @override
-  String get orderSearchingCourier => 'Kuryer qidirilmoqda';
-
-  @override
-  String get orderSearchingSubtitle =>
-      'Buyurtmangizni yetkazadigan eng yaqin kuryerni izlayapmiz';
-
-  @override
   String orderWaitingElapsed(Object elapsed) {
     return 'Kutilmoqda: $elapsed';
   }
 
   @override
-  String get orderCourierAccepted => 'Kuryer buyurtmani qabul qildi';
+  String get orderStatusDelivering => 'Kuryer yo\'lda';
 
   @override
-  String get orderCourierAcceptedSubtitle =>
-      'Buyurtmangiz yetkazishga tayyorlanmoqda';
+  String get orderStageAwaiting => 'Buyurtma tasdiqlanishi kutilmoqda';
 
   @override
-  String get orderCourierOnWay => 'Kuryer yo\'lda';
+  String get orderStageAwaitingHint =>
+      'Kuryer buyurtmangizni ko\'rib chiqmoqda';
 
   @override
-  String get orderCourierOnWaySubtitle =>
-      'Buyurtmangiz manzilingiz tomon kelmoqda';
+  String get orderStagePreparing => 'Buyurtmangiz tayyorlanmoqda';
 
   @override
-  String get orderStatusAccepted => 'Qabul qilindi';
+  String get orderStagePreparingHint => 'Kuryer do\'konga yo\'l oldi';
 
   @override
-  String get orderStatusDelivering => 'Yetkazilmoqda';
+  String get orderStageOnWay => 'Kuryer siz tomon yo\'lga chiqdi';
+
+  @override
+  String get orderStageOnWayHint => 'Buyurtmangiz manzilingiz tomon kelmoqda';
+
+  @override
+  String get orderStageDelivered => 'Buyurtma yetkazildi';
+
+  @override
+  String get orderStageDeliveredHint => 'Xaridingiz uchun rahmat!';
+
+  @override
+  String get orderDeliveryWindowTitle => 'Yetkazib beradigan vaqtimiz';
+
+  @override
+  String get orderDeliveryWindowPending => 'Kuryer tasdiqlagach aniqlanadi';
+
+  @override
+  String orderDeliveredAt(String time) {
+    return 'Yetkazildi · $time';
+  }
+
+  @override
+  String get orderSummaryTitle => 'Buyurtma tafsilotlari';
+
+  @override
+  String orderSummaryProducts(int count) {
+    return '$count ta mahsulot';
+  }
+
+  @override
+  String get orderDeliveryDetails => 'Yetkazish tafsilotlari';
+
+  @override
+  String get orderRecipientPhone => 'Oluvchining raqami';
+
+  @override
+  String get orderPaymentMethodLabel => 'To\'lov usuli';
+
+  @override
+  String get orderPaymentCash => 'Naqd, kuryerga';
+
+  @override
+  String get orderPaymentPayme => 'Payme';
+
+  @override
+  String get orderDeliveryFree => 'Bepul';
+
+  @override
+  String get orderBackToOrder => 'Buyurtmaga qaytish';
+
+  @override
+  String get orderHelp => 'Yordam';
+
+  @override
+  String get orderOpenMap => 'Xaritani kattalashtirish';
+
+  @override
+  String get orderStatusAwaiting => 'Tasdiqlanishi kutilmoqda';
+
+  @override
+  String get orderStatusPreparing => 'Tayyorlanmoqda';
+
+  @override
+  String get orderCourierRole => 'Kuryer';
+
+  @override
+  String get orderVehicleFoot => 'Piyoda';
+
+  @override
+  String get orderVehicleBicycle => 'Velosiped';
+
+  @override
+  String get orderVehicleMotorcycle => 'Mototsikl';
+
+  @override
+  String get orderVehicleCar => 'Avtomobil';
 
   @override
   String get orderStatusDelivered => 'Yetkazildi';
@@ -1006,18 +1291,9 @@ class AppLocalizationsUz extends AppLocalizations {
   String get orderStatusProcessing => 'Jarayonda';
 
   @override
-  String get orderDeliveredSubtitle => 'Buyurtmangiz muvaffaqiyatli yetkazildi';
-
-  @override
-  String get orderEstimatedArrival => 'Taxminiy yetib kelish';
-
-  @override
   String orderArrivesInMinutes(Object minutes) {
     return '$minutes daqiqa ichida';
   }
-
-  @override
-  String get orderCourierNote => 'Kuryer izohi';
 
   @override
   String get orderCallCourier => 'Qo\'ng\'iroq qilish';
@@ -1027,9 +1303,6 @@ class AppLocalizationsUz extends AppLocalizations {
 
   @override
   String get orderPhoneCopied => 'Telefon raqami nusxalandi';
-
-  @override
-  String get orderLiveTracking => 'Jonli kuzatuv';
 
   @override
   String orderLocationUpdated(Object seconds) {
@@ -1172,11 +1445,177 @@ class AppLocalizationsUz extends AppLocalizations {
   String ugcBlockConfirmation(String name) {
     return '$name foydalanuvchisini bloklaysizmi? Uning public izoh va sharhlari sizga ko\'rinmaydi.';
   }
+
+  @override
+  String get checkoutDeliveryMapTitle => 'Yetkazish xaritasi';
+
+  @override
+  String get checkoutMapStore => 'Do‘kon';
+
+  @override
+  String get checkoutMapAddress => 'Yetkazish manzili';
+
+  @override
+  String get checkoutMapYou => 'Siz turgan joy';
+
+  @override
+  String get checkoutMapFit => 'Hammasini ko‘rsatish';
+
+  @override
+  String get checkoutMapExpand => 'Kengaytirish';
+
+  @override
+  String get checkoutMapLocating => 'Joylashuv aniqlanmoqda';
+
+  @override
+  String get checkoutMapGpsUnavailable =>
+      'Telefon joylashuvini aniqlab bo‘lmadi. Manzilni qo‘lda tanlashingiz mumkin.';
+
+  @override
+  String get checkoutGpsDenied =>
+      'Lokatsiya ruxsati berilmadi. Yetkazish manzilini qo‘lda tanlashingiz mumkin.';
+
+  @override
+  String get checkoutGpsDeniedForever =>
+      'Lokatsiya ruxsatini telefon sozlamalaridan yoqing yoki manzilni qo‘lda tanlang.';
+
+  @override
+  String get checkoutGpsDisabled =>
+      'GPS o‘chiq. Uni yoqing yoki manzilni qo‘lda tanlang.';
+
+  @override
+  String get checkoutGpsTimeout =>
+      'GPS javobi kechikdi. Qayta urinib ko‘ring yoki manzilni qo‘lda tanlang.';
+
+  @override
+  String get checkoutGpsStale =>
+      'GPS nuqtasi eskirgan. Joylashuvni qayta aniqlang yoki manzilni qo‘lda tanlang.';
+
+  @override
+  String get checkoutGpsApproximate =>
+      'Joylashuv taxminiy. Telefoningizda aniq lokatsiyani yoqing yoki GPS’ni qayta tekshiring.';
+
+  @override
+  String get checkoutGpsSettings => 'Sozlamalarni ochish';
+
+  @override
+  String get checkoutMapTilesUnavailable =>
+      'Xarita rasmlari yuklanmadi. Markerlar va radius ishlaydi.';
+
+  @override
+  String get checkoutMapCoverageUnavailable =>
+      'Yetkazish hududini yuklab bo‘lmadi.';
+
+  @override
+  String checkoutCoverageRadius(String radius) {
+    return 'Yetkazish radiusi: $radius km';
+  }
+
+  @override
+  String checkoutOutsideRadius(String radius) {
+    return 'Manzil $radius km yetkazish radiusidan tashqarida. Boshqa manzil yoki olib ketishni tanlang.';
+  }
+
+  @override
+  String get checkoutTariffUnavailable =>
+      'Bu masofa uchun yetkazish tarifi sozlanmagan.';
+
+  @override
+  String get checkoutMapPreviewHint =>
+      'Bu filial hududi ko‘rinishi. Buyurtma uchun yetkazish manzilini tanlang.';
 }
 
 /// The translations for Uzbek, using the Cyrillic script (`uz_Cyrl`).
 class AppLocalizationsUzCyrl extends AppLocalizationsUz {
   AppLocalizationsUzCyrl() : super('uz_Cyrl');
+
+  @override
+  String get appUpdateTitle => 'Янгиланиш мавжуд';
+
+  @override
+  String appUpdateBody(String version) {
+    return 'Илованинг $version версияси чиқди. Янги имкониятлар ва яхшиланишлардан фойдаланиш учун янгиланг.';
+  }
+
+  @override
+  String get appUpdateDownload => 'Юклаб олиш';
+
+  @override
+  String get appUpdateLater => 'Кейинроқ';
+
+  @override
+  String get appUpdateOpenFailed =>
+      'Google Play’ни очиб бўлмади. Қайта уриниб кўринг ёки кейинроқ янгиланг.';
+
+  @override
+  String get checkoutAddressActionHint =>
+      'Харитадан жой белгиланг ёки сақланган манзилни танланг';
+
+  @override
+  String get checkoutReceiptTitle => 'Маҳсулотлар чеки';
+
+  @override
+  String checkoutCartCount(int count) {
+    return '$count та маҳсулот';
+  }
+
+  @override
+  String get checkoutOptional => 'Ихтиёрий';
+
+  @override
+  String get checkoutPaymentHint => 'Қулай усулни танланг';
+
+  @override
+  String get checkoutPayOnline => 'Онлайн тўлов';
+
+  @override
+  String get checkoutPayOnReceipt => 'Қабул қилганда';
+
+  @override
+  String get checkoutPayOnPickup => 'Олиб кетганда';
+
+  @override
+  String get checkoutNotePlaceholder =>
+      'Масалан, эшик коди ёки етказиш бўйича изоҳ...';
+
+  @override
+  String get checkoutNoteNoBell => 'Эшик қўнғироғини чалманг';
+
+  @override
+  String get checkoutNoteCall => 'Етиб келганда қўнғироқ қилинг';
+
+  @override
+  String get checkoutNoteNoOnion => 'Пиёзсиз бўлсин';
+
+  @override
+  String get checkoutCostBreakdown => 'Ҳисоб-китоб';
+
+  @override
+  String get checkoutGrandTotal => 'Жами тўлов';
+
+  @override
+  String get checkoutSelectedAddress => 'Танланган';
+
+  @override
+  String get checkoutReviewHint =>
+      'Тасдиқлашдан олдин манзил ва буюртмани текширинг';
+
+  @override
+  String get checkoutHelpTitle => 'Буюртма ҳақида';
+
+  @override
+  String get checkoutHelpBody =>
+      'Етказиш манзилини ва тўлов усулини танланг. Етказиш ҳудуди харитада кўрсатилган. Буюртма фақат манзил ва етказиш нархи текширилгач тасдиқланади. Олиб кетишда мос филиални танланг.';
+
+  @override
+  String get catalogImagelessPull =>
+      'Расмсиз маҳсулотларни кўриш учун яна юқорига тортинг';
+
+  @override
+  String get catalogImagelessRelease => 'Қўйиб юборинг';
+
+  @override
+  String get catalogImagelessShow => 'Расмсизларни кўрсатиш';
 
   @override
   String get addressLocationUnavailable =>
@@ -1360,6 +1799,109 @@ class AppLocalizationsUzCyrl extends AppLocalizationsUz {
 
   @override
   String get storeMeat => 'Гўшт маҳсулотлари';
+
+  @override
+  String get meatProductLamb => 'Қўй гўшти';
+
+  @override
+  String get meatProductBeef => 'Мол гўшти';
+
+  @override
+  String get meatProductHorse => 'От гўшти';
+
+  @override
+  String get meatProductQazi => 'Қази';
+
+  @override
+  String get meatProductBeefLiver => 'Мол жигар';
+
+  @override
+  String get meatProductLambLiver => 'Қўй жигар';
+
+  @override
+  String get shashlikSectionKebabs => 'Шашликлар';
+
+  @override
+  String get shashlikSectionCharcoal => 'Кўмир';
+
+  @override
+  String get shashlikSectionOther => 'Бошқа';
+
+  @override
+  String get shashlikFamilyBeefJazz => 'Мол жазз';
+
+  @override
+  String get shashlikFamilyLambJazz => 'Қўй жазз';
+
+  @override
+  String get shashlikFamilyChicken => 'Товуқ';
+
+  @override
+  String get shashlikFamilyLiver => 'Жигар';
+
+  @override
+  String get shashlikFamilyMince => 'Қийма';
+
+  @override
+  String get shashlikOptionSkewered => 'Зихланган';
+
+  @override
+  String get shashlikOptionByKilo => 'Килолик';
+
+  @override
+  String get shashlikOptionMince => 'Қийма';
+
+  @override
+  String get shashlikOptionBreadMince => 'Нон қийма';
+
+  @override
+  String get shashlikOptionKiloMince => 'Килолик қийма';
+
+  @override
+  String get shashlikChooseProduct => 'Маҳсулот турини ва миқдорини танланг';
+
+  @override
+  String get shashlikQuantity => 'Миқдор';
+
+  @override
+  String get shashlikAddToCart => 'Саватга қўшиш';
+
+  @override
+  String shashlikPriceFrom(String price) {
+    return '$price дан';
+  }
+
+  @override
+  String shashlikKilogramPrice(String price) {
+    return 'Килограмми $price';
+  }
+
+  @override
+  String shashlikPieceQuantity(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count дона',
+      one: '1 дона',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String shashlikKilogramQuantity(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count килограм',
+      one: '1 килограм',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String shashlikInCart(int count) {
+    return 'Саватда: $count та';
+  }
 
   @override
   String get cartTitle => 'Сават';
@@ -1622,6 +2164,18 @@ class AppLocalizationsUzCyrl extends AppLocalizationsUz {
   String get householdSectionKidsHobbyOther => 'Болалар, ҳобби ва бошқа';
 
   @override
+  String get restaurantSectionTraditional => 'Анъанавий таомлар';
+
+  @override
+  String get restaurantSectionGrillTandoor => 'Грилл ва тандир';
+
+  @override
+  String get restaurantSectionSaladsTable => 'Салатлар ва дастурхон';
+
+  @override
+  String get restaurantSectionDessertsDrinks => 'Ширинлик ва ичимликлар';
+
+  @override
   String get catalogFeatured => 'Тавсия этамиз';
 
   @override
@@ -1725,6 +2279,17 @@ class AppLocalizationsUzCyrl extends AppLocalizationsUz {
 
   @override
   String get productRelated => 'Ўхшаш маҳсулотлар';
+
+  @override
+  String get homeForYou => 'Сиз учун';
+
+  @override
+  String get homeForYouSubtitle => 'Қизиқишларингизга қараб танладик';
+
+  @override
+  String catalogSimilarTo(String name) {
+    return '«$name»га ўхшашлар';
+  }
 
   @override
   String get productVariant => 'Вариантни танланг';
@@ -1911,6 +2476,9 @@ class AppLocalizationsUzCyrl extends AppLocalizationsUz {
 
   @override
   String get ordersLoadMore => 'Яна кўрсатиш';
+
+  @override
+  String get ordersRecommendedTitle => 'Сизга ёқиши мумкин';
 
   @override
   String get orderItems => 'Маҳсулотлар';
@@ -2133,36 +2701,103 @@ class AppLocalizationsUzCyrl extends AppLocalizationsUz {
   String get videoYou => 'Сиз';
 
   @override
-  String get orderSearchingCourier => 'Курер қидирилмоқда';
-
-  @override
-  String get orderSearchingSubtitle =>
-      'Буюртмангизни етказадиган энг яқин курерни излаяпмиз';
-
-  @override
   String orderWaitingElapsed(Object elapsed) {
     return 'Кутилмоқда: $elapsed';
   }
 
   @override
-  String get orderCourierAccepted => 'Курер буюртмани қабул қилди';
+  String get orderStatusDelivering => 'Курер йўлда';
 
   @override
-  String get orderCourierAcceptedSubtitle =>
-      'Буюртмангиз етказишга тайёрланмоқда';
+  String get orderStageAwaiting => 'Буюртма тасдиқланиши кутилмоқда';
 
   @override
-  String get orderCourierOnWay => 'Курер йўлда';
+  String get orderStageAwaitingHint => 'Курер буюртмангизни кўриб чиқмоқда';
 
   @override
-  String get orderCourierOnWaySubtitle =>
-      'Буюртмангиз манзилингиз томон келмоқда';
+  String get orderStagePreparing => 'Буюртмангиз тайёрланмоқда';
 
   @override
-  String get orderStatusAccepted => 'Қабул қилинди';
+  String get orderStagePreparingHint => 'Курер дўконга йўл олди';
 
   @override
-  String get orderStatusDelivering => 'Етказилмоқда';
+  String get orderStageOnWay => 'Курер сиз томон йўлга чиқди';
+
+  @override
+  String get orderStageOnWayHint => 'Буюртмангиз манзилингиз томон келмоқда';
+
+  @override
+  String get orderStageDelivered => 'Буюртма етказилди';
+
+  @override
+  String get orderStageDeliveredHint => 'Харидингиз учун раҳмат!';
+
+  @override
+  String get orderDeliveryWindowTitle => 'Етказиб берадиган вақтимиз';
+
+  @override
+  String get orderDeliveryWindowPending => 'Курер тасдиқлагач аниқланади';
+
+  @override
+  String orderDeliveredAt(String time) {
+    return 'Етказилди · $time';
+  }
+
+  @override
+  String get orderSummaryTitle => 'Буюртма тафсилотлари';
+
+  @override
+  String orderSummaryProducts(int count) {
+    return '$count та маҳсулот';
+  }
+
+  @override
+  String get orderDeliveryDetails => 'Етказиш тафсилотлари';
+
+  @override
+  String get orderRecipientPhone => 'Олувчининг рақами';
+
+  @override
+  String get orderPaymentMethodLabel => 'Тўлов усули';
+
+  @override
+  String get orderPaymentCash => 'Нақд, курерга';
+
+  @override
+  String get orderPaymentPayme => 'Пайме';
+
+  @override
+  String get orderDeliveryFree => 'Бепул';
+
+  @override
+  String get orderBackToOrder => 'Буюртмага қайтиш';
+
+  @override
+  String get orderHelp => 'Ёрдам';
+
+  @override
+  String get orderOpenMap => 'Харитани катталаштириш';
+
+  @override
+  String get orderStatusAwaiting => 'Тасдиқланиши кутилмоқда';
+
+  @override
+  String get orderStatusPreparing => 'Тайёрланмоқда';
+
+  @override
+  String get orderCourierRole => 'Курер';
+
+  @override
+  String get orderVehicleFoot => 'Пиёда';
+
+  @override
+  String get orderVehicleBicycle => 'Велосипед';
+
+  @override
+  String get orderVehicleMotorcycle => 'Мотоцикл';
+
+  @override
+  String get orderVehicleCar => 'Автомобил';
 
   @override
   String get orderStatusDelivered => 'Етказилди';
@@ -2174,18 +2809,9 @@ class AppLocalizationsUzCyrl extends AppLocalizationsUz {
   String get orderStatusProcessing => 'Жараёнда';
 
   @override
-  String get orderDeliveredSubtitle => 'Буюртмангиз муваффақиятли етказилди';
-
-  @override
-  String get orderEstimatedArrival => 'Тахминий етиб келиш';
-
-  @override
   String orderArrivesInMinutes(Object minutes) {
     return '$minutes дақиқа ичида';
   }
-
-  @override
-  String get orderCourierNote => 'Курер изоҳи';
 
   @override
   String get orderCallCourier => 'Қўнғироқ қилиш';
@@ -2195,9 +2821,6 @@ class AppLocalizationsUzCyrl extends AppLocalizationsUz {
 
   @override
   String get orderPhoneCopied => 'Телефон рақами нусхаланди';
-
-  @override
-  String get orderLiveTracking => 'Жонли кузатув';
 
   @override
   String orderLocationUpdated(Object seconds) {
@@ -2339,4 +2962,82 @@ class AppLocalizationsUzCyrl extends AppLocalizationsUz {
   String ugcBlockConfirmation(String name) {
     return '$name фойдаланувчисини блоклайсизми? Унинг публик изоҳ ва шарҳлари сизга кўринмайди.';
   }
+
+  @override
+  String get checkoutDeliveryMapTitle => 'Етказиш харитаси';
+
+  @override
+  String get checkoutMapStore => 'Дўкон';
+
+  @override
+  String get checkoutMapAddress => 'Етказиш манзили';
+
+  @override
+  String get checkoutMapYou => 'Сиз турган жой';
+
+  @override
+  String get checkoutMapFit => 'Ҳаммасини кўрсатиш';
+
+  @override
+  String get checkoutMapExpand => 'Кенгайтириш';
+
+  @override
+  String get checkoutMapLocating => 'Жойлашув аниқланмоқда';
+
+  @override
+  String get checkoutMapGpsUnavailable =>
+      'Телефон жойлашувини аниқлаб бўлмади. Манзилни қўлда танлашингиз мумкин.';
+
+  @override
+  String get checkoutGpsDenied =>
+      'Локация рухсати берилмади. Етказиш манзилини қўлда танлашингиз мумкин.';
+
+  @override
+  String get checkoutGpsDeniedForever =>
+      'Локация рухсатини телефон созламаларидан ёқинг ёки манзилни қўлда танланг.';
+
+  @override
+  String get checkoutGpsDisabled =>
+      'GPS ўчиқ. Уни ёқинг ёки манзилни қўлда танланг.';
+
+  @override
+  String get checkoutGpsTimeout =>
+      'GPS жавоби кечикди. Қайта уриниб кўринг ёки манзилни қўлда танланг.';
+
+  @override
+  String get checkoutGpsStale =>
+      'GPS нуқтаси эскирган. Жойлашувни қайта аниқланг ёки манзилни қўлда танланг.';
+
+  @override
+  String get checkoutGpsApproximate =>
+      'Жойлашув тахминий. Телефонингизда аниқ локацияни ёқинг ёки GPS’ни қайта текширинг.';
+
+  @override
+  String get checkoutGpsSettings => 'Созламаларни очиш';
+
+  @override
+  String get checkoutMapTilesUnavailable =>
+      'Харита расмлари юкланмади. Маркерлар ва радиус ишлайди.';
+
+  @override
+  String get checkoutMapCoverageUnavailable =>
+      'Етказиш ҳудудини юклаб бўлмади.';
+
+  @override
+  String checkoutCoverageRadius(String radius) {
+    return 'Етказиш радиуси: $radius км';
+  }
+
+  @override
+  String checkoutOutsideRadius(String radius) {
+    return 'Манзил $radius км етказиш радиусидан ташқарида. Бошқа манзил ёки олиб кетишни танланг.';
+  }
+
+  @override
+  String get checkoutTariffUnavailable =>
+      'Бу масофа учун етказиш тарифи созланмаган.';
+
+  @override
+  String get checkoutMapPreviewHint =>
+      'Бу филиал ҳудуди кўриниши. Буюртма учун етказиш манзилини танланг.';
 }

@@ -80,6 +80,8 @@ abstract final class Routes {
       '${storeRoot(storeType)}/orders';
   static String productDetail(String storeType, String productId) =>
       '${storeCatalog(storeType)}/product/$productId';
+  static String shashlikFamily(String familyKey) =>
+      '${storeCatalog('shashlik')}/family/${Uri.encodeComponent(familyKey)}';
   static String checkout(String storeType) =>
       '${storeCart(storeType)}/checkout';
   static String checkoutAddressNew(String storeType) =>
@@ -94,6 +96,14 @@ abstract final class Routes {
     String orderId, {
     bool autoPay = false,
   }) => '${storeOrders(storeType)}/$orderId${autoPay ? '?autopay=1' : ''}';
+
+  /// To'liq ekranli jonli xarita.
+  static String orderMap(String storeType, String orderId) =>
+      '${storeOrders(storeType)}/$orderId/map';
+
+  /// "Buyurtma tafsilotlari" — mahsulotlar va hisob-kitob.
+  static String orderSummary(String storeType, String orderId) =>
+      '${storeOrders(storeType)}/$orderId/details';
 
   /// Dev playground — faqat debug build'da router'ga qo'shiladi.
   /// Diagnostika uchun KIRILMAGAN holatda ham ochiq (faqat debug).

@@ -1,4 +1,5 @@
 import 'package:beshkashtan_customer/core/localization/locale_controller.dart';
+import 'package:beshkashtan_customer/core/ui/theme/app_dimens.dart';
 import 'package:beshkashtan_customer/features/cart/data/cart_api.dart';
 import 'package:beshkashtan_customer/features/cart/data/cart_models.dart';
 import 'package:beshkashtan_customer/features/cart/domain/cart_controller.dart';
@@ -92,5 +93,58 @@ void main() {
       find.byKey(const ValueKey('video-products-see-all-video-1')),
       findsOne,
     );
+  });
+
+  testWidgets('Web transient nol kenglikda manfiy constraint yaratmaydi', (
+    tester,
+  ) async {
+    final videoApi = _MockVideoApi();
+    final cartApi = _MockCartApi();
+    final rail = VideoProductRail(
+      products: [_product(0)],
+      storeType: 'household',
+      category: 'Uy jihozlari',
+      categoryId: 'category-1',
+    );
+    when(() => videoApi.fetchProducts('video-1')).thenAnswer((_) async => rail);
+    when(
+      () => cartApi.fetch('household'),
+    ).thenAnswer((_) async => CartData.empty('household'));
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          apiLangProvider.overrideWithValue('uz'),
+          videoApiProvider.overrideWithValue(videoApi),
+          cartApiProvider.overrideWithValue(cartApi),
+        ],
+        child: const MaterialApp(
+          locale: Locale('uz'),
+          supportedLocales: [Locale('uz')],
+          localizationsDelegates: [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+          ],
+          home: Scaffold(
+            body: Align(
+              alignment: Alignment.topLeft,
+              child: SizedBox(
+                width: AppSpacing.sm * 2,
+                child: VideoProductRailSection(
+                  videoId: 'video-1',
+                  cardHeight: 170,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.byType(ListView), findsNothing);
   });
 }

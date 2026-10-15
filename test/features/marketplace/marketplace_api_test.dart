@@ -10,6 +10,7 @@ import 'package:beshkashtan_customer/features/checkout/data/checkout_api.dart';
 import 'package:beshkashtan_customer/features/checkout/data/checkout_models.dart';
 import 'package:beshkashtan_customer/features/favorites/data/favorites_api.dart';
 import 'package:beshkashtan_customer/features/orders/data/orders_api.dart';
+import 'package:beshkashtan_customer/features/store/data/store_api.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -178,6 +179,199 @@ void main() {
   );
 
   test(
+    'eski restaurant landing real rasmlarni bitta catalog batchdan oladi',
+    () async {
+      final api = StoreApi(
+        client((options, body) {
+          if (options.path.endsWith('/stores/restaurant/landing/')) {
+            return _json({
+              'store': {
+                'store_type': 'restaurant',
+                'label': 'Restoran',
+                'subtitle': '',
+                'is_enabled': true,
+                'show_store_header': false,
+              },
+              'categories': [
+                {
+                  'id': 'category-1',
+                  'name': '1-TAOMLAR',
+                  'store_type': 'restaurant',
+                  'product_count': 2,
+                },
+              ],
+              'stores': <Object>[],
+              'banners': <Object>[],
+              'top_banners': <Object>[],
+            });
+          }
+          return _json({
+            'next': null,
+            'previous': null,
+            'results': [
+              {
+                ..._product(storeType: 'restaurant'),
+                'id': 'meal-1',
+                'main_image': '/media/meal-1.webp',
+                'category': {
+                  'id': 'category-1',
+                  'name': '1-TAOMLAR',
+                  'store_type': 'restaurant',
+                },
+              },
+              {
+                ..._product(storeType: 'restaurant'),
+                'id': 'meal-2',
+                'main_image': '/media/meal-2.webp',
+                'category': {
+                  'id': 'category-1',
+                  'name': '1-TAOMLAR',
+                  'store_type': 'restaurant',
+                },
+              },
+            ],
+          });
+        }),
+      );
+
+      final landing = await api.fetchLanding('restaurant');
+
+      expect(landing.categories.single.previewImageUrls, hasLength(2));
+      expect(adapter.requests, hasLength(2));
+      expect(adapter.requests.last.path, endsWith('/catalog/products/'));
+      expect(adapter.requests.last.query['page_size'], 100);
+    },
+  );
+
+  test(
+    'yangi restaurant landing preview bo‘lsa catalog fallback yubormaydi',
+    () async {
+      final api = StoreApi(
+        client(
+          (options, body) => _json({
+            'store': {
+              'store_type': 'restaurant',
+              'label': 'Restoran',
+              'subtitle': '',
+              'is_enabled': true,
+              'show_store_header': false,
+            },
+            'categories': [
+              {
+                'id': 'category-1',
+                'name': '1-TAOMLAR',
+                'store_type': 'restaurant',
+                'product_count': 2,
+                'preview_images': ['/media/meal.webp'],
+              },
+            ],
+            'stores': <Object>[],
+            'banners': <Object>[],
+            'top_banners': <Object>[],
+          }),
+        ),
+      );
+
+      final landing = await api.fetchLanding('restaurant');
+
+      expect(landing.categories.single.previewImageUrls, hasLength(1));
+      expect(adapter.requests, hasLength(1));
+    },
+  );
+
+  test(
+    'go‘sht katalogi barcha cursor sahifalarini deduplicate qilib oladi',
+    () async {
+      final api = CatalogApi(
+        client((options, body) {
+          final secondPage = options.uri.queryParameters['cursor'] == 'second';
+          if (secondPage) {
+            return _json({
+              'next': null,
+              'previous': null,
+              'results': [
+                {
+                  ..._product(storeType: 'meat'),
+                  'id': 'meat-3',
+                  'name': 'Qazi',
+                },
+                {
+                  ..._product(storeType: 'meat'),
+                  'id': 'meat-4',
+                  'name': 'Mol jigar',
+                },
+                // Server cursorlari ustma-ust tushsa duplicate karta chiqmasin.
+                {
+                  ..._product(storeType: 'meat'),
+                  'id': 'meat-2',
+                  'name': "Mol go'shti",
+                },
+              ],
+            });
+          }
+          return _json({
+            'next':
+                'https://api.beshkashtan.uz/api/user/catalog/products/'
+                '?cursor=second&store_type=meat',
+            'previous': null,
+            'results': [
+              {
+                ..._product(storeType: 'meat'),
+                'id': 'meat-1',
+                'name': "Qo'y go'shti",
+              },
+              {
+                ..._product(storeType: 'meat'),
+                'id': 'meat-2',
+                'name': "Mol go'shti",
+              },
+            ],
+          });
+        }),
+      );
+
+      final page = await api.fetchProducts(storeType: 'meat');
+
+      expect(page.nextUrl, isNull);
+      expect(page.items.map((item) => item.id), [
+        'meat-1',
+        'meat-2',
+        'meat-3',
+        'meat-4',
+      ]);
+      expect(adapter.requests, hasLength(2));
+    },
+  );
+
+  test('shashlik katalogi ham barcha cursor sahifalarini yig‘adi', () async {
+    final api = CatalogApi(
+      client((options, body) {
+        final secondPage = options.uri.queryParameters['cursor'] == 'second';
+        return _json({
+          'next': secondPage
+              ? null
+              : 'https://api.beshkashtan.uz/api/user/catalog/products/'
+                    '?cursor=second&store_type=shashlik',
+          'previous': null,
+          'results': [
+            {
+              ..._product(storeType: 'shashlik'),
+              'id': secondPage ? 'shashlik-2' : 'shashlik-1',
+              'name': secondPage ? 'Tosh ko‘mir' : 'Mol jazz',
+            },
+          ],
+        });
+      }),
+    );
+
+    final page = await api.fetchProducts(storeType: 'shashlik');
+
+    expect(page.nextUrl, isNull);
+    expect(page.items.map((item) => item.id), ['shashlik-1', 'shashlik-2']);
+    expect(adapter.requests, hasLength(2));
+  });
+
+  test(
     'cart endpointlari store_type va konfiguratsiyani aynan yuboradi',
     () async {
       final api = CartApi(
@@ -303,6 +497,30 @@ void main() {
     });
     expect(estimate.available, isTrue);
     expect(branches.single.isPickupAvailable, isTrue);
+  });
+
+  test('coverage uses store type and excludes invalid geometry', () async {
+    final api = CheckoutApi(
+      client(
+        (options, body) => _json({
+          'branches': [
+            {
+              'id': 'valid',
+              'name': 'Filial',
+              'latitude': '41',
+              'longitude': '69',
+              'delivery_radius_km': '8.00',
+            },
+            {'id': 'missing', 'name': 'No coordinates'},
+          ],
+        }),
+      ),
+    );
+    final branches = await api.fetchCoverage('household');
+    expect(branches.single.id, 'valid');
+    expect(adapter.requests.single.path, '/delivery/coverage/');
+    expect(adapter.requests.single.query['store_type'], 'household');
+    expect(branches.single.radiusKm, 8);
   });
 
   test(

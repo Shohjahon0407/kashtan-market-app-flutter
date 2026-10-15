@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/app_update/presentation/update_navigation_gate.dart';
 import '../../features/auth/domain/auth_controller.dart';
 import '../../features/auth/domain/auth_state.dart';
 import '../../features/auth/presentation/screens/phone_screen.dart';
@@ -11,6 +12,7 @@ import '../../features/cart/presentation/cart_screen.dart';
 import '../../features/catalog/domain/catalog_controller.dart';
 import '../../features/catalog/presentation/catalog_screen.dart';
 import '../../features/catalog/presentation/product_detail_screen.dart';
+import '../../features/catalog/presentation/shashlik_family_screen.dart';
 import '../../features/checkout/presentation/address_form_screen.dart';
 import '../../features/checkout/presentation/addresses_screen.dart';
 import '../../features/checkout/presentation/checkout_screen.dart';
@@ -22,6 +24,8 @@ import '../../features/home/presentation/profile_screen.dart';
 import '../../features/home/presentation/stores_screen.dart';
 import '../../features/notifications/presentation/notifications_screen.dart';
 import '../../features/orders/presentation/order_detail_screen.dart';
+import '../../features/orders/presentation/order_map_screen.dart';
+import '../../features/orders/presentation/order_summary_screen.dart';
 import '../../features/orders/presentation/orders_screen.dart';
 import '../../features/search/presentation/search_screen.dart';
 import '../../features/splash/presentation/splash_screen.dart';
@@ -32,6 +36,7 @@ import '../../features/ugc/presentation/blocked_users_screen.dart';
 import '../../features/videos/presentation/reels_screen.dart';
 import '../store_scope/current_store_type_provider.dart';
 import '../store_scope/store_type.dart';
+import 'back_navigation.dart';
 import 'route_not_found_screen.dart';
 import 'routes.dart';
 
@@ -39,14 +44,19 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   final refresh = _RouterRefresh(ref);
   ref.onDispose(refresh.dispose);
 
-  return GoRouter(
+  final router = GoRouter(
+    navigatorKey: ref.read(appRootNavigatorKeyProvider),
     initialLocation: Routes.splash,
-    observers: [appRouteObserver],
+    observers: [
+      appRouteObserver,
+      ref.read(updateNavigationGateProvider).observer(),
+    ],
     refreshListenable: refresh,
     // Hech qaysi route mos kelmasa (eski havola, noma'lum yo'l) go_router'ning
     // qizil xato ekrani emas, bosh sahifaga qaytaruvchi oddiy ekran.
-    errorBuilder: (context, state) =>
-        RouteNotFoundScreen(location: state.uri.toString()),
+    errorBuilder: (context, state) => BackNavigationGuard(
+      child: RouteNotFoundScreen(location: state.uri.toString()),
+    ),
     debugLogDiagnostics: kDebugMode,
 
     // QOIDA: auth'dan keyingi navigatsiya FAQAT shu redirect orqali
@@ -114,18 +124,21 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: Routes.authOtp,
         pageBuilder: (context, state) => _authPromptPage(state),
       ),
-      _homeShellRoute(),
+      _homeShellRoute(ref.read(updateNavigationGateProvider)),
       GoRoute(
         path: Routes.search,
-        builder: (context, state) => const SearchScreen(),
+        builder: (context, state) =>
+            const BackNavigationGuard(child: SearchScreen()),
       ),
       GoRoute(
         path: Routes.cart,
-        builder: (context, state) => const MainCartScreen(),
+        builder: (context, state) =>
+            const BackNavigationGuard(child: MainCartScreen()),
       ),
       GoRoute(
         path: Routes.profile,
-        builder: (context, state) => const ProfileScreen(),
+        builder: (context, state) =>
+            const BackNavigationGuard(child: ProfileScreen()),
         routes: [
           GoRoute(
             path: 'blocked-users',
@@ -135,11 +148,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: Routes.notifications,
-        builder: (context, state) => const NotificationsScreen(),
+        builder: (context, state) =>
+            const BackNavigationGuard(child: NotificationsScreen()),
       ),
       GoRoute(
         path: Routes.addresses,
-        builder: (context, state) => const AddressesScreen(),
+        builder: (context, state) =>
+            const BackNavigationGuard(child: AddressesScreen()),
         routes: [
           GoRoute(
             path: 'new',
@@ -160,15 +175,19 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 storeType: state.uri.queryParameters['storeType'],
               )
             : null,
-        builder: (context, state) => SupportCenterScreen(
-          initialKind: state.uri.queryParameters['kind'],
-          initialStoreType: state.uri.queryParameters['storeType'],
+        builder: (context, state) => BackNavigationGuard(
+          child: SupportCenterScreen(
+            initialKind: state.uri.queryParameters['kind'],
+            initialStoreType: state.uri.queryParameters['storeType'],
+          ),
         ),
       ),
       GoRoute(
         path: Routes.missingProductRequest,
-        builder: (context, state) => MissingProductRequestScreen(
-          initialStoreType: state.uri.queryParameters['storeType'],
+        builder: (context, state) => BackNavigationGuard(
+          child: MissingProductRequestScreen(
+            initialStoreType: state.uri.queryParameters['storeType'],
+          ),
         ),
       ),
       GoRoute(
@@ -182,11 +201,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: Routes.unsupportedStore,
-        builder: (context, state) => UnsupportedStoreScreen(
-          storeTypeWire: state.uri.queryParameters['storeType'],
+        builder: (context, state) => BackNavigationGuard(
+          child: UnsupportedStoreScreen(
+            storeTypeWire: state.uri.queryParameters['storeType'],
+          ),
         ),
       ),
-      for (final storeType in StoreType.values) _storeShellRoute(storeType),
+      for (final storeType in StoreType.values)
+        _storeShellRoute(storeType, ref.read(updateNavigationGateProvider)),
       if (kDebugMode)
         GoRoute(
           path: Routes.dev,
@@ -194,6 +216,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         ),
     ],
   );
+  ref.listen<AuthState>(authControllerProvider, (previous, next) {
+    if (previous?.isAuthenticated == true && !next.isAuthenticated) {
+      AppBackCoordinator.of(router).clear();
+      router.go(Routes.home);
+    }
+  });
+  ref.onDispose(router.dispose);
+  return router;
 });
 
 CustomTransitionPage<bool> _authPromptPage(GoRouterState state) =>
@@ -204,9 +234,11 @@ CustomTransitionPage<bool> _authPromptPage(GoRouterState state) =>
       barrierColor: Colors.transparent,
       transitionDuration: const Duration(milliseconds: 220),
       reverseTransitionDuration: const Duration(milliseconds: 160),
-      child: PhoneScreen(
-        returnTo: state.uri.queryParameters['returnTo'],
-        isModalPrompt: state.uri.queryParameters['modal'] == '1',
+      child: BackNavigationGuard(
+        child: PhoneScreen(
+          returnTo: state.uri.queryParameters['returnTo'],
+          isModalPrompt: state.uri.queryParameters['modal'] == '1',
+        ),
       ),
       transitionsBuilder: (context, animation, secondaryAnimation, child) {
         final curved = CurvedAnimation(
@@ -227,47 +259,53 @@ CustomTransitionPage<bool> _authPromptPage(GoRouterState state) =>
 /// Bosh sahifa qobig'i: Asosiy | Videolar | Do'konlar | Buyurtmalar.
 /// Branch tartibi [HomeTab] bilan bir xil. Do'kon shell'lari bu yerga
 /// KIRMAYDI — ular alohida sibling route (o'z navbar'i bilan).
-StatefulShellRoute _homeShellRoute() => StatefulShellRoute.indexedStack(
-  builder: (context, state, navigationShell) =>
-      HomeShell(navigationShell: navigationShell),
-  branches: [
-    StatefulShellBranch(
-      routes: [
-        GoRoute(
-          path: Routes.home,
-          builder: (context, state) => const HomeScreen(),
+StatefulShellRoute _homeShellRoute(UpdateNavigationGate gate) =>
+    StatefulShellRoute.indexedStack(
+      builder: (context, state, navigationShell) =>
+          HomeShell(navigationShell: navigationShell),
+      branches: [
+        StatefulShellBranch(
+          observers: [gate.observer()],
+          routes: [
+            GoRoute(
+              path: Routes.home,
+              builder: (context, state) => const HomeScreen(),
+            ),
+          ],
+        ),
+        StatefulShellBranch(
+          observers: [gate.observer()],
+          routes: [
+            GoRoute(
+              path: Routes.videos,
+              builder: (context, state) => const ReelsScreen(),
+            ),
+          ],
+        ),
+        StatefulShellBranch(
+          observers: [gate.observer()],
+          routes: [
+            GoRoute(
+              path: Routes.stores,
+              builder: (context, state) => const StoresScreen(),
+            ),
+          ],
+        ),
+        StatefulShellBranch(
+          observers: [gate.observer()],
+          routes: [
+            GoRoute(
+              path: Routes.allOrders,
+              builder: (context, state) => const OrdersScreen(),
+            ),
+          ],
         ),
       ],
-    ),
-    StatefulShellBranch(
-      routes: [
-        GoRoute(
-          path: Routes.videos,
-          builder: (context, state) => const ReelsScreen(),
-        ),
-      ],
-    ),
-    StatefulShellBranch(
-      routes: [
-        GoRoute(
-          path: Routes.stores,
-          builder: (context, state) => const StoresScreen(),
-        ),
-      ],
-    ),
-    StatefulShellBranch(
-      routes: [
-        GoRoute(
-          path: Routes.allOrders,
-          builder: (context, state) => const OrdersScreen(),
-        ),
-      ],
-    ),
-  ],
-);
+    );
 
 StatefulShellRoute _storeShellRoute(
   StoreType storeType,
+  UpdateNavigationGate gate,
 ) => StatefulShellRoute.indexedStack(
   builder: (context, state, navigationShell) => ProviderScope(
     key: ValueKey('store-scope-${storeType.wire}'),
@@ -276,23 +314,30 @@ StatefulShellRoute _storeShellRoute(
   ),
   branches: [
     StatefulShellBranch(
+      observers: [gate.observer()],
       routes: [
         GoRoute(
           path: Routes.storeCatalog(storeType.wire),
-          builder: (context, state) => ProviderScope(
-            overrides: [
-              catalogControllerProvider(
-                storeType,
-              ).overrideWith(() => CatalogController(storeType)),
-            ],
-            child: CatalogScreen(
-              key: ValueKey(
-                'catalog-${storeType.wire}-${state.uri.queryParameters['category'] ?? ''}',
+          builder: (context, state) {
+            final initialCategoryId = state.uri.queryParameters['category'];
+            return ProviderScope(
+              overrides: [
+                catalogControllerProvider(storeType).overrideWith(
+                  () => CatalogController(
+                    storeType,
+                    initialCategoryId: initialCategoryId,
+                  ),
+                ),
+              ],
+              child: CatalogScreen(
+                key: ValueKey(
+                  'catalog-${storeType.wire}-${initialCategoryId ?? ''}',
+                ),
+                storeType: storeType,
+                initialCategoryId: initialCategoryId,
               ),
-              storeType: storeType,
-              initialCategoryId: state.uri.queryParameters['category'],
-            ),
-          ),
+            );
+          },
           routes: [
             GoRoute(
               path: 'search',
@@ -311,21 +356,34 @@ StatefulShellRoute _storeShellRoute(
             ),
             GoRoute(
               path: 'category/:categoryId',
-              builder: (context, state) => ProviderScope(
-                overrides: [
-                  catalogControllerProvider(
-                    storeType,
-                  ).overrideWith(() => CatalogController(storeType)),
-                ],
-                child: CatalogScreen(
-                  key: ValueKey(
-                    'catalog-${storeType.wire}-category-${state.pathParameters['categoryId'] ?? ''}',
+              builder: (context, state) {
+                final categoryId = state.pathParameters['categoryId'] ?? '';
+                return ProviderScope(
+                  overrides: [
+                    catalogControllerProvider(storeType).overrideWith(
+                      () => CatalogController(
+                        storeType,
+                        initialCategoryId: categoryId,
+                      ),
+                    ),
+                  ],
+                  child: CatalogScreen(
+                    key: ValueKey(
+                      'catalog-${storeType.wire}-category-$categoryId',
+                    ),
+                    storeType: storeType,
+                    initialCategoryId: categoryId,
                   ),
-                  storeType: storeType,
-                  initialCategoryId: state.pathParameters['categoryId'],
+                );
+              },
+            ),
+            if (storeType == StoreType.shashlik)
+              GoRoute(
+                path: 'family/:familyKey',
+                builder: (context, state) => ShashlikFamilyScreen(
+                  familyKey: state.pathParameters['familyKey'] ?? '',
                 ),
               ),
-            ),
             GoRoute(
               path: 'product/:productId',
               builder: (context, state) => ProductDetailScreen(
@@ -338,6 +396,7 @@ StatefulShellRoute _storeShellRoute(
       ],
     ),
     StatefulShellBranch(
+      observers: [gate.observer()],
       routes: [
         GoRoute(
           path: Routes.storeFavorites(storeType.wire),
@@ -346,6 +405,7 @@ StatefulShellRoute _storeShellRoute(
       ],
     ),
     StatefulShellBranch(
+      observers: [gate.observer()],
       routes: [
         GoRoute(
           path: Routes.storeCart(storeType.wire),
@@ -372,6 +432,7 @@ StatefulShellRoute _storeShellRoute(
       ],
     ),
     StatefulShellBranch(
+      observers: [gate.observer()],
       routes: [
         GoRoute(
           path: Routes.storeOrders(storeType.wire),
@@ -384,6 +445,22 @@ StatefulShellRoute _storeShellRoute(
                 orderId: state.pathParameters['orderId'] ?? '',
                 autoPay: state.uri.queryParameters['autopay'] == '1',
               ),
+              routes: [
+                GoRoute(
+                  path: 'map',
+                  builder: (context, state) => OrderMapScreen(
+                    storeType: storeType,
+                    orderId: state.pathParameters['orderId'] ?? '',
+                  ),
+                ),
+                GoRoute(
+                  path: 'details',
+                  builder: (context, state) => OrderSummaryScreen(
+                    storeType: storeType,
+                    orderId: state.pathParameters['orderId'] ?? '',
+                  ),
+                ),
+              ],
             ),
           ],
         ),

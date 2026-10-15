@@ -29,9 +29,15 @@ final class CursorPage<T> extends Paged<T> {
     required super.items,
     required super.nextUrl,
     this.previousUrl,
+    this.pagePhase,
+    this.nextPhase,
   });
 
   final String? previousUrl;
+
+  /// Optional catalog image-phase metadata. Other cursor APIs omit it.
+  final String? pagePhase;
+  final String? nextPhase;
 }
 
 /// `{count, next, previous, results}` — sahifa raqami bilan.
@@ -71,6 +77,8 @@ abstract final class PageDecoder {
       items: _results(map, mapper, 'CursorPage'),
       nextUrl: _asNullableString(map['next']),
       previousUrl: _asNullableString(map['previous']),
+      pagePhase: _asNullableString(map['page_phase']),
+      nextPhase: _asNullableString(map['next_phase']),
     );
   }
 

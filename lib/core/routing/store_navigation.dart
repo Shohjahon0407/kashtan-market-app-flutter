@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
 import '../store_scope/store_type.dart';
+import 'back_navigation.dart';
 import 'routes.dart';
 
 /// Store shell ichidagi to'rtta asosiy branch.
@@ -20,7 +21,9 @@ String storeTabLocation(StoreType storeType, StoreTab tab) => switch (tab) {
 };
 
 void goToStoreTab(BuildContext context, StoreType storeType, StoreTab tab) {
-  context.go(storeTabLocation(storeType, tab));
+  AppBackCoordinator.of(
+    GoRouter.of(context),
+  ).go(storeTabLocation(storeType, tab));
 }
 
 /// Product ayni catalog branchida ochilsa oddiy back stack saqlanadi.
@@ -41,7 +44,7 @@ void openStoreProduct(
     context.push(target);
   } else if (currentPath == storeRoot ||
       currentPath.startsWith('$storeRoot/')) {
-    context.go(target);
+    AppBackCoordinator.of(GoRouter.of(context)).go(target);
   } else {
     context.push(target);
   }

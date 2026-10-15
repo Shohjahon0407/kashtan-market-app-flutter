@@ -6,11 +6,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/localization/app_locale.dart';
 import 'core/localization/locale_controller.dart';
 import 'core/routing/app_router.dart';
+import 'core/routing/back_navigation.dart';
 import 'core/ui/offline/offline_banner.dart';
 import 'core/ui/theme/app_theme.dart';
+import 'features/app_update/presentation/app_update_bootstrap.dart';
 import 'features/auth/domain/auth_controller.dart';
 import 'features/notifications/presentation/customer_notification_bootstrap.dart';
-import 'features/splash/presentation/startup_intro.dart';
 import 'generated/l10n/app_localizations.dart';
 
 /// Ilova ildizi.
@@ -31,7 +32,7 @@ class BeshKashtanApp extends ConsumerWidget {
       theme: AppTheme.light(),
       themeMode: ThemeMode.light,
 
-      builder: (context, child) => StartupIntro(
+      builder: (context, child) => AppUpdateBootstrap(
         isAppReady: isAppReady,
         child: CustomerNotificationBootstrap(
           // Offline belgisi Navigator USTIDA — barcha ekranlarni qamraydi.
@@ -61,7 +62,12 @@ class BeshKashtanApp extends ConsumerWidget {
         ),
       ],
 
-      routerConfig: router,
+      routeInformationProvider: router.routeInformationProvider,
+      routeInformationParser: router.routeInformationParser,
+      routerDelegate: router.routerDelegate,
+      backButtonDispatcher: AppBackButtonDispatcher(
+        AppBackCoordinator.of(router),
+      ),
     );
   }
 }

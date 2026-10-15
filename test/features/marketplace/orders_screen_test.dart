@@ -131,7 +131,7 @@ void main() {
     expect(find.text('Tarix'), findsOneWidget);
     expect(find.text('Olma × 2'), findsOneWidget);
     expect(find.text('+1 ta mahsulot'), findsOneWidget);
-    expect(find.text('Kuryer qidirilmoqda'), findsOneWidget);
+    expect(find.text('Tasdiqlanishi kutilmoqda'), findsOneWidget);
     expect(find.textContaining('BK-SECRET'), findsNothing);
     expect(find.text("17\u00A0000 so'm"), findsOneWidget);
 

@@ -27,6 +27,7 @@ import 'package:beshkashtan_customer/features/notifications/data/notifications_a
 import 'package:beshkashtan_customer/features/notifications/domain/notifications_controller.dart';
 import 'package:beshkashtan_customer/features/orders/data/orders_api.dart';
 import 'package:beshkashtan_customer/features/orders/domain/orders_controller.dart';
+import 'package:beshkashtan_customer/features/recommendations/domain/interaction_tracker.dart';
 import 'package:beshkashtan_customer/features/videos/data/video_api.dart';
 import 'package:beshkashtan_customer/features/videos/data/video_models.dart';
 import 'package:beshkashtan_customer/features/videos/domain/video_feed_controller.dart';
@@ -35,6 +36,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../helpers/fake_recommendations_api.dart';
 
 class _MockAuthApi extends Mock implements AuthApi {}
 
@@ -133,6 +136,7 @@ void main() {
         ),
         authApiProvider.overrideWithValue(api),
         homeApiProvider.overrideWithValue(homeApi),
+        recommendationsApiProvider.overrideWithValue(FakeRecommendationsApi()),
         videoApiProvider.overrideWithValue(videoApi),
         cartApiProvider.overrideWithValue(cartApi),
         checkoutApiProvider.overrideWithValue(checkoutApi),

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -9,16 +10,19 @@ import '../../../core/routing/store_navigation.dart';
 import '../../../core/store_scope/store_type.dart';
 import '../../../core/ui/formatters/uzs.dart';
 import '../../../core/ui/theme/app_dimens.dart';
+import '../../../core/ui/widgets/smooth_press.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../../cart/data/cart_models.dart';
 import '../../cart/domain/cart_controller.dart';
+import '../../recommendations/domain/interaction_tracker.dart';
 import '../../store/presentation/widgets/store_state_views.dart';
 import '../data/product_models.dart';
 import '../domain/catalog_controller.dart';
 import '../domain/product_report_controller.dart';
-import 'widgets/product_card.dart';
+import 'widgets/catalog_loading_skeleton.dart';
 import 'widgets/product_detail_image_zoom.dart';
 import 'widgets/product_image.dart';
+import 'widgets/product_rail.dart';
 import 'widgets/product_reviews_section.dart';
 
 class ProductDetailScreen extends ConsumerStatefulWidget {
@@ -36,15 +40,80 @@ class ProductDetailScreen extends ConsumerStatefulWidget {
       _ProductDetailScreenState();
 }
 
-class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
+class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen>
+    with WidgetsBindingObserver {
   String? _initializedProductId;
   String? _variantId;
   final Map<String, Set<String>> _selectedAddons = {};
   bool _showValidation = false;
 
+  // ── Qiziqish signali: qancha qaradi, qancha pastga tushdi ────────────────
+  // `dispose`da `ref` ishlatib bo'lmaydi — tracker oldindan olinadi.
+  late final InteractionTracker _tracker;
+  final Stopwatch _dwell = Stopwatch();
+  double _maxScrollDepth = 0;
+  String _viewedName = '';
+  StoreType? _viewedStoreType;
+
+  @override
+  void initState() {
+    super.initState();
+    _tracker = ref.read(interactionTrackerProvider);
+    WidgetsBinding.instance.addObserver(this);
+    _dwell.start();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Fonda turgan vaqt "qaradi" hisoblanmaydi.
+    if (state == AppLifecycleState.resumed) {
+      _dwell.start();
+    } else {
+      _dwell.stop();
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _dwell.stop();
+    final viewedId = _initializedProductId;
+    if (viewedId != null) {
+      final tracker = _tracker;
+      final dwell = _dwell.elapsed;
+      final depth = _maxScrollDepth;
+      final name = _viewedName;
+      final storeType = _viewedStoreType ?? widget.storeType;
+      // Provider holatini widget daraxti yopilayotganda o'zgartirib bo'lmaydi.
+      scheduleMicrotask(
+        () => tracker.recordView(
+          productId: viewedId,
+          dwell: dwell,
+          scrollDepth: depth,
+          name: name,
+          storeType: storeType,
+        ),
+      );
+    }
+    super.dispose();
+  }
+
+  bool _onScroll(ScrollNotification notification) {
+    if (notification.depth != 0) return false;
+    final metrics = notification.metrics;
+    if (metrics.axis != Axis.vertical) return false;
+    final depth = metrics.maxScrollExtent <= 0
+        ? 1.0
+        : (metrics.pixels / metrics.maxScrollExtent).clamp(0.0, 1.0);
+    if (depth > _maxScrollDepth) _maxScrollDepth = depth;
+    return false;
+  }
+
   void _initialize(ProductDetail detail) {
     if (_initializedProductId == detail.product.id) return;
     _initializedProductId = detail.product.id;
+    _viewedName = detail.product.name;
+    _viewedStoreType = detail.product.storeType;
     final active = detail.product.variants.where((variant) => variant.isActive);
     _variantId = active.where((variant) => variant.isDefault).firstOrNull?.id;
     _variantId ??= active.firstOrNull?.id;
@@ -76,7 +145,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
             onRetry: () =>
                 ref.invalidate(productDetailProvider(widget.productId)),
           ),
-          _ => const Center(child: CircularProgressIndicator()),
+          _ => const ProductDetailLoadingSkeleton(),
         },
         bottomNavigationBar: detail.value == null
             ? null
@@ -100,6 +169,20 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
       product.imageUrl,
     ].whereType<String>().toSet().toList();
 
+    return NotificationListener<ScrollNotification>(
+      onNotification: _onScroll,
+      child: _buildDetailList(context, detail, gallery, product, l10n, theme),
+    );
+  }
+
+  Widget _buildDetailList(
+    BuildContext context,
+    ProductDetail detail,
+    List<String> gallery,
+    ProductSummary product,
+    AppLocalizations l10n,
+    ThemeData theme,
+  ) {
     return ListView(
       padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
       children: [
@@ -269,27 +352,20 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
               ProductReviewsSection(detail: detail),
               if (detail.relatedProducts.isNotEmpty) ...[
                 const SizedBox(height: AppSpacing.xxl),
-                Text(
-                  l10n.productRelated,
-                  style: theme.textTheme.titleLarge?.copyWith(
+                // Gorizontal scroll: nomi/kategoriyasi/birga ko'rilgani
+                // bo'yicha o'xshashlar (backend `related_products`).
+                ProductRail(
+                  key: const ValueKey('product-related-rail'),
+                  title: l10n.productRelated,
+                  titleStyle: theme.textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.w800,
                   ),
-                ),
-                const SizedBox(height: AppSpacing.md),
-                GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: detail.relatedProducts.length,
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    crossAxisSpacing: AppSpacing.md,
-                    mainAxisSpacing: AppSpacing.md,
-                    childAspectRatio: 0.58,
-                  ),
-                  itemBuilder: (context, index) => ProductCard(
-                    product: detail.relatedProducts[index],
-                    storeType: widget.storeType,
-                  ),
+                  products: detail.relatedProducts,
+                  storeType: widget.storeType,
+                  keyPrefix: 'related-product',
+                  visibleCards: 2.4,
+                  cardHeight: 250,
+                  storageKey: PageStorageKey('related-${detail.product.id}'),
                 ),
               ],
             ],
@@ -311,11 +387,6 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
     );
     // Har bir tugma o'z kalitini kuzatadi — bitta amal butun ekranni
     // bloklamaydi.
-    final addBusy =
-        cartState?.isBusy(CartMutationKeys.add(configuration)) ?? false;
-    final itemBusy =
-        line != null &&
-        (cartState?.isBusy(CartMutationKeys.item(line.id)) ?? false);
     final waitingForCart = cartAsync.isLoading && cartState == null;
     final controller = ref.read(
       cartControllerProvider(widget.storeType).notifier,
@@ -333,23 +404,25 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
             AppSpacing.md,
           ),
           child: line == null
-              ? FilledButton(
-                  key: const ValueKey('product-detail-add-to-cart'),
-                  onPressed:
-                      _inReview(detail) ||
-                          !detail.product.isPurchasable ||
-                          _isUnsatisfiable(detail) ||
-                          waitingForCart ||
-                          cartAsync.hasError ||
-                          addBusy
-                      ? null
-                      : () => _addToCart(detail),
-                  child: waitingForCart || addBusy
-                      ? const SizedBox.square(
-                          dimension: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : Text(l10n.productAddShort),
+              ? SmoothPress(
+                  enabled:
+                      !_inReview(detail) &&
+                      detail.product.isPurchasable &&
+                      !_isUnsatisfiable(detail) &&
+                      !waitingForCart &&
+                      !cartAsync.hasError,
+                  child: FilledButton(
+                    key: const ValueKey('product-detail-add-to-cart'),
+                    onPressed:
+                        _inReview(detail) ||
+                            !detail.product.isPurchasable ||
+                            _isUnsatisfiable(detail) ||
+                            waitingForCart ||
+                            cartAsync.hasError
+                        ? null
+                        : () => _addToCart(detail),
+                    child: Text(l10n.productAddShort),
+                  ),
                 )
               : Row(
                   children: [
@@ -357,7 +430,6 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                       flex: 11,
                       child: _QuantityControl(
                         quantity: line.quantity,
-                        busy: itemBusy,
                         onDecrement: () =>
                             _runCartMutation(() => controller.decrement(line)),
                         onIncrement: () =>
@@ -776,13 +848,11 @@ class _GalleryArrow extends StatelessWidget {
 class _QuantityControl extends StatelessWidget {
   const _QuantityControl({
     required this.quantity,
-    required this.busy,
     required this.onDecrement,
     required this.onIncrement,
   });
 
   final int quantity;
-  final bool busy;
   final VoidCallback onDecrement;
   final VoidCallback onIncrement;
 
@@ -795,20 +865,18 @@ class _QuantityControl extends StatelessWidget {
     child: Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        IconButton(
-          onPressed: busy ? null : onDecrement,
-          icon: const Icon(Icons.remove),
+        SmoothPress(
+          child: IconButton(
+            onPressed: onDecrement,
+            icon: const Icon(Icons.remove),
+          ),
         ),
-        if (busy)
-          const SizedBox.square(
-            dimension: 18,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          )
-        else
-          Text('$quantity', style: Theme.of(context).textTheme.titleMedium),
-        IconButton(
-          onPressed: busy ? null : onIncrement,
-          icon: const Icon(Icons.add),
+        Text('$quantity', style: Theme.of(context).textTheme.titleMedium),
+        SmoothPress(
+          child: IconButton(
+            onPressed: onIncrement,
+            icon: const Icon(Icons.add),
+          ),
         ),
       ],
     ),

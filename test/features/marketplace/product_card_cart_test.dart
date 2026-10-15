@@ -184,6 +184,7 @@ void main() {
 
     expect(_restaurantProduct.requiresConfiguration, isFalse);
     await tester.tap(find.byKey(const ValueKey('product-card-buy-dish-1')));
+    await tester.pump(const Duration(milliseconds: 200));
     await tester.pumpAndSettle();
 
     verify(
@@ -233,6 +234,7 @@ void main() {
     );
 
     await tester.tap(find.byKey(const ValueKey('product-card-buy-product-1')));
+    await tester.pump(const Duration(milliseconds: 200));
     await tester.pumpAndSettle();
 
     expect(find.text("Tovar savatga qo'shildi"), findsOneWidget);
@@ -250,6 +252,7 @@ void main() {
     ).called(1);
 
     await tester.tap(find.byIcon(Icons.add));
+    await tester.pump(const Duration(milliseconds: 200));
     await tester.pumpAndSettle();
     expect(
       find.descendant(
@@ -260,6 +263,7 @@ void main() {
     );
 
     await tester.tap(find.byIcon(Icons.remove));
+    await tester.pump(const Duration(milliseconds: 200));
     await tester.pumpAndSettle();
     expect(find.text('1'), findsOneWidget);
     await tester.tap(find.byIcon(Icons.remove));

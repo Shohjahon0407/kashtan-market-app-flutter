@@ -9,6 +9,94 @@ class AppLocalizationsRu extends AppLocalizations {
   AppLocalizationsRu([String locale = 'ru']) : super(locale);
 
   @override
+  String get appUpdateTitle => 'Доступно обновление';
+
+  @override
+  String appUpdateBody(String version) {
+    return 'Вышла версия $version. Обновите приложение, чтобы воспользоваться новыми возможностями и улучшениями.';
+  }
+
+  @override
+  String get appUpdateDownload => 'Скачать';
+
+  @override
+  String get appUpdateLater => 'Позже';
+
+  @override
+  String get appUpdateOpenFailed =>
+      'Не удалось открыть Google Play. Попробуйте ещё раз или обновите приложение позже.';
+
+  @override
+  String get checkoutAddressActionHint =>
+      'Укажите место на карте или выберите сохранённый адрес';
+
+  @override
+  String get checkoutReceiptTitle => 'Состав заказа';
+
+  @override
+  String checkoutCartCount(int count) {
+    return 'Товары: $count';
+  }
+
+  @override
+  String get checkoutOptional => 'Необязательно';
+
+  @override
+  String get checkoutPaymentHint => 'Выберите удобный способ';
+
+  @override
+  String get checkoutPayOnline => 'Оплата онлайн';
+
+  @override
+  String get checkoutPayOnReceipt => 'При получении';
+
+  @override
+  String get checkoutPayOnPickup => 'При самовывозе';
+
+  @override
+  String get checkoutNotePlaceholder =>
+      'Например, код двери или пожелания по доставке...';
+
+  @override
+  String get checkoutNoteNoBell => 'Не звоните в дверной звонок';
+
+  @override
+  String get checkoutNoteCall => 'Позвоните по прибытии';
+
+  @override
+  String get checkoutNoteNoOnion => 'Без лука';
+
+  @override
+  String get checkoutCostBreakdown => 'Стоимость заказа';
+
+  @override
+  String get checkoutGrandTotal => 'Итого к оплате';
+
+  @override
+  String get checkoutSelectedAddress => 'Выбран';
+
+  @override
+  String get checkoutReviewHint =>
+      'Проверьте адрес и заказ перед подтверждением';
+
+  @override
+  String get checkoutHelpTitle => 'Об оформлении заказа';
+
+  @override
+  String get checkoutHelpBody =>
+      'Выберите адрес и способ оплаты. Зона доставки показана на карте. Заказ можно подтвердить после проверки адреса и стоимости доставки. Для самовывоза выберите подходящий филиал.';
+
+  @override
+  String get catalogImagelessPull =>
+      'Потяните вверх ещё раз, чтобы увидеть товары без фото';
+
+  @override
+  String get catalogImagelessRelease => 'Отпустите';
+
+  @override
+  String get catalogImagelessShow => 'Показать товары без фото';
+
+  @override
   String get addressLocationUnavailable =>
       'Не удалось определить местоположение. Проверьте GPS или выберите точку на карте.';
 
@@ -189,6 +277,113 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get storeMeat => 'Мясные продукты';
+
+  @override
+  String get meatProductLamb => 'Баранина';
+
+  @override
+  String get meatProductBeef => 'Говядина';
+
+  @override
+  String get meatProductHorse => 'Конина';
+
+  @override
+  String get meatProductQazi => 'Казы';
+
+  @override
+  String get meatProductBeefLiver => 'Говяжья печень';
+
+  @override
+  String get meatProductLambLiver => 'Баранья печень';
+
+  @override
+  String get shashlikSectionKebabs => 'Шашлыки';
+
+  @override
+  String get shashlikSectionCharcoal => 'Уголь';
+
+  @override
+  String get shashlikSectionOther => 'Другое';
+
+  @override
+  String get shashlikFamilyBeefJazz => 'Говяжий шашлык';
+
+  @override
+  String get shashlikFamilyLambJazz => 'Бараний шашлык';
+
+  @override
+  String get shashlikFamilyChicken => 'Куриные крылышки';
+
+  @override
+  String get shashlikFamilyLiver => 'Печень';
+
+  @override
+  String get shashlikFamilyMince => 'Фарш';
+
+  @override
+  String get shashlikOptionSkewered => 'На шампуре';
+
+  @override
+  String get shashlikOptionByKilo => 'На вес';
+
+  @override
+  String get shashlikOptionMince => 'Фарш';
+
+  @override
+  String get shashlikOptionBreadMince => 'Фарш с хлебом';
+
+  @override
+  String get shashlikOptionKiloMince => 'Фарш на вес';
+
+  @override
+  String get shashlikChooseProduct => 'Выберите вид продукта и количество';
+
+  @override
+  String get shashlikQuantity => 'Количество';
+
+  @override
+  String get shashlikAddToCart => 'Добавить в корзину';
+
+  @override
+  String shashlikPriceFrom(String price) {
+    return 'от $price';
+  }
+
+  @override
+  String shashlikKilogramPrice(String price) {
+    return 'За килограмм $price';
+  }
+
+  @override
+  String shashlikPieceQuantity(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count штуки',
+      many: '$count штук',
+      few: '$count штуки',
+      one: '1 штука',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String shashlikKilogramQuantity(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count килограмма',
+      many: '$count килограммов',
+      few: '$count килограмма',
+      one: '1 килограмм',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String shashlikInCart(int count) {
+    return 'В корзине: $count';
+  }
 
   @override
   String get cartTitle => 'Корзина';
@@ -453,6 +648,18 @@ class AppLocalizationsRu extends AppLocalizations {
   String get householdSectionKidsHobbyOther => 'Дети, хобби и другое';
 
   @override
+  String get restaurantSectionTraditional => 'Традиционные блюда';
+
+  @override
+  String get restaurantSectionGrillTandoor => 'Гриль и тандыр';
+
+  @override
+  String get restaurantSectionSaladsTable => 'Салаты и дополнения';
+
+  @override
+  String get restaurantSectionDessertsDrinks => 'Десерты и напитки';
+
+  @override
   String get catalogFeatured => 'Рекомендуем';
 
   @override
@@ -555,6 +762,17 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get productRelated => 'Похожие товары';
+
+  @override
+  String get homeForYou => 'Для вас';
+
+  @override
+  String get homeForYouSubtitle => 'Подобрали по вашим интересам';
+
+  @override
+  String catalogSimilarTo(String name) {
+    return 'Похожие на «$name»';
+  }
 
   @override
   String get productVariant => 'Выберите вариант';
@@ -741,6 +959,9 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get ordersLoadMore => 'Показать ещё';
+
+  @override
+  String get ordersRecommendedTitle => 'Вам может понравиться';
 
   @override
   String get orderItems => 'Товары';
@@ -964,35 +1185,104 @@ class AppLocalizationsRu extends AppLocalizations {
   String get videoYou => 'Вы';
 
   @override
-  String get orderSearchingCourier => 'Ищем курьера';
-
-  @override
-  String get orderSearchingSubtitle =>
-      'Ищем ближайшего курьера для доставки вашего заказа';
-
-  @override
   String orderWaitingElapsed(Object elapsed) {
     return 'Ожидание: $elapsed';
   }
 
   @override
-  String get orderCourierAccepted => 'Курьер принял заказ';
+  String get orderStatusDelivering => 'Курьер в пути';
 
   @override
-  String get orderCourierAcceptedSubtitle => 'Ваш заказ готовится к доставке';
+  String get orderStageAwaiting => 'Ожидаем подтверждения заказа';
 
   @override
-  String get orderCourierOnWay => 'Курьер в пути';
+  String get orderStageAwaitingHint => 'Курьер рассматривает ваш заказ';
 
   @override
-  String get orderCourierOnWaySubtitle =>
-      'Ваш заказ направляется к вашему адресу';
+  String get orderStagePreparing => 'Ваш заказ готовится';
 
   @override
-  String get orderStatusAccepted => 'Принят';
+  String get orderStagePreparingHint => 'Курьер едет в магазин';
 
   @override
-  String get orderStatusDelivering => 'Доставляется';
+  String get orderStageOnWay => 'Курьер выехал к вам';
+
+  @override
+  String get orderStageOnWayHint => 'Ваш заказ направляется к вашему адресу';
+
+  @override
+  String get orderStageDelivered => 'Заказ доставлен';
+
+  @override
+  String get orderStageDeliveredHint => 'Спасибо за покупку!';
+
+  @override
+  String get orderDeliveryWindowTitle => 'Доставим в';
+
+  @override
+  String get orderDeliveryWindowPending =>
+      'Уточним после подтверждения курьером';
+
+  @override
+  String orderDeliveredAt(String time) {
+    return 'Доставлен · $time';
+  }
+
+  @override
+  String get orderSummaryTitle => 'Детали заказа';
+
+  @override
+  String orderSummaryProducts(int count) {
+    return '$count товар(ов)';
+  }
+
+  @override
+  String get orderDeliveryDetails => 'Детали доставки';
+
+  @override
+  String get orderRecipientPhone => 'Номер получателя';
+
+  @override
+  String get orderPaymentMethodLabel => 'Способ оплаты';
+
+  @override
+  String get orderPaymentCash => 'Наличными курьеру';
+
+  @override
+  String get orderPaymentPayme => 'Payme';
+
+  @override
+  String get orderDeliveryFree => 'Бесплатно';
+
+  @override
+  String get orderBackToOrder => 'Вернуться к заказу';
+
+  @override
+  String get orderHelp => 'Помощь';
+
+  @override
+  String get orderOpenMap => 'Развернуть карту';
+
+  @override
+  String get orderStatusAwaiting => 'Ждёт подтверждения';
+
+  @override
+  String get orderStatusPreparing => 'Готовится';
+
+  @override
+  String get orderCourierRole => 'Курьер';
+
+  @override
+  String get orderVehicleFoot => 'Пешком';
+
+  @override
+  String get orderVehicleBicycle => 'Велосипед';
+
+  @override
+  String get orderVehicleMotorcycle => 'Мотоцикл';
+
+  @override
+  String get orderVehicleCar => 'Автомобиль';
 
   @override
   String get orderStatusDelivered => 'Доставлен';
@@ -1004,18 +1294,9 @@ class AppLocalizationsRu extends AppLocalizations {
   String get orderStatusProcessing => 'В обработке';
 
   @override
-  String get orderDeliveredSubtitle => 'Ваш заказ успешно доставлен';
-
-  @override
-  String get orderEstimatedArrival => 'Ожидаемое прибытие';
-
-  @override
   String orderArrivesInMinutes(Object minutes) {
     return 'В течение $minutes мин.';
   }
-
-  @override
-  String get orderCourierNote => 'Комментарий курьера';
 
   @override
   String get orderCallCourier => 'Позвонить';
@@ -1025,9 +1306,6 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get orderPhoneCopied => 'Номер телефона скопирован';
-
-  @override
-  String get orderLiveTracking => 'Отслеживание';
 
   @override
   String orderLocationUpdated(Object seconds) {
@@ -1170,4 +1448,82 @@ class AppLocalizationsRu extends AppLocalizations {
   String ugcBlockConfirmation(String name) {
     return 'Заблокировать пользователя $name? Его публичные комментарии и отзывы больше не будут вам видны.';
   }
+
+  @override
+  String get checkoutDeliveryMapTitle => 'Карта доставки';
+
+  @override
+  String get checkoutMapStore => 'Магазин';
+
+  @override
+  String get checkoutMapAddress => 'Адрес доставки';
+
+  @override
+  String get checkoutMapYou => 'Вы здесь';
+
+  @override
+  String get checkoutMapFit => 'Показать всё';
+
+  @override
+  String get checkoutMapExpand => 'Развернуть';
+
+  @override
+  String get checkoutMapLocating => 'Определяем местоположение';
+
+  @override
+  String get checkoutMapGpsUnavailable =>
+      'Не удалось определить местоположение телефона. Можно выбрать адрес вручную.';
+
+  @override
+  String get checkoutGpsDenied =>
+      'Доступ к геолокации не разрешён. Адрес доставки можно выбрать вручную.';
+
+  @override
+  String get checkoutGpsDeniedForever =>
+      'Разрешите геолокацию в настройках телефона или выберите адрес вручную.';
+
+  @override
+  String get checkoutGpsDisabled =>
+      'GPS выключен. Включите его или выберите адрес вручную.';
+
+  @override
+  String get checkoutGpsTimeout =>
+      'GPS не ответил вовремя. Повторите попытку или выберите адрес вручную.';
+
+  @override
+  String get checkoutGpsStale =>
+      'Данные GPS устарели. Обновите местоположение или выберите адрес вручную.';
+
+  @override
+  String get checkoutGpsApproximate =>
+      'Местоположение приблизительное. Включите точную геолокацию или обновите GPS.';
+
+  @override
+  String get checkoutGpsSettings => 'Открыть настройки';
+
+  @override
+  String get checkoutMapTilesUnavailable =>
+      'Карта не загрузилась. Метки и радиус доступны.';
+
+  @override
+  String get checkoutMapCoverageUnavailable =>
+      'Не удалось загрузить зону доставки.';
+
+  @override
+  String checkoutCoverageRadius(String radius) {
+    return 'Радиус доставки: $radius км';
+  }
+
+  @override
+  String checkoutOutsideRadius(String radius) {
+    return 'Адрес вне радиуса доставки $radius км. Выберите другой адрес или самовывоз.';
+  }
+
+  @override
+  String get checkoutTariffUnavailable =>
+      'Для этого расстояния не настроен тариф доставки.';
+
+  @override
+  String get checkoutMapPreviewHint =>
+      'Это предварительный просмотр зоны филиала. Выберите адрес доставки для заказа.';
 }

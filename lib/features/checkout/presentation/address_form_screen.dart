@@ -16,32 +16,15 @@ import '../../../generated/l10n/app_localizations.dart';
 import '../../store/presentation/widgets/store_state_views.dart';
 import '../data/checkout_models.dart';
 import '../domain/addresses_controller.dart';
+import '../domain/device_location.dart';
+
+export '../domain/device_location.dart' show addressLocationAccessProvider;
 
 typedef AddressLocationResolver = Future<Position> Function();
 
 final addressLocationResolverProvider = Provider<AddressLocationResolver>(
-  (_) => _resolveDeviceLocation,
+  (ref) => ref.read(deviceLocationServiceProvider).resolve,
 );
-
-Future<Position> _resolveDeviceLocation() async {
-  if (!await Geolocator.isLocationServiceEnabled()) {
-    throw StateError('location_service_disabled');
-  }
-  var permission = await Geolocator.checkPermission();
-  if (permission == LocationPermission.denied) {
-    permission = await Geolocator.requestPermission();
-  }
-  if (permission == LocationPermission.denied ||
-      permission == LocationPermission.deniedForever) {
-    throw StateError('location_permission_denied');
-  }
-  return Geolocator.getCurrentPosition(
-    locationSettings: const LocationSettings(
-      accuracy: LocationAccuracy.high,
-      timeLimit: Duration(seconds: 15),
-    ),
-  );
-}
 
 class AddressFormScreen extends ConsumerStatefulWidget {
   const AddressFormScreen({this.addressId, super.key});
@@ -306,8 +289,10 @@ class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
       _mapController.move(LatLng(position.latitude, position.longitude), 16);
     } on Object catch (error) {
       if (!mounted || revision != _locationRevision) return;
+      final reason = locationFailureOf(error);
       final denied =
-          error is StateError && error.message == 'location_permission_denied';
+          reason == DeviceLocationFailure.denied ||
+          reason == DeviceLocationFailure.deniedForever;
       setState(() => _permissionDenied = denied);
       if (!denied) {
         _messenger.showSnackBar(

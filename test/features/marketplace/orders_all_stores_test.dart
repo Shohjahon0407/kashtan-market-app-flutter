@@ -7,6 +7,10 @@ import 'package:beshkashtan_customer/core/store_scope/store_type.dart';
 import 'package:beshkashtan_customer/features/auth/data/auth_api.dart';
 import 'package:beshkashtan_customer/features/auth/data/auth_models.dart';
 import 'package:beshkashtan_customer/features/auth/domain/auth_controller.dart';
+import 'package:beshkashtan_customer/features/cart/data/cart_api.dart';
+import 'package:beshkashtan_customer/features/cart/data/cart_models.dart';
+import 'package:beshkashtan_customer/features/cart/domain/cart_controller.dart';
+import 'package:beshkashtan_customer/features/catalog/data/product_models.dart';
 import 'package:beshkashtan_customer/features/home/data/home_api.dart';
 import 'package:beshkashtan_customer/features/home/data/home_models.dart';
 import 'package:beshkashtan_customer/features/home/domain/home_controller.dart';
@@ -14,6 +18,7 @@ import 'package:beshkashtan_customer/features/orders/data/order_models.dart';
 import 'package:beshkashtan_customer/features/orders/data/orders_api.dart';
 import 'package:beshkashtan_customer/features/orders/domain/orders_controller.dart';
 import 'package:beshkashtan_customer/features/orders/presentation/orders_screen.dart';
+import 'package:beshkashtan_customer/features/recommendations/domain/interaction_tracker.dart';
 import 'package:beshkashtan_customer/generated/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -21,9 +26,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../helpers/fake_recommendations_api.dart';
+
 class _MockAuthApi extends Mock implements AuthApi {}
 
 class _MockHomeApi extends Mock implements HomeApi {}
+
+class _MockCartApi extends Mock implements CartApi {}
 
 const _user = AuthUser(
   id: 'u-1',
@@ -119,6 +128,9 @@ void main() {
             prefsStoreProvider.overrideWithValue(prefs),
             ordersApiProvider.overrideWithValue(api),
             homeApiProvider.overrideWithValue(homeApi),
+            recommendationsApiProvider.overrideWithValue(
+              FakeRecommendationsApi(),
+            ),
           ],
           child: const MaterialApp(
             locale: Locale('uz'),
@@ -176,6 +188,84 @@ void main() {
     expect(container.read(activeOrdersCountProvider), 2);
     expect(api.calls.single, (storeType: null, period: 'today'));
   });
+
+  testWidgets(
+    'buyurtmalar ostida tavsiya kartalari, scroll bilan davom etadi',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 1600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await PrefsStore.load();
+      final homeApi = _MockHomeApi();
+      final cartApi = _MockCartApi();
+      when(() => homeApi.fetch()).thenAnswer((_) async => _home);
+      when(() => cartApi.fetch(any())).thenAnswer(
+        (invocation) async =>
+            CartData.empty(invocation.positionalArguments.first as String),
+      );
+      final reco = FakeRecommendationsApi()
+        ..pagedItems = [
+          for (var i = 0; i < 30; i++)
+            ProductSummary.fromJson({
+              'id': 'r$i',
+              'name': 'Tavsiya $i',
+              'price': '15000.00',
+              'store_type': i.isEven ? 'grocery' : 'meat',
+              'is_purchasable': true,
+              'variants': <Object>[],
+            }),
+        ];
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            prefsStoreProvider.overrideWithValue(prefs),
+            ordersApiProvider.overrideWithValue(_RecordingOrdersApi()),
+            homeApiProvider.overrideWithValue(homeApi),
+            cartApiProvider.overrideWithValue(cartApi),
+            recommendationsApiProvider.overrideWithValue(reco),
+          ],
+          child: const MaterialApp(
+            locale: Locale('uz'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: OrdersScreen(),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      // Avval buyurtmalar, keyin "Sizga yoqishi mumkin".
+      final orderTop = tester.getTopLeft(
+        find.byKey(const ValueKey('order-store-label-g-1')),
+      );
+      final header = find.byKey(const ValueKey('orders-recommended-header'));
+      expect(header, findsOneWidget);
+      expect(find.text('Sizga yoqishi mumkin'), findsOneWidget);
+      expect(tester.getTopLeft(header).dy, greaterThan(orderTop.dy));
+      expect(
+        find.byKey(const ValueKey('orders-recommended-r0')),
+        findsOneWidget,
+      );
+
+      for (var i = 0; i < 12; i++) {
+        await tester.drag(find.byType(CustomScrollView), const Offset(0, -600));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      expect(reco.forYouRequests.map((r) => r.offset), [0, 20]);
+      await tester.dragUntilVisible(
+        find.byKey(const ValueKey('orders-recommended-r29')),
+        find.byType(CustomScrollView),
+        const Offset(0, -300),
+      );
+      expect(
+        find.byKey(const ValueKey('orders-recommended-r29')),
+        findsOneWidget,
+      );
+    },
+  );
 }
 
 class _RecordingOrdersApi extends Fake implements OrdersApi {

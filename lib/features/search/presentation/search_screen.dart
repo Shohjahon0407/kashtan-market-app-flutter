@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/localization/failure_l10n.dart';
 import '../../../core/routing/auth_gate.dart';
+import '../../../core/routing/back_navigation.dart';
 import '../../../core/routing/routes.dart';
 import '../../../core/store_scope/store_type.dart';
 import '../../../core/ui/formatters/uzs.dart';
@@ -88,9 +89,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                         tooltip: MaterialLocalizations.of(
                           context,
                         ).backButtonTooltip,
-                        onPressed: () => context.canPop()
-                            ? context.pop()
-                            : context.go(Routes.home),
+                        onPressed: () => appBack(context),
                         icon: const Icon(Icons.arrow_back),
                       ),
                       Expanded(

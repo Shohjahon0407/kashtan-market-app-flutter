@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/routing/auth_gate.dart';
+import '../../../core/routing/back_navigation.dart';
 import '../../../core/routing/store_navigation.dart';
 import '../../../core/store_scope/store_type.dart';
 import '../../../generated/l10n/app_localizations.dart';
@@ -37,52 +38,54 @@ class StoreShell extends ConsumerWidget {
             ?.cart
             .totalQuantity ??
         0;
-    return Scaffold(
-      body: navigationShell,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: navigationShell.currentIndex,
-        onDestinationSelected: (index) async {
-          final protected = index == 1 || index == 3;
-          if (protected && !await requireAuthentication(context, ref)) {
-            return;
-          }
-          if (!context.mounted) return;
-          goToStoreTab(context, storeType, StoreTab.values[index]);
-        },
-        destinations: [
-          NavigationDestination(
-            key: const ValueKey('store-nav-catalog'),
-            icon: const Icon(Icons.storefront_outlined),
-            selectedIcon: const Icon(Icons.storefront),
-            label: l10n.navProducts,
-          ),
-          NavigationDestination(
-            key: const ValueKey('store-nav-favorites'),
-            icon: const Icon(Icons.favorite_border),
-            selectedIcon: const Icon(Icons.favorite),
-            label: l10n.navFavorites,
-          ),
-          NavigationDestination(
-            key: const ValueKey('store-nav-cart'),
-            icon: Badge(
-              isLabelVisible: cartQuantity > 0,
-              label: Text(cartQuantity > 99 ? '99+' : '$cartQuantity'),
-              child: const Icon(Icons.shopping_bag_outlined),
+    return BackNavigationGuard(
+      child: Scaffold(
+        body: navigationShell,
+        bottomNavigationBar: NavigationBar(
+          selectedIndex: navigationShell.currentIndex,
+          onDestinationSelected: (index) async {
+            final protected = index == 1 || index == 3;
+            if (protected && !await requireAuthentication(context, ref)) {
+              return;
+            }
+            if (!context.mounted) return;
+            goToStoreTab(context, storeType, StoreTab.values[index]);
+          },
+          destinations: [
+            NavigationDestination(
+              key: const ValueKey('store-nav-catalog'),
+              icon: const Icon(Icons.storefront_outlined),
+              selectedIcon: const Icon(Icons.storefront),
+              label: l10n.navProducts,
             ),
-            selectedIcon: Badge(
-              isLabelVisible: cartQuantity > 0,
-              label: Text(cartQuantity > 99 ? '99+' : '$cartQuantity'),
-              child: const Icon(Icons.shopping_bag),
+            NavigationDestination(
+              key: const ValueKey('store-nav-favorites'),
+              icon: const Icon(Icons.favorite_border),
+              selectedIcon: const Icon(Icons.favorite),
+              label: l10n.navFavorites,
             ),
-            label: l10n.navCart,
-          ),
-          NavigationDestination(
-            key: const ValueKey('store-nav-orders'),
-            icon: const Icon(Icons.receipt_long_outlined),
-            selectedIcon: const Icon(Icons.receipt_long),
-            label: l10n.navOrders,
-          ),
-        ],
+            NavigationDestination(
+              key: const ValueKey('store-nav-cart'),
+              icon: Badge(
+                isLabelVisible: cartQuantity > 0,
+                label: Text(cartQuantity > 99 ? '99+' : '$cartQuantity'),
+                child: const Icon(Icons.shopping_bag_outlined),
+              ),
+              selectedIcon: Badge(
+                isLabelVisible: cartQuantity > 0,
+                label: Text(cartQuantity > 99 ? '99+' : '$cartQuantity'),
+                child: const Icon(Icons.shopping_bag),
+              ),
+              label: l10n.navCart,
+            ),
+            NavigationDestination(
+              key: const ValueKey('store-nav-orders'),
+              icon: const Icon(Icons.receipt_long_outlined),
+              selectedIcon: const Icon(Icons.receipt_long),
+              label: l10n.navOrders,
+            ),
+          ],
+        ),
       ),
     );
   }

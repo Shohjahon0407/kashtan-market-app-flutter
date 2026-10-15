@@ -6,6 +6,7 @@ import '../../orders/data/order_models.dart';
 import '../../orders/domain/orders_controller.dart';
 import '../data/payment_models.dart';
 import '../data/payments_api.dart';
+import 'payment_availability.dart';
 
 /// To'lov jarayonining bosqichi. paid/failed/cancelled bu yerda YO'Q —
 /// yakuniy holat faqat buyurtmaning `payment_status` maydonidan o'qiladi,
@@ -56,7 +57,7 @@ class PaymePaymentController extends Notifier<PaymePaymentState> {
 
   /// Backend'dan payment_url oladi va tashqi brauzerda ochadi.
   Future<void> startPayment() async {
-    if (state.busy) return;
+    if (!ref.read(paymeEnabledProvider) || state.busy) return;
     state = const PaymePaymentState(phase: PaymePhase.creating);
     try {
       final result = await ref

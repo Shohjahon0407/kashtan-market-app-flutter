@@ -45,7 +45,7 @@ class StoreGrid extends StatelessWidget {
   }
 }
 
-/// Lokal rasmlar server `image` bermaganda ishlaydi.
+/// Lokal fallback rasmlar. Tanlangan Shashlik, Ofiyat va Go'sht fotosi ustuvor.
 const Map<StoreType, String> _cardAssets = {
   StoreType.household: 'assets/stores/household.webp',
   StoreType.restaurant: 'assets/stores/restaurant.webp',
@@ -196,7 +196,8 @@ class _StoreCard extends StatelessWidget {
   static Color _onAccent(Color background) => onAccent(background);
 }
 
-/// Rasm tanlash tartibi: server image -> mavjud lokal asset -> default ikon.
+/// Shashlik, Ofiyat, Go'sht: tanlangan lokal foto -> server -> ikon.
+/// Boshqa do'konlar: server -> lokal asset -> ikon.
 class _CardImage extends StatelessWidget {
   const _CardImage({required this.item, required this.accent});
 
@@ -206,25 +207,44 @@ class _CardImage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final asset = _cardAssets[item.storeType];
+    Widget icon() => _IconFallback(accent: accent, type: item.storeType);
     Widget local() => asset == null
-        ? _IconFallback(accent: accent, type: item.storeType)
+        ? icon()
         : Image.asset(
             asset,
             fit: BoxFit.cover,
-            errorBuilder: (_, _, _) =>
-                _IconFallback(accent: accent, type: item.storeType),
+            errorBuilder: (_, _, _) => icon(),
           );
 
-    final url = item.imageUrl;
-    if (url == null) return local();
-    return CachedNetworkImage(
-      // To'liq o'lchamda dekod qilinmasin — ko'rsatiladigan kenglikka yaqin.
-      memCacheWidth: 480,
-      imageUrl: url,
-      fit: BoxFit.cover,
-      placeholder: (_, _) => local(),
-      errorWidget: (_, _, _) => local(),
-    );
+    Widget remoteOr(Widget Function() fallback) {
+      final url = item.imageUrl;
+      if (url == null) return fallback();
+      return CachedNetworkImage(
+        memCacheWidth: 480,
+        imageUrl: url,
+        fit: BoxFit.cover,
+        placeholder: (_, _) => fallback(),
+        errorWidget: (_, _, _) => fallback(),
+      );
+    }
+
+    final preferredPhoto = switch (item.storeType) {
+      StoreType.shashlik || StoreType.restaurant || StoreType.meat => true,
+      _ => false,
+    };
+    if (preferredPhoto && asset != null) {
+      return Image.asset(
+        asset,
+        cacheWidth: 480,
+        fit: BoxFit.cover,
+        // Keep storefront signage visible in the wide card image area.
+        alignment: item.storeType == StoreType.shashlik
+            ? Alignment.center
+            : Alignment.topCenter,
+        errorBuilder: (_, _, _) => remoteOr(icon),
+      );
+    }
+    return remoteOr(local);
   }
 }
 

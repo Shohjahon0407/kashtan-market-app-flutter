@@ -1,4 +1,31 @@
 {
+  "appUpdateTitle": "Янгиланиш мавжуд",
+  "appUpdateBody": "Илованинг {version} версияси чиқди. Янги имкониятлар ва яхшиланишлардан фойдаланиш учун янгиланг.",
+  "appUpdateDownload": "Юклаб олиш",
+  "appUpdateLater": "Кейинроқ",
+  "appUpdateOpenFailed": "Google Play’ни очиб бўлмади. Қайта уриниб кўринг ёки кейинроқ янгиланг.",
+  "checkoutAddressActionHint": "Харитадан жой белгиланг ёки сақланган манзилни танланг",
+  "checkoutReceiptTitle": "Маҳсулотлар чеки",
+  "checkoutCartCount": "{count} та маҳсулот",
+  "@checkoutCartCount": {"placeholders": {"count": {"type": "int"}}},
+  "checkoutOptional": "Ихтиёрий",
+  "checkoutPaymentHint": "Қулай усулни танланг",
+  "checkoutPayOnline": "Онлайн тўлов",
+  "checkoutPayOnReceipt": "Қабул қилганда",
+  "checkoutPayOnPickup": "Олиб кетганда",
+  "checkoutNotePlaceholder": "Масалан, эшик коди ёки етказиш бўйича изоҳ...",
+  "checkoutNoteNoBell": "Эшик қўнғироғини чалманг",
+  "checkoutNoteCall": "Етиб келганда қўнғироқ қилинг",
+  "checkoutNoteNoOnion": "Пиёзсиз бўлсин",
+  "checkoutCostBreakdown": "Ҳисоб-китоб",
+  "checkoutGrandTotal": "Жами тўлов",
+  "checkoutSelectedAddress": "Танланган",
+  "checkoutReviewHint": "Тасдиқлашдан олдин манзил ва буюртмани текширинг",
+  "checkoutHelpTitle": "Буюртма ҳақида",
+  "checkoutHelpBody": "Етказиш манзилини ва тўлов усулини танланг. Етказиш ҳудуди харитада кўрсатилган. Буюртма фақат манзил ва етказиш нархи текширилгач тасдиқланади. Олиб кетишда мос филиални танланг.",
+  "catalogImagelessPull": "Расмсиз маҳсулотларни кўриш учун яна юқорига тортинг",
+  "catalogImagelessRelease": "Қўйиб юборинг",
+  "catalogImagelessShow": "Расмсизларни кўрсатиш",
   "@@locale": "uz_Cyrl",
   "addressLocationUnavailable": "Локацияни аниқлаб бўлмади. ГПСъни текширинг ёки харитада нуқтани қўлда танланг.",
   "appName": "Besh Kashtan",
@@ -84,6 +111,68 @@
   "storeRestaurant": "Ресторан",
   "storeShashlik": "Шашлик",
   "storeMeat": "Гўшт маҳсулотлари",
+  "meatProductLamb": "Қўй гўшти",
+  "meatProductBeef": "Мол гўшти",
+  "meatProductHorse": "От гўшти",
+  "meatProductQazi": "Қази",
+  "meatProductBeefLiver": "Мол жигар",
+  "meatProductLambLiver": "Қўй жигар",
+  "shashlikSectionKebabs": "Шашликлар",
+  "shashlikSectionCharcoal": "Кўмир",
+  "shashlikSectionOther": "Бошқа",
+  "shashlikFamilyBeefJazz": "Мол жазз",
+  "shashlikFamilyLambJazz": "Қўй жазз",
+  "shashlikFamilyChicken": "Товуқ",
+  "shashlikFamilyLiver": "Жигар",
+  "shashlikFamilyMince": "Қийма",
+  "shashlikOptionSkewered": "Зихланган",
+  "shashlikOptionByKilo": "Килолик",
+  "shashlikOptionMince": "Қийма",
+  "shashlikOptionBreadMince": "Нон қийма",
+  "shashlikOptionKiloMince": "Килолик қийма",
+  "shashlikChooseProduct": "Маҳсулот турини ва миқдорини танланг",
+  "shashlikQuantity": "Миқдор",
+  "shashlikAddToCart": "Саватга қўшиш",
+  "shashlikPriceFrom": "{price} дан",
+  "@shashlikPriceFrom": {
+    "placeholders": {
+      "price": {
+        "type": "String"
+      }
+    }
+  },
+  "shashlikKilogramPrice": "Килограмми {price}",
+  "@shashlikKilogramPrice": {
+    "placeholders": {
+      "price": {
+        "type": "String"
+      }
+    }
+  },
+  "shashlikPieceQuantity": "{count, plural, =1 {1 дона} other {{count} дона}}",
+  "@shashlikPieceQuantity": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "shashlikKilogramQuantity": "{count, plural, =1 {1 килограм} other {{count} килограм}}",
+  "@shashlikKilogramQuantity": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "shashlikInCart": "Саватда: {count} та",
+  "@shashlikInCart": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "cartTitle": "Сават",
   "cartEmpty": "Сават бўш",
   "cartEmptyStore": "сават бўш",
@@ -205,6 +294,10 @@
   "householdSectionKitchenLiving": "Ошхона ва рўзғор",
   "householdSectionClothingCare": "Кийим ва шахсий парвариш",
   "householdSectionKidsHobbyOther": "Болалар, ҳобби ва бошқа",
+  "restaurantSectionTraditional": "Анъанавий таомлар",
+  "restaurantSectionGrillTandoor": "Грилл ва тандир",
+  "restaurantSectionSaladsTable": "Салатлар ва дастурхон",
+  "restaurantSectionDessertsDrinks": "Ширинлик ва ичимликлар",
   "catalogFeatured": "Тавсия этамиз",
   "catalogDiscounted": "Чегирмалар",
   "catalogPopular": "Оммабоп",
@@ -245,6 +338,16 @@
   },
   "productDescription": "Тавсиф",
   "productRelated": "Ўхшаш маҳсулотлар",
+  "homeForYou": "Сиз учун",
+  "homeForYouSubtitle": "Қизиқишларингизга қараб танладик",
+  "catalogSimilarTo": "«{name}»га ўхшашлар",
+  "@catalogSimilarTo": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "productVariant": "Вариантни танланг",
   "productAddons": "Қўшимчалар",
   "productRequired": "Мажбурий",
@@ -305,6 +408,7 @@
   "ordersHistoryEmpty": "Буюртмалар тарихи бўш",
   "ordersMoreProducts": "+{count} та маҳсулот",
   "ordersLoadMore": "Яна кўрсатиш",
+  "ordersRecommendedTitle": "Сизга ёқиши мумкин",
   "orderItems": "Маҳсулотлар",
   "orderAddress": "Манзил",
   "orderPickupBranch": "Олиб кетиш филиали",
@@ -375,26 +479,58 @@
   "videoSeeAllProducts": "Барчасини кўриш",
   "videoProductsLoadError": "Маҳсулотларни юклаб бўлмади.",
   "videoYou": "Сиз",
-  "orderSearchingCourier": "Курер қидирилмоқда",
-  "orderSearchingSubtitle": "Буюртмангизни етказадиган энг яқин курерни излаяпмиз",
   "orderWaitingElapsed": "Кутилмоқда: {elapsed}",
-  "orderCourierAccepted": "Курер буюртмани қабул қилди",
-  "orderCourierAcceptedSubtitle": "Буюртмангиз етказишга тайёрланмоқда",
-  "orderCourierOnWay": "Курер йўлда",
-  "orderCourierOnWaySubtitle": "Буюртмангиз манзилингиз томон келмоқда",
-  "orderStatusAccepted": "Қабул қилинди",
-  "orderStatusDelivering": "Етказилмоқда",
+  "orderStatusDelivering": "Курер йўлда",
+  "orderStageAwaiting": "Буюртма тасдиқланиши кутилмоқда",
+  "orderStageAwaitingHint": "Курер буюртмангизни кўриб чиқмоқда",
+  "orderStagePreparing": "Буюртмангиз тайёрланмоқда",
+  "orderStagePreparingHint": "Курер дўконга йўл олди",
+  "orderStageOnWay": "Курер сиз томон йўлга чиқди",
+  "orderStageOnWayHint": "Буюртмангиз манзилингиз томон келмоқда",
+  "orderStageDelivered": "Буюртма етказилди",
+  "orderStageDeliveredHint": "Харидингиз учун раҳмат!",
+  "orderDeliveryWindowTitle": "Етказиб берадиган вақтимиз",
+  "orderDeliveryWindowPending": "Курер тасдиқлагач аниқланади",
+  "orderDeliveredAt": "Етказилди · {time}",
+  "@orderDeliveredAt": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "orderSummaryTitle": "Буюртма тафсилотлари",
+  "orderSummaryProducts": "{count} та маҳсулот",
+  "@orderSummaryProducts": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "orderDeliveryDetails": "Етказиш тафсилотлари",
+  "orderRecipientPhone": "Олувчининг рақами",
+  "orderPaymentMethodLabel": "Тўлов усули",
+  "orderPaymentCash": "Нақд, курерга",
+  "orderPaymentPayme": "Пайме",
+  "orderDeliveryFree": "Бепул",
+  "orderBackToOrder": "Буюртмага қайтиш",
+  "orderHelp": "Ёрдам",
+  "orderOpenMap": "Харитани катталаштириш",
+  "orderStatusAwaiting": "Тасдиқланиши кутилмоқда",
+  "orderStatusPreparing": "Тайёрланмоқда",
+  "orderCourierRole": "Курер",
+  "orderVehicleFoot": "Пиёда",
+  "orderVehicleBicycle": "Велосипед",
+  "orderVehicleMotorcycle": "Мотоцикл",
+  "orderVehicleCar": "Автомобил",
   "orderStatusDelivered": "Етказилди",
   "orderStatusCancelled": "Бекор қилинди",
   "orderStatusProcessing": "Жараёнда",
-  "orderDeliveredSubtitle": "Буюртмангиз муваффақиятли етказилди",
-  "orderEstimatedArrival": "Тахминий етиб келиш",
   "orderArrivesInMinutes": "{minutes} дақиқа ичида",
-  "orderCourierNote": "Курер изоҳи",
   "orderCallCourier": "Қўнғироқ қилиш",
   "orderCopyPhone": "Рақамни нусхалаш",
   "orderPhoneCopied": "Телефон рақами нусхаланди",
-  "orderLiveTracking": "Жонли кузатув",
   "orderLocationUpdated": "Локация {seconds} сония олдин янгиланди",
   "orderLocationDelayed": "Локация янгиланиши кечикмоқда",
   "orderLocationUnavailable": "Курер локацияси вақтинча мавжуд эмас",
@@ -441,6 +577,41 @@
   "@ugcBlockConfirmation": {
     "placeholders": {
       "name": {
+        "type": "String"
+      }
+    }
+  },
+  "checkoutDeliveryMapTitle": "Етказиш харитаси",
+  "checkoutMapStore": "Дўкон",
+  "checkoutMapAddress": "Етказиш манзили",
+  "checkoutMapYou": "Сиз турган жой",
+  "checkoutMapFit": "Ҳаммасини кўрсатиш",
+  "checkoutMapExpand": "Кенгайтириш",
+  "checkoutMapLocating": "Жойлашув аниқланмоқда",
+  "checkoutMapGpsUnavailable": "Телефон жойлашувини аниқлаб бўлмади. Манзилни қўлда танлашингиз мумкин.",
+  "checkoutGpsDenied": "Локация рухсати берилмади. Етказиш манзилини қўлда танлашингиз мумкин.",
+  "checkoutGpsDeniedForever": "Локация рухсатини телефон созламаларидан ёқинг ёки манзилни қўлда танланг.",
+  "checkoutGpsDisabled": "GPS ўчиқ. Уни ёқинг ёки манзилни қўлда танланг.",
+  "checkoutGpsTimeout": "GPS жавоби кечикди. Қайта уриниб кўринг ёки манзилни қўлда танланг.",
+  "checkoutGpsStale": "GPS нуқтаси эскирган. Жойлашувни қайта аниқланг ёки манзилни қўлда танланг.",
+  "checkoutGpsApproximate": "Жойлашув тахминий. Телефонингизда аниқ локацияни ёқинг ёки GPS’ни қайта текширинг.",
+  "checkoutGpsSettings": "Созламаларни очиш",
+  "checkoutMapTilesUnavailable": "Харита расмлари юкланмади. Маркерлар ва радиус ишлайди.",
+  "checkoutMapCoverageUnavailable": "Етказиш ҳудудини юклаб бўлмади.",
+  "checkoutCoverageRadius": "Етказиш радиуси: {radius} км",
+  "checkoutOutsideRadius": "Манзил {radius} км етказиш радиусидан ташқарида. Бошқа манзил ёки олиб кетишни танланг.",
+  "checkoutTariffUnavailable": "Бу масофа учун етказиш тарифи созланмаган.",
+  "checkoutMapPreviewHint": "Бу филиал ҳудуди кўриниши. Буюртма учун етказиш манзилини танланг.",
+  "@checkoutCoverageRadius": {
+    "placeholders": {
+      "radius": {
+        "type": "String"
+      }
+    }
+  },
+  "@checkoutOutsideRadius": {
+    "placeholders": {
+      "radius": {
         "type": "String"
       }
     }

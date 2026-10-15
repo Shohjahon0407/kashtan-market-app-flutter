@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/routing/auth_gate.dart';
+import '../../../core/routing/back_navigation.dart';
 import '../../../core/routing/routes.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../../orders/domain/orders_controller.dart';
@@ -44,13 +45,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
       });
     }
     final activeOrders = ref.watch(activeOrdersCountProvider);
-    return PopScope(
-      // Boshqa tabda "orqa" — Asosiy'ga; Asosiy'da — odatdagidek chiqish.
-      canPop: index == HomeTab.home.index,
-      onPopInvokedWithResult: (didPop, _) {
-        if (didPop) return;
-        _switchTo(HomeTab.home.index);
-      },
+    return BackNavigationGuard(
       child: Scaffold(
         body: shell,
         bottomNavigationBar: NavigationBar(
@@ -95,6 +90,9 @@ class _HomeShellState extends ConsumerState<HomeShell> {
   }
 
   void _switchTo(int target) {
+    if (target != widget.navigationShell.currentIndex) {
+      AppBackCoordinator.of(GoRouter.of(context)).remember();
+    }
     // Provider darhol yangilanadi — Asosiy'dagi video tab almashishi bilanoq
     // to'xtaydi (branch o'zi bir kadr kechikishi mumkin).
     _publishTab(target);

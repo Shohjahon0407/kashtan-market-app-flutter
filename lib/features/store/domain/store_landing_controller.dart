@@ -20,32 +20,33 @@ final storeApiProvider = Provider<StoreApi>(
 /// yangisi kelib almashtiradi (StoreApi uni keshga o'zi yozadi). Tarmoq
 /// ishlamasa kesh ko'rsatilib qoladi; kesh ham bo'lmasa xato tashlanadi
 /// (ekran retry ko'rsatadi).
-final storeLandingProvider = StreamProvider.autoDispose
-    .family<StoreLandingData, StoreType>((ref, storeType) async* {
-      ref.watch(apiLangProvider);
-      ref.watch(uzScriptProvider);
-      final api = ref.watch(storeApiProvider);
+final storeLandingProvider = StreamProvider.family<StoreLandingData, StoreType>(
+  (ref, storeType) async* {
+    ref.watch(apiLangProvider);
+    ref.watch(uzScriptProvider);
+    final api = ref.watch(storeApiProvider);
 
-      StoreLandingData? cached;
-      final cachedRaw = await ref
-          .read(jsonDiskCacheProvider)
-          .read(
-            landingCacheKey(storeType.wire, ref.read(cacheKeySuffixProvider)()),
-            maxAge: const Duration(days: 3),
-          );
-      if (cachedRaw != null) {
-        try {
-          cached = StoreLandingData.fromJson(cachedRaw);
-          yield cached;
-        } on Object {
-          cached = null; // eski format — e'tiborsiz
-        }
-      }
-
+    StoreLandingData? cached;
+    final cachedRaw = await ref
+        .read(jsonDiskCacheProvider)
+        .read(
+          landingCacheKey(storeType.wire, ref.read(cacheKeySuffixProvider)()),
+          maxAge: const Duration(days: 3),
+        );
+    if (cachedRaw != null) {
       try {
-        yield await api.fetchLanding(storeType.wire);
+        cached = StoreLandingData.fromJson(cachedRaw);
+        yield cached;
       } on Object {
-        if (cached == null) rethrow;
-        // Kesh ko'rsatilgan — tarmoq xatosini yutamiz.
+        cached = null; // eski format — e'tiborsiz
       }
-    });
+    }
+
+    try {
+      yield await api.fetchLanding(storeType.wire);
+    } on Object {
+      if (cached == null) rethrow;
+      // Kesh ko'rsatilgan — tarmoq xatosini yutamiz.
+    }
+  },
+);

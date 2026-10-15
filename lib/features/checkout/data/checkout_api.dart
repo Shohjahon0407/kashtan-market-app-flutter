@@ -96,6 +96,22 @@ class CheckoutApi {
     return PageDecoder.bare(data, StoreBranch.fromJson).items;
   }
 
+  Future<List<DeliveryCoverageBranch>> fetchCoverage(String storeType) async {
+    final data = JsonRead.map(
+      await _client.get(Api.deliveryCoverage, query: {'store_type': storeType}),
+    );
+    if (data == null) {
+      throw const UnknownFailure.malformed(
+        'delivery coverage javobi obyekt emas',
+      );
+    }
+    return (data['branches'] as List? ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .map(DeliveryCoverageBranch.fromJson)
+        .where((branch) => branch.hasCoverage)
+        .toList(growable: false);
+  }
+
   UserAddress _address(Object? data) {
     final map = JsonRead.map(data);
     if (map == null) {

@@ -1,22 +1,29 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:latlong2/latlong.dart';
 
 import '../../../core/localization/failure_l10n.dart';
 import '../../../core/network/api_failure.dart';
+import '../../../core/routing/auth_gate.dart';
+import '../../../core/routing/routes.dart';
 import '../../../core/store_scope/store_type.dart';
-import '../../../core/ui/formatters/uzs.dart';
 import '../../../core/ui/theme/app_buttons.dart';
 import '../../../core/ui/theme/app_dimens.dart';
 import '../../../generated/l10n/app_localizations.dart';
-import '../../catalog/presentation/widgets/product_image.dart';
-import '../../payments/presentation/payme_payment_section.dart';
+import '../../catalog/presentation/widgets/catalog_loading_skeleton.dart';
 import '../../store/presentation/widgets/store_state_views.dart';
 import '../data/order_models.dart';
-import '../domain/order_realtime_controller.dart';
+import '../domain/order_live_controller.dart';
 import '../domain/orders_controller.dart';
-import 'widgets/order_delivery_status.dart';
-import 'widgets/order_status_badge.dart';
+import 'order_map_screen.dart';
+import 'order_view.dart';
+import 'widgets/order_tracking_map.dart';
+import 'widgets/order_tracking_panel.dart';
 
+/// Buyurtma kuzatuvi (Uzum Tezkor uslubi): tepada jonli xarita, pastda
+/// tortiladigan panel — vaqt oynasi, 4 bosqich, kuryer, tafsilotlar.
+/// Xaritasiz (pickup / koordinatasiz) buyurtmada oddiy ro'yxat.
 class OrderDetailScreen extends ConsumerStatefulWidget {
   const OrderDetailScreen({
     required this.storeType,
@@ -40,54 +47,91 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Faqat SHU buyurtma hodisalarida qayta qurish — har WS pong/kuryer
-    // lokatsiya kadrida butun ekran (xarita bilan) rebuild bo'lmasin.
-    ref.watch(
-      orderRealtimeProvider.select(
-        (value) => value.lastOrderId == widget.orderId ? value.revision : 0,
-      ),
-    );
     final l10n = AppLocalizations.of(context);
-    final detail = ref.watch(orderDetailProvider(widget.orderId));
-    final tracking = ref.watch(orderTrackingControllerProvider(widget.orderId));
-    return Scaffold(
-      appBar: AppBar(title: Text(l10n.ordersTitle)),
-      body: switch (detail) {
-        AsyncData(:final value)
-            when value.storeTypeWire != widget.storeType.wire =>
-          StoreEmptyView(
+    // REST detail yangilanganda WS yamog'i tozalanadi (REST — haqiqat
+    // manbai; yamoq faqat oraliqni yopadi).
+    ref.listen(orderDetailProvider(widget.orderId), (previous, next) {
+      if (next is AsyncData<OrderData> && !next.isLoading) {
+        ref.read(orderLiveProvider(widget.orderId).notifier).clearPatch();
+      }
+    });
+    final view = watchOrderView(ref, widget.orderId);
+    return switch (view) {
+      AsyncData(:final value)
+          when value.storeTypeWire != widget.storeType.wire =>
+        Scaffold(
+          appBar: AppBar(title: Text(l10n.ordersTitle)),
+          body: StoreEmptyView(
             icon: Icons.warning_amber_rounded,
             title: l10n.unsupportedStoreMessage,
           ),
-        AsyncData(:final value) => _OrderBody(
-          order: tracking.value == null
-              ? value
-              : value.withTracking(tracking.value!),
-          courierLocation: tracking.value?.courierLocation,
-          autoPay: widget.autoPay,
-          mutating: _mutating,
-          onCancel: () => _cancel(value),
-          onRefresh: () async {
-            ref.invalidate(orderDetailProvider(widget.orderId));
-            await Future.wait([
-              ref.read(orderDetailProvider(widget.orderId).future),
-              ref
-                  .read(
-                    orderTrackingControllerProvider(widget.orderId).notifier,
-                  )
-                  .refresh(),
-            ]);
-          },
         ),
-        AsyncError(:final error) => StoreErrorView(
+      AsyncData(:final value) when orderHasMap(value) => _MapLayout(
+        order: value,
+        autoPay: widget.autoPay,
+        mutating: _mutating,
+        onCancel: () => _cancel(value),
+        onOpenSummary: _openSummary,
+        onOpenMap: _openMap,
+        onHelp: _openHelp,
+      ),
+      AsyncData(:final value) => Scaffold(
+        appBar: AppBar(
+          title: Text(l10n.ordersTitle),
+          actions: [
+            IconButton(
+              key: const ValueKey('order-help'),
+              tooltip: l10n.orderHelp,
+              onPressed: _openHelp,
+              icon: const Icon(Icons.headset_mic_outlined),
+            ),
+          ],
+        ),
+        body: RefreshIndicator(
+          onRefresh: _refresh,
+          child: OrderTrackingPanel(
+            order: value,
+            autoPay: widget.autoPay,
+            mutating: _mutating,
+            onCancel: () => _cancel(value),
+            onOpenSummary: _openSummary,
+            physics: const AlwaysScrollableScrollPhysics(),
+          ),
+        ),
+      ),
+      AsyncError(:final error) => Scaffold(
+        appBar: AppBar(title: Text(l10n.ordersTitle)),
+        body: StoreErrorView(
           message: error is ApiFailure
               ? error.localize(l10n)
               : l10n.errorUnknown,
           onRetry: () => ref.invalidate(orderDetailProvider(widget.orderId)),
         ),
-        _ => const Center(child: CircularProgressIndicator()),
-      },
-    );
+      ),
+      _ => Scaffold(
+        appBar: AppBar(title: Text(l10n.ordersTitle)),
+        body: const CatalogRowsSkeleton(itemCount: 4),
+      ),
+    };
+  }
+
+  void _openSummary() =>
+      context.push(Routes.orderSummary(widget.storeType.wire, widget.orderId));
+
+  void _openMap() =>
+      context.push(Routes.orderMap(widget.storeType.wire, widget.orderId));
+
+  void _openHelp() =>
+      pushAuthenticated(context, ref, Routes.requestsFor(kind: 'support'));
+
+  Future<void> _refresh() async {
+    ref.invalidate(orderDetailProvider(widget.orderId));
+    await Future.wait([
+      ref.read(orderDetailProvider(widget.orderId).future),
+      ref
+          .read(orderTrackingControllerProvider(widget.orderId).notifier)
+          .refresh(),
+    ]);
   }
 
   Future<void> _cancel(OrderData order) async {
@@ -139,180 +183,123 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
   }
 }
 
-class _OrderBody extends StatelessWidget {
-  const _OrderBody({
+/// Xarita + tortiladigan panel.
+class _MapLayout extends StatelessWidget {
+  const _MapLayout({
     required this.order,
+    required this.autoPay,
     required this.mutating,
     required this.onCancel,
-    required this.onRefresh,
-    this.autoPay = false,
-    this.courierLocation,
+    required this.onOpenSummary,
+    required this.onOpenMap,
+    required this.onHelp,
   });
 
   final OrderData order;
   final bool autoPay;
   final bool mutating;
   final VoidCallback onCancel;
-  final Future<void> Function() onRefresh;
-  final CourierLocation? courierLocation;
+  final VoidCallback onOpenSummary;
+  final VoidCallback onOpenMap;
+  final VoidCallback onHelp;
+
+  static const initialSheet = .56;
+  static const minSheet = .42;
+  static const maxSheet = .96;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return RefreshIndicator(
-      onRefresh: onRefresh,
-      child: ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(AppSpacing.screenH),
+    final theme = Theme.of(context);
+    final top = MediaQuery.paddingOf(context).top + AppSpacing.sm;
+    final height = MediaQuery.sizeOf(context).height;
+    return Scaffold(
+      body: Stack(
+        fit: StackFit.expand,
         children: [
-          if (order.isDelivery)
-            OrderDeliveryStatus(order: order, location: courierLocation)
-          else
-            Align(
-              alignment: Alignment.centerLeft,
-              child: OrderStatusBadge(stage: order.customerStage),
-            ),
-          const SizedBox(height: AppSpacing.xxl),
-          _Section(title: l10n.orderItems),
-          const SizedBox(height: AppSpacing.sm),
-          for (final item in order.items) _OrderItemTile(item: item),
-          const SizedBox(height: AppSpacing.lg),
-          _PriceRow(label: l10n.cartSubtotal, value: order.subtotal),
-          if (_hasPositiveValue(order.deliveryFee))
-            _PriceRow(label: l10n.cartDeliveryFee, value: order.deliveryFee),
-          const Divider(),
-          _PriceRow(
-            label: l10n.cartTotal,
-            value: order.total,
-            emphasized: true,
-          ),
-          if (order.status != 'cancelled') ...[
-            const SizedBox(height: AppSpacing.xxl),
-            PaymePaymentSection(order: order, autoStart: autoPay),
-          ],
-          if (order.address != null) ...[
-            const SizedBox(height: AppSpacing.xxl),
-            _Section(title: l10n.orderAddress),
-            const SizedBox(height: AppSpacing.sm),
-            Text(order.address!.formattedAddress),
-          ],
-          if (order.pickupBranch != null) ...[
-            const SizedBox(height: AppSpacing.xxl),
-            _Section(title: l10n.orderPickupBranch),
-            const SizedBox(height: AppSpacing.sm),
-            Text(order.pickupBranch!.name),
-            if (order.pickupBranch!.address.isNotEmpty)
-              Text(order.pickupBranch!.address),
-          ],
-          if (order.isDelivered &&
-              (order.courierName.isNotEmpty ||
-                  order.courierPhone.isNotEmpty ||
-                  order.courierComment.isNotEmpty)) ...[
-            const SizedBox(height: AppSpacing.xxl),
-            _Section(title: l10n.orderCourier),
-            const SizedBox(height: AppSpacing.sm),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const CircleAvatar(child: Icon(Icons.delivery_dining)),
-              title: order.courierName.isEmpty ? null : Text(order.courierName),
-              subtitle: Text(
-                [
-                  order.courierPhone,
-                  order.courierVehicleType,
-                  order.courierComment,
-                ].where((value) => value.isNotEmpty).join(' · '),
+          // Xarita panel ostida ham davom etadi — panel tortilganda bo'sh
+          // joy ko'rinmaydi. Markerlar panel ustidagi qismga sig'adi.
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: height * (1 - minSheet) + 24,
+            child: OrderTrackingMap(
+              key: const ValueKey('order-map'),
+              home: LatLng(order.address!.latitude!, order.address!.longitude!),
+              store: order.pickupBranch?.hasCoordinates ?? false
+                  ? LatLng(
+                      order.pickupBranch!.latitude!,
+                      order.pickupBranch!.longitude!,
+                    )
+                  : null,
+              courier: order.courierLocation,
+              phase: order.courierPhase,
+              vehicleType: order.courierVehicleType,
+              serverDeadline: order.deliveryDeadlineAt,
+              onTap: onOpenMap,
+              chipOffset: EdgeInsets.only(top: top + 60, left: AppSpacing.lg),
+              fitPadding: EdgeInsets.fromLTRB(
+                56,
+                top + 110,
+                56,
+                // Panel boshlang'ich balandligi xaritaning pastini yopadi.
+                height * (initialSheet - minSheet) + 72,
               ),
             ),
-          ],
-          if (order.canCancel) ...[
-            const SizedBox(height: AppSpacing.xxl),
-            OutlinedButton.icon(
-              onPressed: mutating ? null : onCancel,
-              icon: mutating
-                  ? const SizedBox.square(
-                      dimension: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.cancel_outlined),
-              label: Text(l10n.orderCancel),
+          ),
+          Positioned(
+            top: top,
+            left: AppSpacing.md,
+            child: MapRoundButton(
+              icon: Icons.arrow_back_rounded,
+              tooltip: MaterialLocalizations.of(context).backButtonTooltip,
+              onPressed: () => Navigator.of(context).maybePop(),
             ),
-          ],
-          const SizedBox(height: AppSpacing.xxl),
+          ),
+          Positioned(
+            top: top,
+            right: AppSpacing.md,
+            child: MapHelpPill(label: l10n.orderHelp, onPressed: onHelp),
+          ),
+          DraggableScrollableSheet(
+            initialChildSize: initialSheet,
+            minChildSize: minSheet,
+            maxChildSize: maxSheet,
+            snap: true,
+            snapSizes: const [initialSheet, maxSheet],
+            builder: (context, controller) => DecoratedBox(
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surface,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(AppRadius.xl),
+                ),
+                boxShadow: const [
+                  BoxShadow(
+                    blurRadius: 24,
+                    offset: Offset(0, -6),
+                    color: Colors.black12,
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(AppRadius.xl),
+                ),
+                child: OrderTrackingPanel(
+                  order: order,
+                  autoPay: autoPay,
+                  mutating: mutating,
+                  onCancel: onCancel,
+                  onOpenSummary: onOpenSummary,
+                  scrollController: controller,
+                  withHandle: true,
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 }
-
-class _Section extends StatelessWidget {
-  const _Section({required this.title});
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) => Text(
-    title,
-    style: Theme.of(
-      context,
-    ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
-  );
-}
-
-class _OrderItemTile extends StatelessWidget {
-  const _OrderItemTile({required this.item});
-
-  final OrderItem item;
-
-  @override
-  Widget build(BuildContext context) => ListTile(
-    contentPadding: EdgeInsets.zero,
-    leading: ClipRRect(
-      borderRadius: BorderRadius.circular(AppRadius.xs),
-      child: SizedBox.square(
-        dimension: 52,
-        child: ProductImageView(imageUrl: item.imageUrl, iconSize: 22),
-      ),
-    ),
-    title: Text('${item.productName} × ${item.quantity}'),
-    subtitle: Text(
-      [
-        item.variantName,
-        ...item.addons.map((addon) => addon.name),
-        item.note,
-      ].where((value) => value.isNotEmpty).join(', '),
-    ),
-    trailing: Text(Uzs.format(item.totalPrice)),
-  );
-}
-
-class _PriceRow extends StatelessWidget {
-  const _PriceRow({
-    required this.label,
-    required this.value,
-    this.emphasized = false,
-  });
-
-  final String label;
-  final String value;
-  final bool emphasized;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
-    child: Row(
-      children: [
-        Expanded(child: Text(label)),
-        Text(
-          Uzs.format(value),
-          style: emphasized
-              ? Theme.of(
-                  context,
-                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)
-              : null,
-        ),
-      ],
-    ),
-  );
-}
-
-bool _hasPositiveValue(String value) => (double.tryParse(value) ?? 0) > 0;

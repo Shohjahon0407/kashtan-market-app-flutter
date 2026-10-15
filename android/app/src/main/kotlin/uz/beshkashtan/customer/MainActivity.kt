@@ -1,12 +1,14 @@
 package uz.beshkashtan.customer
 
 import android.app.Activity
+import android.content.ActivityNotFoundException
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.util.Base64
@@ -51,6 +53,24 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         val messenger = flutterEngine.dartExecutor.binaryMessenger
+
+        MethodChannel(messenger, "uz.beshkashtan.customer/app_update")
+            .setMethodCallHandler { call, result ->
+                if (call.method != "openGooglePlay") {
+                    result.notImplemented()
+                } else {
+                    try {
+                        startActivity(Intent(Intent.ACTION_VIEW,
+                            Uri.parse("market://details?id=uz.beshkashtan.customer"))
+                            .setPackage("com.android.vending"))
+                        result.success(true)
+                    } catch (_: ActivityNotFoundException) {
+                        result.success(false)
+                    } catch (_: SecurityException) {
+                        result.success(false)
+                    }
+                }
+            }
 
         MethodChannel(messenger, CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {

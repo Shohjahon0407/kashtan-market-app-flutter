@@ -105,6 +105,41 @@ class StoreBranch {
   final double? longitude;
 }
 
+class DeliveryCoverageBranch {
+  const DeliveryCoverageBranch({
+    required this.id,
+    required this.name,
+    this.latitude,
+    this.longitude,
+    this.radiusKm,
+  });
+
+  factory DeliveryCoverageBranch.fromJson(Map<String, dynamic> json) =>
+      DeliveryCoverageBranch(
+        id: JsonRead.string(json['id']),
+        name: JsonRead.string(json['name']),
+        latitude: JsonRead.nullableDouble(json['latitude']),
+        longitude: JsonRead.nullableDouble(json['longitude']),
+        radiusKm: JsonRead.nullableDouble(json['delivery_radius_km']),
+      );
+  final String id;
+  final String name;
+  final double? latitude;
+  final double? longitude;
+  final double? radiusKm;
+  bool get hasCoverage =>
+      latitude != null &&
+      longitude != null &&
+      radiusKm != null &&
+      latitude!.isFinite &&
+      longitude!.isFinite &&
+      radiusKm!.isFinite &&
+      latitude!.abs() <= 90 &&
+      longitude!.abs() <= 180 &&
+      radiusKm! >= 0.1 &&
+      radiusKm! <= 100;
+}
+
 class DeliveryEstimate {
   const DeliveryEstimate({
     required this.available,
@@ -112,6 +147,9 @@ class DeliveryEstimate {
     this.distanceKm,
     this.deliveryPrice,
     this.maxDistanceKm,
+    this.branch,
+    this.coverageRadiusKm,
+    this.reasonCode = '',
   });
 
   factory DeliveryEstimate.fromJson(Map<String, dynamic> json) =>
@@ -125,6 +163,12 @@ class DeliveryEstimate {
         ),
         maxDistanceKm: JsonRead.nullableString(json['max_distance_km']),
         detail: JsonRead.string(json['detail'] ?? json['message']),
+        branch: switch (JsonRead.map(json['branch'])) {
+          final data? => DeliveryCoverageBranch.fromJson(data),
+          _ => null,
+        },
+        coverageRadiusKm: JsonRead.nullableDouble(json['coverage_radius_km']),
+        reasonCode: JsonRead.string(json['reason_code']),
       );
 
   final bool available;
@@ -132,6 +176,9 @@ class DeliveryEstimate {
   final String? deliveryPrice;
   final String? maxDistanceKm;
   final String detail;
+  final DeliveryCoverageBranch? branch;
+  final double? coverageRadiusKm;
+  final String reasonCode;
 }
 
 enum FulfillmentType {

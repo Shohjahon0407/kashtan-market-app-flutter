@@ -18,6 +18,8 @@ import '../../checkout/data/checkout_models.dart';
 import '../../checkout/domain/addresses_controller.dart';
 import '../../checkout/presentation/address_display.dart';
 import '../../notifications/presentation/notification_bell_button.dart';
+import '../../recommendations/domain/recommendations_controller.dart';
+import '../../recommendations/presentation/for_you_section.dart';
 import '../../videos/domain/video_feed_controller.dart';
 import '../../videos/presentation/widgets/video_feed_section.dart';
 import '../data/home_models.dart';
@@ -93,6 +95,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     if (authenticated)
                       ref.read(addressesControllerProvider.notifier).refresh(),
                     ref.read(videoFeedControllerProvider.notifier).refresh(),
+                    ref.read(forYouControllerProvider.notifier).refresh(),
                   ]);
                 },
                 child: Align(
@@ -263,6 +266,9 @@ class _HomeList extends ConsumerWidget {
             ),
           ),
         ),
+        // Shaxsiy tavsiyalar — do'konlar va reels orasida. Bo'sh bo'lsa
+        // 0 balandlik; reels boshi baribir kadrdan keyin o'lchanadi.
+        const SliverToBoxAdapter(child: ForYouSection()),
         // Sliver: reel sahifalari lazy quriladi (ilgari hammasi Column'da).
         VideoFeedSection(
           pageExtent: reelPageExtent,

@@ -6,6 +6,7 @@ import '../../../core/network/api_failure.dart';
 import '../../../core/store_scope/store_type.dart';
 import '../../../core/ui/theme/app_dimens.dart';
 import '../../../generated/l10n/app_localizations.dart';
+import '../../catalog/presentation/widgets/catalog_loading_skeleton.dart';
 import '../../catalog/presentation/widgets/product_card.dart';
 import '../../store/presentation/widgets/store_state_views.dart';
 import '../domain/favorites_controller.dart';
@@ -53,7 +54,10 @@ class FavoritesScreen extends ConsumerWidget {
             onRetry: () =>
                 ref.read(favoritesControllerProvider.notifier).refresh(),
           ),
-          _ => const Center(child: CircularProgressIndicator()),
+          _ => const CustomScrollView(
+            physics: AlwaysScrollableScrollPhysics(),
+            slivers: [CatalogGridSkeletonSliver()],
+          ),
         },
       ),
     );

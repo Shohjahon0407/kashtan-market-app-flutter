@@ -70,6 +70,36 @@ CartData _restaurantCart(int quantity) => CartData(
   subtotal: '${38000 * quantity}.00',
 );
 
+final _shashlikKilogramProduct = ProductSummary.fromJson({
+  'id': 'beef-kilo',
+  'name': 'Mol jazz kiloligi',
+  'price': '200000.00',
+  'unit': 'kg',
+  'unit_display': 'Kilogramm',
+  'main_image': null,
+  'is_purchasable': true,
+  'store_type': 'shashlik',
+  'variants': <Map<String, dynamic>>[],
+});
+
+CartData _shashlikCart() => CartData(
+  id: 'shashlik-cart',
+  storeTypeWire: 'shashlik',
+  items: [
+    CartItem(
+      id: 'beef-kilo-line',
+      product: _shashlikKilogramProduct,
+      quantity: 2,
+      selectedAddons: const [],
+      note: '',
+      subtotal: '400000.00',
+    ),
+  ],
+  totalItems: 1,
+  totalQuantity: 2,
+  subtotal: '400000.00',
+);
+
 const _home = HomeData(
   banners: [],
   storeHub: [
@@ -204,4 +234,42 @@ void main() {
       expect(find.text('checkout-restaurant'), findsOneWidget);
     },
   );
+
+  testWidgets('Shashlik savati miqdorni kilogram bilan ko‘rsatadi', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await PrefsStore.load();
+    final cartApi = _MockCartApi();
+    final homeApi = _MockHomeApi();
+    when(() => homeApi.fetch()).thenAnswer((_) async => _home);
+    when(
+      () => cartApi.fetch('shashlik'),
+    ).thenAnswer((_) async => _shashlikCart());
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          prefsStoreProvider.overrideWithValue(prefs),
+          authControllerProvider.overrideWith(_AuthenticatedAuthController.new),
+          cartApiProvider.overrideWithValue(cartApi),
+          homeApiProvider.overrideWithValue(homeApi),
+        ],
+        child: const MaterialApp(
+          locale: Locale('uz'),
+          supportedLocales: [Locale('uz')],
+          localizationsDelegates: [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+          ],
+          home: CartScreen(storeType: StoreType.shashlik),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('2 kilogram'), findsOneWidget);
+  });
 }

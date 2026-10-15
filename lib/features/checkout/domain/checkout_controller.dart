@@ -9,6 +9,7 @@ import '../../cart/domain/cart_controller.dart';
 import '../../orders/data/order_models.dart';
 import '../../orders/domain/orders_controller.dart';
 import '../../payments/data/payment_models.dart';
+import '../../payments/domain/payment_availability.dart';
 import '../data/checkout_models.dart';
 
 class CheckoutSubmissionState {
@@ -84,7 +85,10 @@ class CheckoutController extends Notifier<CheckoutSubmissionState> {
     String note = '',
   }) async {
     if (state.isSubmitting) return null;
-    final paymentWire = paymentMethod.wireFor(fulfillmentType);
+    final enabledMethod = ref.read(paymeEnabledProvider)
+        ? paymentMethod
+        : PaymentMethod.cash;
+    final paymentWire = enabledMethod.wireFor(fulfillmentType);
     // Izoh imzoga KIRMAYDI: bitta belgi o'zgarsa yangi kalit — ayni
     // buyurtma niyati uchun takroriy buyurtma bo'lardi.
     final signature = [

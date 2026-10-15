@@ -13,6 +13,7 @@ import 'package:beshkashtan_customer/features/orders/data/order_models.dart';
 import 'package:beshkashtan_customer/features/orders/data/orders_api.dart';
 import 'package:beshkashtan_customer/features/orders/domain/orders_controller.dart';
 import 'package:beshkashtan_customer/features/payments/data/payment_models.dart';
+import 'package:beshkashtan_customer/features/payments/domain/payment_availability.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -163,67 +164,77 @@ void main() {
 // ─── To'lov usuli va idempotency ─────────────────────────────────────────────
 
 void _paymentMethodTests() {
-  test("to'lov usuli o'zgarsa yangi idempotency kaliti ishlatiladi", () async {
-    SharedPreferences.setMockInitialValues({});
-    final prefs = await PrefsStore.load();
-    final cartApi = _MockCartApi();
-    final ordersApi = _MockOrdersApi();
-    when(() => cartApi.fetch('household')).thenAnswer((_) async => cart(false));
-    when(
-      () => ordersApi.create(
-        storeType: 'household',
-        fulfillmentType: FulfillmentType.delivery,
-        paymentMethod: any(named: 'paymentMethod'),
-        addressId: 'address-1',
-        pickupBranchId: null,
-        note: '',
-        idempotencyKey: any(named: 'idempotencyKey'),
-      ),
-    ).thenAnswer((_) async => _order);
+  for (final enabled in [false, true]) {
+    test(
+      'payment submission and idempotency with Payme enabled=$enabled',
+      () async {
+        SharedPreferences.setMockInitialValues({});
+        final prefs = await PrefsStore.load();
+        final cartApi = _MockCartApi();
+        final ordersApi = _MockOrdersApi();
+        when(
+          () => cartApi.fetch('household'),
+        ).thenAnswer((_) async => cart(false));
+        when(
+          () => ordersApi.create(
+            storeType: 'household',
+            fulfillmentType: FulfillmentType.delivery,
+            paymentMethod: any(named: 'paymentMethod'),
+            addressId: 'address-1',
+            pickupBranchId: null,
+            note: '',
+            idempotencyKey: any(named: 'idempotencyKey'),
+          ),
+        ).thenAnswer((_) async => _order);
 
-    final container = ProviderContainer(
-      overrides: [
-        prefsStoreProvider.overrideWithValue(prefs),
-        cartApiProvider.overrideWithValue(cartApi),
-        ordersApiProvider.overrideWithValue(ordersApi),
-      ],
-    );
-    addTearDown(container.dispose);
-    final checkoutProvider = checkoutControllerProvider(StoreType.household);
-    final subscription = container.listen(checkoutProvider, (_, _) {});
-    addTearDown(subscription.close);
-    final controller = container.read(checkoutProvider.notifier);
+        final container = ProviderContainer(
+          overrides: [
+            if (enabled) paymeEnabledProvider.overrideWithValue(true),
+            prefsStoreProvider.overrideWithValue(prefs),
+            cartApiProvider.overrideWithValue(cartApi),
+            ordersApiProvider.overrideWithValue(ordersApi),
+          ],
+        );
+        addTearDown(container.dispose);
+        final checkoutProvider = checkoutControllerProvider(
+          StoreType.household,
+        );
+        final subscription = container.listen(checkoutProvider, (_, _) {});
+        addTearDown(subscription.close);
+        final controller = container.read(checkoutProvider.notifier);
 
-    await controller.submit(
-      fulfillmentType: FulfillmentType.delivery,
-      paymentMethod: PaymentMethod.payme,
-      addressId: 'address-1',
-    );
-    await controller.submit(
-      fulfillmentType: FulfillmentType.delivery,
-      paymentMethod: PaymentMethod.cash,
-      addressId: 'address-1',
-    );
+        await controller.submit(
+          fulfillmentType: FulfillmentType.delivery,
+          paymentMethod: PaymentMethod.payme,
+          addressId: 'address-1',
+        );
+        await controller.submit(
+          fulfillmentType: FulfillmentType.delivery,
+          paymentMethod: PaymentMethod.cash,
+          addressId: 'address-1',
+        );
 
-    final captured = verify(
-      () => ordersApi.create(
-        storeType: 'household',
-        fulfillmentType: FulfillmentType.delivery,
-        paymentMethod: captureAny(named: 'paymentMethod'),
-        addressId: 'address-1',
-        pickupBranchId: null,
-        note: '',
-        idempotencyKey: captureAny(named: 'idempotencyKey'),
-      ),
-    ).captured;
+        final captured = verify(
+          () => ordersApi.create(
+            storeType: 'household',
+            fulfillmentType: FulfillmentType.delivery,
+            paymentMethod: captureAny(named: 'paymentMethod'),
+            addressId: 'address-1',
+            pickupBranchId: null,
+            note: '',
+            idempotencyKey: captureAny(named: 'idempotencyKey'),
+          ),
+        ).captured;
 
-    // captured = [payme, key1, cash_to_courier, key2]
-    expect(captured[0], 'payme');
-    expect(captured[2], 'cash_to_courier');
-    expect(
-      captured[1],
-      isNot(captured[3]),
-      reason: "usul o'zgardi — kalit ham yangilanishi kerak",
+        // captured = [payme, key1, cash_to_courier, key2]
+        expect(captured[0], enabled ? 'payme' : 'cash_to_courier');
+        expect(captured[2], 'cash_to_courier');
+        expect(
+          captured[1],
+          isNot(captured[3]),
+          reason: "usul o'zgardi — kalit ham yangilanishi kerak",
+        );
+      },
     );
-  });
+  }
 }

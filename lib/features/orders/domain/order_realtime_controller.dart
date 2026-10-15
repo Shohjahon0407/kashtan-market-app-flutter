@@ -7,10 +7,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../../../core/config/app_config.dart';
+import '../../../core/localization/locale_controller.dart';
 import '../../../core/network/connectivity_controller.dart';
 import '../../../core/network/network_providers.dart';
 import '../../../core/store_scope/store_type.dart';
 import '../../notifications/domain/notifications_controller.dart';
+import 'order_live_controller.dart';
 import 'order_socket_connector_io.dart'
     if (dart.library.js_interop) 'order_socket_connector_web.dart'
     as socket_transport;
@@ -29,17 +31,47 @@ class OrderRealtimeState {
   const OrderRealtimeState({
     this.status = OrderSocketStatus.connecting,
     this.revision = 0,
+    this.locationRevision = 0,
     this.lastOrderId,
     this.lastEventType,
     this.lastMessageAt,
   });
 
   final OrderSocketStatus status;
+
+  /// Buyurtma HOLATI hodisalari (accept/on_way/delivered/...) sanog'i —
+  /// detail/tracking shuni kuzatib REST bilan reconcile qiladi.
   final int revision;
+
+  /// Kuryer lokatsiyasi hodisalari sanog'i — REST'ga tegmaydi, faqat
+  /// `orderLiveProvider` orqali xaritaga boradi.
+  final int locationRevision;
   final String? lastOrderId;
   final String? lastEventType;
   final DateTime? lastMessageAt;
+
+  bool get isConnected => status == OrderSocketStatus.connected;
+
+  OrderRealtimeState copyWith({
+    OrderSocketStatus? status,
+    int? revision,
+    int? locationRevision,
+    String? lastOrderId,
+    String? lastEventType,
+    DateTime? lastMessageAt,
+  }) => OrderRealtimeState(
+    status: status ?? this.status,
+    revision: revision ?? this.revision,
+    locationRevision: locationRevision ?? this.locationRevision,
+    lastOrderId: lastOrderId ?? this.lastOrderId,
+    lastEventType: lastEventType ?? this.lastEventType,
+    lastMessageAt: lastMessageAt ?? this.lastMessageAt,
+  );
 }
+
+/// WS hodisa turi kuryer lokatsiyasimi.
+bool isCourierLocationEvent(String? type) =>
+    type == 'user.order_courier_location';
 
 final orderRealtimeProvider =
     NotifierProvider.autoDispose<OrderRealtimeController, OrderRealtimeState>(
@@ -178,10 +210,8 @@ class OrderRealtimeController extends Notifier<OrderRealtimeState> {
     _lastServerMessageAt = DateTime.now();
     if (type == 'connection.ready') {
       _attempt = 0;
-      state = OrderRealtimeState(
+      state = state.copyWith(
         status: OrderSocketStatus.connected,
-        revision: state.revision,
-        lastOrderId: state.lastOrderId,
         lastEventType: type,
         lastMessageAt: _lastServerMessageAt,
       );
@@ -192,31 +222,69 @@ class OrderRealtimeController extends Notifier<OrderRealtimeState> {
       return;
     }
     if (type == 'pong') {
-      state = OrderRealtimeState(
+      state = state.copyWith(
         status: OrderSocketStatus.connected,
-        revision: state.revision,
-        lastOrderId: state.lastOrderId,
         lastEventType: type,
         lastMessageAt: _lastServerMessageAt,
       );
       return;
     }
     final orderId = event['order_id']?.toString();
+    final hasOrder = orderId != null && orderId.isNotEmpty;
+    if (isCourierLocationEvent(type)) {
+      // Lokatsiya 5 soniyada bir keladi — REST'ga tegilMAYDI (ilgari har
+      // nuqtada detail + barcha ro'yxatlar qayta so'ralardi). Payload
+      // to'g'ridan-to'g'ri ochiq buyurtmaning jonli holatiga qo'llanadi.
+      if (hasOrder) _applyLive(orderId, event, location: true);
+      state = state.copyWith(
+        status: OrderSocketStatus.connected,
+        locationRevision: state.locationRevision + 1,
+        lastOrderId: orderId,
+        lastEventType: type,
+        lastMessageAt: _lastServerMessageAt,
+      );
+      return;
+    }
+    // Holat hodisasi: avval payload darhol qo'llanadi (kechikishsiz UI),
+    // keyin REST source of truth bilan reconcile.
+    if (hasOrder) {
+      _applyLive(orderId, event, location: false);
+      ref.invalidate(orderDetailProvider(orderId));
+    }
     state = OrderRealtimeState(
       status: OrderSocketStatus.connected,
       revision: state.revision + 1,
+      locationRevision: state.locationRevision,
       lastOrderId: orderId,
       lastEventType: type,
       lastMessageAt: _lastServerMessageAt,
     );
-    if (orderId != null && orderId.isNotEmpty) {
-      ref.invalidate(orderDetailProvider(orderId));
-    }
-    if (type != 'user.order_courier_location' &&
-        type != 'order_courier_viewed') {
-      refreshCustomerNotifications(ref);
-    }
+    if (type != 'order_courier_viewed') refreshCustomerNotifications(ref);
     _refreshLists();
+  }
+
+  void _applyLive(
+    String orderId,
+    Map<String, dynamic> event, {
+    required bool location,
+  }) {
+    // Faqat ochiq (kuzatilayotgan) buyurtma — aks holda autoDispose provider
+    // bekorga yaratilib darhol o'chirilardi.
+    if (!ref.exists(orderLiveProvider(orderId))) return;
+    final live = ref.read(orderLiveProvider(orderId).notifier);
+    if (location) {
+      live.applyLocation(event);
+    } else {
+      live.applyLifecycle(event, language: _language());
+    }
+  }
+
+  String _language() {
+    try {
+      return ref.read(apiLangProvider);
+    } on Object {
+      return 'uz';
+    }
   }
 
   void _onDisconnected() {
@@ -228,13 +296,7 @@ class OrderRealtimeController extends Notifier<OrderRealtimeState> {
     _subscription?.cancel();
     _subscription = null;
     _channel = null;
-    state = OrderRealtimeState(
-      status: OrderSocketStatus.disconnected,
-      revision: state.revision,
-      lastOrderId: state.lastOrderId,
-      lastEventType: state.lastEventType,
-      lastMessageAt: state.lastMessageAt,
-    );
+    state = state.copyWith(status: OrderSocketStatus.disconnected);
     _refreshLists();
     _scheduleReconnect();
   }
@@ -296,13 +358,7 @@ class OrderRealtimeController extends Notifier<OrderRealtimeState> {
     final channel = _channel;
     _channel = null;
     channel?.sink.close();
-    state = OrderRealtimeState(
-      status: OrderSocketStatus.disconnected,
-      revision: state.revision,
-      lastOrderId: state.lastOrderId,
-      lastEventType: state.lastEventType,
-      lastMessageAt: state.lastMessageAt,
-    );
+    state = state.copyWith(status: OrderSocketStatus.disconnected);
   }
 
   /// Internet qaytdi. Fonda bo'lsak hech narsa qilmaymiz — foregroundga

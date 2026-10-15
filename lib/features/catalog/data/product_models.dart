@@ -11,6 +11,7 @@ class ProductCategory {
     this.canonicalName,
     this.imageUrl,
     this.iconUrl,
+    this.previewImageUrls = const [],
     this.productCount = 0,
     this.sortOrder = 0,
   });
@@ -31,6 +32,11 @@ class ProductCategory {
         iconUrl: AppConfig.resolveMediaUrl(
           JsonRead.nullableString(json['icon_url'] ?? json['icon']),
         ),
+        previewImageUrls: (json['preview_images'] as List<dynamic>? ?? const [])
+            .map((value) => AppConfig.resolveMediaUrl(value?.toString()))
+            .whereType<String>()
+            .where((url) => url.isNotEmpty)
+            .toList(growable: false),
         productCount: JsonRead.integer(json['product_count']),
         sortOrder: JsonRead.integer(json['sort_order']),
       );
@@ -42,6 +48,7 @@ class ProductCategory {
   final String? canonicalName;
   final String? imageUrl;
   final String? iconUrl;
+  final List<String> previewImageUrls;
   final int productCount;
   final int sortOrder;
 }
@@ -70,6 +77,7 @@ class ProductVariant {
     required this.name,
     required this.price,
     required this.unit,
+    this.unitCode = '',
     required this.isDefault,
     required this.isActive,
     required this.stockQuantity,
@@ -82,6 +90,7 @@ class ProductVariant {
     price: JsonRead.string(json['price']),
     oldPrice: JsonRead.nullableString(json['old_price']),
     unit: JsonRead.string(json['unit_display'] ?? json['unit']),
+    unitCode: JsonRead.string(json['unit']),
     isDefault: JsonRead.boolean(json['is_default']),
     isActive: JsonRead.boolean(json['is_active'], fallback: true),
     stockQuantity: JsonRead.integer(json['stock_quantity']),
@@ -92,6 +101,7 @@ class ProductVariant {
   final String price;
   final String? oldPrice;
   final String unit;
+  final String unitCode;
   final bool isDefault;
   final bool isActive;
   final int stockQuantity;
@@ -174,6 +184,7 @@ class ProductSummary {
     required this.price,
     required this.imageUrl,
     required this.unit,
+    this.unitCode = '',
     required this.isPurchasable,
     required this.storeTypeWire,
     required this.variants,
@@ -198,6 +209,7 @@ class ProductSummary {
     ),
     imageCount: JsonRead.integer(json['image_count']),
     unit: JsonRead.string(json['unit_display'] ?? json['unit']),
+    unitCode: JsonRead.string(json['unit']),
     isPurchasable: JsonRead.boolean(json['is_purchasable'], fallback: true),
     // Pending report bo'lsa true — karta ko'rinadi, lekin sotib bo'lmaydi.
     inReview: JsonRead.boolean(json['in_review']),
@@ -223,6 +235,7 @@ class ProductSummary {
   final String? imageUrl;
   final int imageCount;
   final String unit;
+  final String unitCode;
   final bool isPurchasable;
   final String storeTypeWire;
   final ProductCategory? category;

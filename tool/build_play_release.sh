@@ -32,7 +32,7 @@ done
 # Mapbox token — production xarita uchun tavsiya etilgan yo'l. Token hali
 # olinmagan bo'lsa ALLOW_OSM_TILES=1 bilan ataylab OSM zaxirasida qurish
 # mumkin (ilova tokensiz o'zi OSM'ga tushadi). Bu VAQTINCHA: OSM tile-server
-# ommaviy ilovalarda ta'qiqlangan — foydalanuvchi ko'payganda bloklanadi.
+# SLA bermaydi; caching, attribution va identifikatsiya siyosati bajarilishi shart.
 MAP_PROVIDER="Mapbox"
 if [[ "$MAPBOX_TOKEN_VALUE" == pk.* && ${#MAPBOX_TOKEN_VALUE} -ge 20 ]]; then
   :
@@ -144,7 +144,7 @@ log "Static analysis"
 flutter analyze --no-pub
 
 log "Flutter tests"
-flutter test --no-pub
+flutter test --no-pub --concurrency=2
 
 log "Android release lint"
 (
@@ -159,6 +159,7 @@ BUILD_DEFINES=(
   "--dart-define=BACKEND_ORIGIN=$BACKEND_ORIGIN_VALUE"
   "--dart-define=MAPBOX_ACCESS_TOKEN=$MAPBOX_TOKEN_VALUE"
   "--dart-define=VERBOSE_NETWORK_LOG=false"
+  "--dart-define=PAYME_ENABLED=false"
 )
 if [[ "${ALLOW_OSM_TILES:-}" == "1" ]]; then
   BUILD_DEFINES+=("--dart-define=ALLOW_OSM_TILES=true")
@@ -267,6 +268,7 @@ printf '%s\n' \
   "version=$VERSION" \
   "version_code=$VERSION_CODE" \
   "target_sdk=$TARGET_SDK" \
+  'payme_enabled=false' \
   'firebase_project=kashtan-5feea' \
   "map_provider=$MAP_PROVIDER" \
   "backend_origin=$BACKEND_ORIGIN_VALUE" \

@@ -267,6 +267,10 @@ class OrderTrackingController extends AsyncNotifier<OrderTrackingData> {
     }
   }
 
+  /// Socket tirik bo'lsa holat/lokatsiya WS'dan keladi — REST faqat
+  /// xavfsizlik reconcile'i (seyrak). Socket yo'q bo'lsa holatga mos tez poll.
+  static const liveSocketPollInterval = Duration(seconds: 30);
+
   void _schedule(Duration after) {
     _timer?.cancel();
     if (!ref.mounted) return;
@@ -274,7 +278,11 @@ class OrderTrackingController extends AsyncNotifier<OrderTrackingData> {
     // Fon yoki oflayn: taymer qurilmaydi — resume/recovery listener'lari
     // qayta boshlaydi.
     if (!connectivity.isForeground || connectivity.isOffline) return;
-    _timer = Timer(after, refresh);
+    final socketLive = ref.read(orderRealtimeProvider).isConnected;
+    final interval = socketLive && after < liveSocketPollInterval
+        ? liveSocketPollInterval
+        : after;
+    _timer = Timer(interval, refresh);
   }
 }
 

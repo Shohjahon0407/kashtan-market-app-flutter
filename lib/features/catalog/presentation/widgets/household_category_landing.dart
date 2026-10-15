@@ -22,10 +22,15 @@ class HouseholdCategorySection {
 }
 
 class HouseholdCategoryItem {
-  const HouseholdCategoryItem({required this.category, this.assetPath});
+  const HouseholdCategoryItem({
+    required this.category,
+    this.assetPath,
+    this.panelColor = const Color(0xFFF1EFEC),
+  });
 
   final ProductCategory category;
   final String? assetPath;
+  final Color panelColor;
 }
 
 class _VisualSpec {
@@ -37,6 +42,34 @@ class _VisualSpec {
 }
 
 const _assetRoot = 'assets/categories/household';
+
+const _panelColors = <String, Color>{
+  'construction.webp': Color(0xFFF2E7D5),
+  'tools.webp': Color(0xFFEBEDF0),
+  'chainsaw-parts.webp': Color(0xFFE4EBF2),
+  'plastic-housewares.webp': Color(0xFFF7E2DC),
+  'appliances.webp': Color(0xFFEEF2F4),
+  'electronics.webp': Color(0xFFECE7F5),
+  'phone-parts.webp': Color(0xFFE4EFF9),
+  'car-accessories.webp': Color(0xFFE4E6E9),
+  'bicycle-parts.webp': Color(0xFFF2DED3),
+  'kitchenware.webp': Color(0xFFF7F0DF),
+  'bags-tablecloths.webp': Color(0xFFFBE7D9),
+  'stationery.webp': Color(0xFFF8F0CC),
+  'clothing.webp': Color(0xFFF5E5EB),
+  'footwear.webp': Color(0xFFECE4DA),
+  'perfumery.webp': Color(0xFFF0E4F3),
+  'toys.webp': Color(0xFFE0F0FA),
+  'fishing-supplies.webp': Color(0xFFDEEFF1),
+  'assorted-goods.webp': Color(0xFFF1EFEC),
+};
+
+const _categoryLabelStyle = TextStyle(
+  color: Color(0xFF192331),
+  fontSize: 15,
+  fontWeight: FontWeight.w700,
+  height: 1.25,
+);
 
 const Map<String, _VisualSpec> _visuals = {
   'qurilish mollari': _VisualSpec(
@@ -158,6 +191,7 @@ List<HouseholdCategorySection> buildHouseholdCategorySections(
       item: HouseholdCategoryItem(
         category: category,
         assetPath: spec == null ? null : '$_assetRoot/${spec.assetName}',
+        panelColor: _panelColors[spec?.assetName] ?? const Color(0xFFF1EFEC),
       ),
       order: spec?.order ?? 1000,
     ));
@@ -228,39 +262,52 @@ class HouseholdCategoryLandingSkeleton extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = Theme.of(context).colorScheme.surfaceContainerHighest;
     return SliverPadding(
-      padding: const EdgeInsets.all(AppSpacing.screenH),
+      padding: const EdgeInsets.all(16),
       sliver: SliverList.separated(
         itemCount: 3,
-        separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.xxxl),
-        itemBuilder: (_, _) => Column(
+        separatorBuilder: (_, _) => const SizedBox(height: 32),
+        itemBuilder: (_, section) => Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(width: 210, height: 24, color: color),
-            const SizedBox(height: AppSpacing.md),
-            Container(
-              height: 166,
-              decoration: BoxDecoration(
-                color: color,
-                borderRadius: BorderRadius.circular(AppRadius.xl),
-              ),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            Row(
-              children: [
-                for (var index = 0; index < 2; index++) ...[
-                  if (index > 0) const SizedBox(width: AppSpacing.md),
-                  Expanded(
-                    child: Container(
-                      height: 148,
-                      decoration: BoxDecoration(
-                        color: color,
-                        borderRadius: BorderRadius.circular(AppRadius.xl),
+            const SizedBox(height: 12),
+            for (var row = 0; row < 2; row++) ...[
+              if (row > 0) const SizedBox(height: 12),
+              Row(
+                children: [
+                  for (var column = 0; column < 2; column++) ...[
+                    if (column > 0) const SizedBox(width: 12),
+                    Expanded(
+                      child: ClipRRect(
+                        key: ValueKey(
+                          'household-skeleton-$section-$row-$column',
+                        ),
+                        borderRadius: BorderRadius.circular(20),
+                        child: Column(
+                          children: [
+                            AspectRatio(
+                              aspectRatio: 4 / 3,
+                              child: ColoredBox(color: color),
+                            ),
+                            Container(
+                              height: 62,
+                              color: color.withValues(alpha: 0.55),
+                              padding: const EdgeInsets.all(12),
+                              alignment: Alignment.centerLeft,
+                              child: Container(
+                                width: 88,
+                                height: 15,
+                                color: color,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
+                  ],
                 ],
-              ],
-            ),
+              ),
+            ],
           ],
         ),
       ),
@@ -279,82 +326,20 @@ class _CategorySectionView extends StatelessWidget {
   final ValueChanged<ProductCategory> onCategoryTap;
 
   @override
-  Widget build(BuildContext context) {
-    final items = section.items;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          _groupTitle(AppLocalizations.of(context), section.group),
-          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-            fontWeight: FontWeight.w900,
-            letterSpacing: -0.4,
-          ),
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        _groupTitle(AppLocalizations.of(context), section.group),
+        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+          fontWeight: FontWeight.w900,
+          letterSpacing: -0.4,
         ),
-        const SizedBox(height: AppSpacing.md),
-        _CategoryCard(
-          item: items.first,
-          height: 166,
-          onTap: () => onCategoryTap(items.first.category),
-        ),
-        if (items.length > 1) ...[
-          const SizedBox(height: AppSpacing.md),
-          if (section.group == HouseholdCategoryGroup.homeTools &&
-              items.length >= 4)
-            _HomeToolsMosaic(items: items, onCategoryTap: onCategoryTap)
-          else
-            _CategoryPairGrid(
-              items: items.skip(1).toList(growable: false),
-              onCategoryTap: onCategoryTap,
-            ),
-        ],
-      ],
-    );
-  }
-}
-
-class _HomeToolsMosaic extends StatelessWidget {
-  const _HomeToolsMosaic({required this.items, required this.onCategoryTap});
-
-  final List<HouseholdCategoryItem> items;
-  final ValueChanged<ProductCategory> onCategoryTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final stackedItems = items.skip(1).take(2).toList(growable: false);
-    return SizedBox(
-      height: 260,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(
-            flex: 2,
-            child: Column(
-              children: [
-                for (var index = 0; index < stackedItems.length; index++) ...[
-                  Expanded(
-                    child: _CategoryCard(
-                      item: stackedItems[index],
-                      onTap: () => onCategoryTap(stackedItems[index].category),
-                    ),
-                  ),
-                  if (index < stackedItems.length - 1)
-                    const SizedBox(height: AppSpacing.md),
-                ],
-              ],
-            ),
-          ),
-          const SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: _CategoryCard(
-              item: items[3],
-              onTap: () => onCategoryTap(items[3].category),
-            ),
-          ),
-        ],
       ),
-    );
-  }
+      const SizedBox(height: 12),
+      _CategoryPairGrid(items: section.items, onCategoryTap: onCategoryTap),
+    ],
+  );
 }
 
 class _CategoryPairGrid extends StatelessWidget {
@@ -366,20 +351,68 @@ class _CategoryPairGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
-      final cardWidth = (constraints.maxWidth - AppSpacing.md) / 2;
-      return Wrap(
-        spacing: AppSpacing.md,
-        runSpacing: AppSpacing.md,
+      final width = (constraints.maxWidth - 12) / 2;
+      final scaler = MediaQuery.textScalerOf(context);
+      final labelStyle = DefaultTextStyle.of(
+        context,
+      ).style.merge(_categoryLabelStyle);
+      // Only 18 labels: measuring once per row avoids an intrinsic layout pass
+      // for images while retaining the full caption at any text scale.
+      double captionHeight(HouseholdCategoryItem item) {
+        final painter = TextPainter(
+          text: TextSpan(text: item.category.name, style: labelStyle),
+          textDirection: Directionality.of(context),
+          textScaler: scaler,
+          locale: Localizations.localeOf(context),
+        )..layout(maxWidth: width - 24);
+        final measured = painter.height;
+        painter.dispose();
+        final minimum = scaler.scale(15) * 1.25 * 2;
+        return (measured > minimum ? measured : minimum).ceilToDouble() + 24;
+      }
+
+      return Column(
         children: [
-          for (final item in items)
-            SizedBox(
-              width: cardWidth,
-              child: _CategoryCard(
-                item: item,
-                height: 150,
-                onTap: () => onCategoryTap(item.category),
-              ),
+          for (var index = 0; index < items.length; index += 2) ...[
+            if (index > 0) const SizedBox(height: 12),
+            Builder(
+              builder: (context) {
+                final left = items[index];
+                final right = index + 1 < items.length
+                    ? items[index + 1]
+                    : null;
+                final leftHeight = captionHeight(left);
+                final rightHeight = right == null ? 0.0 : captionHeight(right);
+                final height = leftHeight > rightHeight
+                    ? leftHeight
+                    : rightHeight;
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: _CategoryCard(
+                        item: left,
+                        captionHeight: height,
+                        labelStyle: labelStyle,
+                        onTap: () => onCategoryTap(left.category),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: right == null
+                          ? const SizedBox.shrink()
+                          : _CategoryCard(
+                              item: right,
+                              captionHeight: height,
+                              labelStyle: labelStyle,
+                              onTap: () => onCategoryTap(right.category),
+                            ),
+                    ),
+                  ],
+                );
+              },
             ),
+          ],
         ],
       );
     },
@@ -387,67 +420,60 @@ class _CategoryPairGrid extends StatelessWidget {
 }
 
 class _CategoryCard extends StatelessWidget {
-  const _CategoryCard({required this.item, required this.onTap, this.height});
+  const _CategoryCard({
+    required this.item,
+    required this.onTap,
+    required this.captionHeight,
+    required this.labelStyle,
+  });
 
   final HouseholdCategoryItem item;
   final VoidCallback onTap;
-  final double? height;
+  final double captionHeight;
+  final TextStyle labelStyle;
 
   @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return Semantics(
-      button: true,
-      label: item.category.name,
-      child: Material(
-        color: colors.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(AppRadius.xl),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          key: ValueKey('household-category-card-${item.category.id}'),
-          onTap: onTap,
-          child: SizedBox(
-            height: height,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                ExcludeSemantics(child: _CategoryImage(item: item)),
-                const DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      stops: [0.35, 1],
-                      colors: [Colors.transparent, Color(0xB8000000)],
-                    ),
-                  ),
-                ),
-                Align(
-                  alignment: Alignment.bottomLeft,
-                  child: Padding(
-                    padding: const EdgeInsets.all(AppSpacing.md),
-                    child: Text(
-                      item.category.name,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w900,
-                        height: 1.08,
-                        shadows: const [
-                          Shadow(color: Colors.black45, blurRadius: 5),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+  Widget build(BuildContext context) => Semantics(
+    container: true,
+    button: true,
+    label: item.category.name,
+    excludeSemantics: true,
+    onTap: onTap,
+    child: Material(
+      color: item.panelColor,
+      borderRadius: BorderRadius.circular(20),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        key: ValueKey('household-category-card-${item.category.id}'),
+        onTap: onTap,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            AspectRatio(
+              aspectRatio: 4 / 3,
+              child: ExcludeSemantics(child: _CategoryImage(item: item)),
             ),
-          ),
+            SizedBox(
+              height: captionHeight,
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    item.category.name,
+                    key: ValueKey(
+                      'household-category-label-${item.category.id}',
+                    ),
+                    style: labelStyle,
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
-    );
-  }
+    ),
+  );
 }
 
 class _CategoryImage extends StatelessWidget {
@@ -458,32 +484,33 @@ class _CategoryImage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final local = item.assetPath;
-    if (item.category.imageUrl case final remote?) {
+    if (local != null) {
+      return Image.asset(
+        local,
+        fit: BoxFit.cover,
+        cacheWidth: 768,
+        errorBuilder: (_, _, _) => _remoteOrFallback(context),
+      );
+    }
+    return _remoteOrFallback(context);
+  }
+
+  Widget _remoteOrFallback(BuildContext context) {
+    final remote = item.category.imageUrl?.trim();
+    if (remote != null && remote.isNotEmpty) {
       return CachedNetworkImage(
         imageUrl: remote,
         fit: BoxFit.cover,
-        memCacheWidth: 900,
-        placeholder: (_, _) => _localOrFallback(context, local),
-        errorWidget: (_, _, _) => _localOrFallback(context, local),
-      );
-    }
-    return _localOrFallback(context, local);
-  }
-
-  Widget _localOrFallback(BuildContext context, String? path) {
-    if (path != null) {
-      return Image.asset(
-        path,
-        fit: BoxFit.cover,
-        cacheWidth: 900,
-        errorBuilder: (_, _, _) => _fallback(context),
+        memCacheWidth: 768,
+        placeholder: (_, _) => _fallback(context),
+        errorWidget: (_, _, _) => _fallback(context),
       );
     }
     return _fallback(context);
   }
 
   Widget _fallback(BuildContext context) => ColoredBox(
-    color: Theme.of(context).colorScheme.surfaceContainerHighest,
+    color: item.panelColor,
     child: Icon(
       Icons.category_outlined,
       size: 42,

@@ -38,7 +38,7 @@ ProductSummary _product(String id) => ProductSummary.fromJson({
   'name': 'Mahsulot $id',
   'description': '',
   'price': '20000.00',
-  'main_image': null,
+  'main_image': 'https://example.test/products/$id.jpg',
   'unit_display': 'dona',
   'is_purchasable': true,
   'store_type': 'household',

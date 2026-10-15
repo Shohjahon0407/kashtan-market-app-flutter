@@ -99,6 +99,19 @@ void main() {
     final state = container.read(orderRealtimeProvider);
     expect(state.revision, 1);
     expect(state.lastOrderId, 'order-1');
+
+    // Lokatsiya hodisasi holat revision'iga tegmaydi (REST qayta
+    // so'ralmaydi) — faqat locationRevision oshadi.
+    fake.stream.add(
+      '{"type":"user.order_courier_location","order_id":"order-1",'
+      '"status":"out_for_delivery","location":{"latitude":"41.3",'
+      '"longitude":"69.5","client_sequence":1}}',
+    );
+    await Future<void>.delayed(Duration.zero);
+    final after = container.read(orderRealtimeProvider);
+    expect(after.revision, 1);
+    expect(after.locationRevision, 1);
+    expect(after.lastEventType, 'user.order_courier_location');
   });
 
   test('socket uzilganda backoff bilan qayta ulanadi', () async {

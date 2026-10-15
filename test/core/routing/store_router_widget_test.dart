@@ -1,12 +1,16 @@
+import 'dart:async';
+
 import 'package:beshkashtan_customer/app.dart';
 import 'package:beshkashtan_customer/core/localization/locale_controller.dart';
 import 'package:beshkashtan_customer/core/network/network_providers.dart';
 import 'package:beshkashtan_customer/core/network/paginated.dart';
 import 'package:beshkashtan_customer/core/routing/app_router.dart';
+import 'package:beshkashtan_customer/core/routing/back_navigation.dart';
 import 'package:beshkashtan_customer/core/routing/routes.dart';
 import 'package:beshkashtan_customer/core/storage/prefs_store.dart';
 import 'package:beshkashtan_customer/core/storage/secure_token_store.dart';
 import 'package:beshkashtan_customer/core/store_scope/store_type.dart';
+import 'package:beshkashtan_customer/features/app_update/presentation/update_navigation_gate.dart';
 import 'package:beshkashtan_customer/features/auth/data/auth_api.dart';
 import 'package:beshkashtan_customer/features/auth/data/auth_models.dart';
 import 'package:beshkashtan_customer/features/auth/domain/auth_controller.dart';
@@ -20,6 +24,7 @@ import 'package:beshkashtan_customer/features/catalog/domain/catalog_controller.
 import 'package:beshkashtan_customer/features/catalog/presentation/catalog_screen.dart';
 import 'package:beshkashtan_customer/features/checkout/data/checkout_api.dart';
 import 'package:beshkashtan_customer/features/checkout/domain/addresses_controller.dart';
+import 'package:beshkashtan_customer/features/checkout/domain/device_location.dart';
 import 'package:beshkashtan_customer/features/checkout/presentation/checkout_screen.dart';
 import 'package:beshkashtan_customer/features/favorites/data/favorite_models.dart';
 import 'package:beshkashtan_customer/features/favorites/data/favorites_api.dart';
@@ -33,6 +38,7 @@ import 'package:beshkashtan_customer/features/orders/data/orders_api.dart';
 import 'package:beshkashtan_customer/features/orders/domain/order_realtime_controller.dart';
 import 'package:beshkashtan_customer/features/orders/domain/orders_controller.dart';
 import 'package:beshkashtan_customer/features/orders/presentation/orders_screen.dart';
+import 'package:beshkashtan_customer/features/recommendations/domain/interaction_tracker.dart';
 import 'package:beshkashtan_customer/features/store/data/store_api.dart';
 import 'package:beshkashtan_customer/features/store/data/store_models.dart';
 import 'package:beshkashtan_customer/features/store/domain/store_landing_controller.dart';
@@ -42,6 +48,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../helpers/fake_recommendations_api.dart';
+import '../../helpers/reveal_imageless.dart';
 
 class _MockAuthApi extends Mock implements AuthApi {}
 
@@ -91,7 +100,7 @@ StoreLandingData landing(StoreType type) => StoreLandingData(
 );
 
 void main() {
-  testWidgets('4 store va 4 tab route’i real routerda ochiladi', (
+  testWidgets('barcha store va 4 tab route’i real routerda ochiladi', (
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({});
@@ -119,6 +128,14 @@ void main() {
         (_) async => const CursorPage<ProductSummary>(items: [], nextUrl: null),
       );
       when(
+        () => catalogApi.fetchProducts(
+          storeType: type.wire,
+          categoryId: 'test-category',
+        ),
+      ).thenAnswer(
+        (_) async => const CursorPage<ProductSummary>(items: [], nextUrl: null),
+      );
+      when(
         () => cartApi.fetch(type.wire),
       ).thenAnswer((_) async => CartData.empty(type.wire));
       when(
@@ -139,10 +156,14 @@ void main() {
         ),
         authApiProvider.overrideWithValue(authApi),
         homeApiProvider.overrideWithValue(homeApi),
+        recommendationsApiProvider.overrideWithValue(FakeRecommendationsApi()),
         storeApiProvider.overrideWithValue(storeApi),
         catalogApiProvider.overrideWithValue(catalogApi),
         cartApiProvider.overrideWithValue(cartApi),
         checkoutApiProvider.overrideWithValue(checkoutApi),
+        addressLocationAccessProvider.overrideWithValue(() async {
+          throw const DeviceLocationException(DeviceLocationFailure.denied);
+        }),
         favoritesApiProvider.overrideWithValue(favoritesApi),
         ordersApiProvider.overrideWithValue(ordersApi),
         orderRealtimeProvider.overrideWith(_NoopRealtimeController.new),
@@ -158,6 +179,137 @@ void main() {
     await container.read(authControllerProvider.notifier).restoreSession();
     await tester.pumpAndSettle();
     final router = container.read(appRouterProvider);
+
+    for (final type in StoreType.values) {
+      router.go(Routes.home);
+      AppBackCoordinator.of(router).clear();
+      await tester.pumpAndSettle();
+      unawaited(router.push<void>(Routes.storeCatalog(type.wire)));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('store-nav-favorites')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('store-nav-orders')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('store-nav-cart')));
+      await tester.pumpAndSettle();
+      for (final expected in [
+        Routes.storeOrders(type.wire),
+        Routes.storeFavorites(type.wire),
+        Routes.storeCatalog(type.wire),
+      ]) {
+        await tester.binding.handlePopRoute();
+        await tester.pumpAndSettle();
+        expect(AppBackCoordinator.of(router).location, expected);
+      }
+      await tester.tap(find.byKey(const ValueKey('catalog-cart-button')));
+      await tester.pumpAndSettle();
+      expect(find.byType(CartScreen), findsOneWidget);
+
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(find.byType(CatalogScreen), findsOneWidget);
+      expect(
+        AppBackCoordinator.of(router).location,
+        Routes.storeCatalog(type.wire),
+      );
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(find.byType(HomeScreen), findsOneWidget);
+      expect(await AppBackCoordinator.of(router).back(), isFalse);
+      await tester.pumpAndSettle();
+
+      // Returning to Products from Cart must unwind that tab excursion,
+      // rather than make the catalog's back arrow open Cart again.
+      for (final systemBack in [false, true]) {
+        unawaited(router.push<void>(Routes.storeCatalog(type.wire)));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const ValueKey('catalog-cart-button')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const ValueKey('store-nav-catalog')));
+        await tester.pumpAndSettle();
+        if (systemBack) {
+          await tester.binding.handlePopRoute();
+        } else {
+          await tester.tap(find.byIcon(Icons.arrow_back));
+        }
+        await tester.pumpAndSettle();
+        expect(AppBackCoordinator.of(router).location, Routes.home);
+        expect(find.byType(HomeScreen), findsOneWidget);
+      }
+
+      unawaited(router.push<void>(Routes.storeCatalog(type.wire)));
+      await tester.pumpAndSettle();
+      unawaited(
+        router.push<void>(
+          Routes.storeCategoryProducts(type.wire, 'test-category'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      // Predictive/native back reaches the enclosing root Navigator rather
+      // than the Router dispatcher. It must pop the category, not the store.
+      await container
+          .read(appRootNavigatorKeyProvider)
+          .currentState!
+          .maybePop();
+      await tester.pumpAndSettle();
+      expect(
+        AppBackCoordinator.of(router).location,
+        Routes.storeCatalog(type.wire),
+      );
+      unawaited(
+        router.push<void>(
+          Routes.storeCategoryProducts(type.wire, 'test-category'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('catalog-cart-button')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('store-nav-catalog')));
+      await tester.pumpAndSettle();
+      expect(
+        AppBackCoordinator.of(router).location,
+        Routes.storeCatalog(type.wire),
+      );
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(AppBackCoordinator.of(router).location, Routes.home);
+    }
+
+    // Opening detail/back must preserve disclosure in the existing catalog.
+    final imageless = ProductSummary.fromJson({
+      'id': 'no-photo',
+      'name': 'Rasmsiz mahsulot',
+      'price': '1000',
+      'store_type': 'grocery',
+    });
+    when(
+      () => catalogApi.fetchProducts(storeType: 'grocery'),
+    ).thenAnswer((_) async => CursorPage(items: [imageless], nextUrl: null));
+    when(() => catalogApi.fetchDetail('no-photo')).thenAnswer(
+      (_) async => ProductDetail(
+        product: imageless,
+        images: const [],
+        addonGroups: const [],
+        relatedProducts: const [],
+      ),
+    );
+    unawaited(router.push<void>(Routes.storeCatalog('grocery')));
+    await tester.pumpAndSettle();
+    await revealImagelessProducts(tester);
+    await tester.ensureVisible(find.text('Rasmsiz mahsulot'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Rasmsiz mahsulot'));
+    await tester.pumpAndSettle();
+    expect(
+      AppBackCoordinator.of(router).location,
+      Routes.productDetail('grocery', 'no-photo'),
+    );
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.text('Rasmsiz mahsulot'), findsOneWidget);
+    expect(find.byKey(const ValueKey('imageless-reveal-button')), findsNothing);
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
 
     router.go(Routes.cart);
     await tester.pumpAndSettle();
@@ -244,10 +396,14 @@ void main() {
         ),
         authApiProvider.overrideWithValue(authApi),
         homeApiProvider.overrideWithValue(homeApi),
+        recommendationsApiProvider.overrideWithValue(FakeRecommendationsApi()),
         storeApiProvider.overrideWithValue(storeApi),
         catalogApiProvider.overrideWithValue(catalogApi),
         cartApiProvider.overrideWithValue(cartApi),
         checkoutApiProvider.overrideWithValue(checkoutApi),
+        addressLocationAccessProvider.overrideWithValue(() async {
+          throw const DeviceLocationException(DeviceLocationFailure.denied);
+        }),
         favoritesApiProvider.overrideWithValue(favoritesApi),
         ordersApiProvider.overrideWithValue(ordersApi),
         orderRealtimeProvider.overrideWith(_NoopRealtimeController.new),
@@ -289,6 +445,10 @@ void main() {
       tester.widget<NavigationBar>(find.byType(NavigationBar)).selectedIndex,
       0,
     );
+
+    await tester.tap(find.byIcon(Icons.arrow_back));
+    await tester.pumpAndSettle();
+    expect(find.byType(HomeScreen), findsOneWidget);
 
     router.go(Routes.checkout(StoreType.household.wire));
     await tester.pumpAndSettle();

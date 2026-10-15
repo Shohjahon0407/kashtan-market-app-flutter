@@ -136,26 +136,36 @@ class CartData {
     final updated = <CartItem>[
       for (final item in items) item.id == replacement.id ? replacement : item,
     ];
-    return copyWith(
-      items: updated,
-      totalQuantity: updated.fold<int>(
-        0,
-        (total, item) => total + item.quantity,
-      ),
-    );
+    return _withItems(updated);
+  }
+
+  CartData upsertItem(CartItem replacement) {
+    final exists = items.any((item) => item.id == replacement.id);
+    final updated = exists
+        ? [
+            for (final item in items)
+              item.id == replacement.id ? replacement : item,
+          ]
+        : [...items, replacement];
+    return _withItems(updated);
   }
 
   CartData removeItem(String itemId) {
     final updated = items.where((item) => item.id != itemId).toList();
-    return copyWith(
-      items: updated,
-      totalItems: updated.length,
-      totalQuantity: updated.fold<int>(
-        0,
-        (total, item) => total + item.quantity,
-      ),
-    );
+    return _withItems(updated);
   }
+
+  CartData _withItems(List<CartItem> updated) => copyWith(
+    items: updated,
+    totalItems: updated.length,
+    totalQuantity: updated.fold<int>(0, (total, item) => total + item.quantity),
+    subtotal: _formatMoneyMinor(
+      updated.fold<int>(
+        0,
+        (total, item) => total + _parseMoneyMinor(item.subtotal),
+      ),
+    ),
+  );
 
   CartData copyWith({
     List<CartItem>? items,
@@ -170,4 +180,25 @@ class CartData {
     totalQuantity: totalQuantity ?? this.totalQuantity,
     subtotal: subtotal ?? this.subtotal,
   );
+}
+
+int _parseMoneyMinor(String raw) {
+  final normalized = raw.trim().replaceAll(' ', '');
+  if (normalized.isEmpty) return 0;
+  final negative = normalized.startsWith('-');
+  final unsigned = negative ? normalized.substring(1) : normalized;
+  final parts = unsigned.split('.');
+  final whole = int.tryParse(parts.first) ?? 0;
+  final fractionRaw = parts.length > 1 ? parts[1] : '';
+  final fraction = int.tryParse('${fractionRaw}00'.substring(0, 2)) ?? 0;
+  final value = whole * 100 + fraction;
+  return negative ? -value : value;
+}
+
+String _formatMoneyMinor(int value) {
+  final negative = value < 0;
+  final absolute = value.abs();
+  final result =
+      '${absolute ~/ 100}.${(absolute % 100).toString().padLeft(2, '0')}';
+  return negative ? '-$result' : result;
 }

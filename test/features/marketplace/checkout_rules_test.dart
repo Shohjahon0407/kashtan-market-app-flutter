@@ -34,6 +34,85 @@ CartData cart(List<ProductSummary> products) => CartData(
 );
 
 void main() {
+  test('display total uses exact money and only a resolved delivery fee', () {
+    expect(
+      CheckoutRules.displayTotal(
+        subtotal: '180000',
+        fulfillment: FulfillmentType.delivery,
+        estimate: const DeliveryEstimate(
+          available: true,
+          detail: '',
+          deliveryPrice: '5000',
+        ),
+      ),
+      '185000.00',
+    );
+    expect(
+      CheckoutRules.displayTotal(
+        subtotal: '0.10',
+        fulfillment: FulfillmentType.delivery,
+        estimate: const DeliveryEstimate(
+          available: true,
+          detail: '',
+          deliveryPrice: '0.20',
+        ),
+      ),
+      '0.30',
+    );
+    expect(
+      CheckoutRules.displayTotal(
+        subtotal: '180000.01',
+        fulfillment: FulfillmentType.pickup,
+      ),
+      '180000.01',
+    );
+    expect(
+      CheckoutRules.displayTotal(
+        subtotal: '180000',
+        fulfillment: FulfillmentType.delivery,
+      ),
+      isNull,
+    );
+    expect(
+      CheckoutRules.displayTotal(
+        subtotal: '180000',
+        fulfillment: FulfillmentType.delivery,
+        estimate: const DeliveryEstimate(
+          available: false,
+          detail: '',
+          deliveryPrice: '5000',
+        ),
+      ),
+      isNull,
+    );
+    expect(
+      CheckoutRules.displayTotal(
+        subtotal: '180000',
+        fulfillment: FulfillmentType.delivery,
+        estimating: true,
+        estimate: const DeliveryEstimate(
+          available: true,
+          detail: '',
+          deliveryPrice: '5000',
+        ),
+      ),
+      isNull,
+    );
+    expect(
+      CheckoutRules.displayTotal(
+        subtotal: 'bad',
+        fulfillment: FulfillmentType.pickup,
+      ),
+      isNull,
+    );
+    expect(
+      CheckoutRules.displayTotal(
+        subtotal: '-100',
+        fulfillment: FulfillmentType.pickup,
+      ),
+      isNull,
+    );
+  });
   const available = DeliveryEstimate(available: true, detail: '');
   const unavailable = DeliveryEstimate(available: false, detail: 'uzoq');
 

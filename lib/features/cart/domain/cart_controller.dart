@@ -36,7 +36,37 @@ abstract final class CartMutationKeys {
 
   static String bundle(String bundleId) => 'bundle:$bundleId';
 
+  static String quantity(String configurationIdentity) =>
+      'quantity:$configurationIdentity';
+
   static const String clear = 'clear';
+}
+
+const _localCartItemPrefix = 'local-cart-item:';
+const _quantityDebounce = Duration(milliseconds: 180);
+
+class _QuantityIntent {
+  _QuantityIntent({
+    required this.configuration,
+    required this.template,
+    required this.confirmedItem,
+    required this.desiredQuantity,
+    this.addAlreadyCommitted = false,
+    this.discardOfflineAdd = false,
+  });
+
+  final CartConfiguration configuration;
+  CartItem template;
+  CartItem? confirmedItem;
+  int desiredQuantity;
+  int revision = 0;
+  bool running = false;
+  bool addAlreadyCommitted;
+  bool discardOfflineAdd;
+  Timer? timer;
+  final List<Completer<bool>> waiters = [];
+
+  String get key => CartMutationKeys.quantity(configuration.identity);
 }
 
 class CartState {
@@ -52,14 +82,13 @@ class CartState {
   /// Ayni paytda bajarilayotgan (yoki navbatda turgan) mutatsiya kalitlari.
   ///
   /// UI ularni [isBusy] orqali KALIT BO'YICHA so'raydi: bitta mahsulot
-  /// qo'shilayotganda faqat o'sha karta spinner ko'rsatadi, qolganlari
-  /// oddiy holatda qoladi.
+  /// o'zgarganda checkout/clear kabi yakuniy amallar yozuv tugaguncha
+  /// bloklanadi. Mahsulot stepperlari esa optimistic ishlashda davom etadi.
   final Set<String> busyKeys;
 
   /// Serverga YOZILGAN, lekin keyingi GET xato bergani uchun `cart` ichida
-  /// hali ko'rinmayotgan konfiguratsiyalar. UI ular uchun "Sotib olish"
-  /// tugmasini QAYTA ko'rsatmaydi — aks holda foydalanuvchi ikkinchi marta
-  /// bosib, serverda 2 dona bo'lib qolardi.
+  /// hali tasdiqlanmagan konfiguratsiyalar. Lokal optimistic satr ko'rinib
+  /// turadi; keyingi refresh uni server ID bilan almashtiradi.
   final Set<String> unconfirmedKeys;
   final ApiFailure? mutationFailure;
 
@@ -99,6 +128,7 @@ class CartController extends AsyncNotifier<CartState> {
 
   /// Band kalitlarning YAGONA manbasi; har bir state yozuvi shundan ko'chiriladi.
   final Set<String> _pending = {};
+  final Map<String, _QuantityIntent> _quantityIntents = {};
 
   /// Mutatsiyalar KETMA-KET bajariladi (ikkita parallel yozuv `_reconcile`
   /// natijalarini bir-birining ustiga tashlab yuborardi), ammo endi ular
@@ -112,6 +142,13 @@ class CartController extends AsyncNotifier<CartState> {
     ref.onDispose(() {
       _generation++;
       _unconfirmedRetry?.cancel();
+      for (final intent in _quantityIntents.values) {
+        intent.timer?.cancel();
+        for (final waiter in intent.waiters) {
+          if (!waiter.isCompleted) waiter.complete(false);
+        }
+      }
+      _quantityIntents.clear();
       _pending.clear();
     });
     listenForConnectionRecovery(ref, () async {
@@ -206,10 +243,10 @@ class CartController extends AsyncNotifier<CartState> {
     List<SelectedAddon> addons = const [],
     String note = '',
     int quantity = 1,
-  }) async {
+  }) {
     // inReview — admin tekshiruvidagi mahsulot (server ham checkoutda rad etadi).
     if (!product.isPurchasable || product.inReview || quantity < 1) {
-      return false;
+      return Future.value(false);
     }
     final configuration = CartConfiguration(
       productId: product.id,
@@ -217,142 +254,21 @@ class CartController extends AsyncNotifier<CartState> {
       addons: addons,
       note: note,
     );
-    return _mutate(
-      CartMutationKeys.add(configuration),
-      (current) => _addProduct(configuration, current, quantity),
+    return _changeQuantity(
+      product: product,
+      variant: variant,
+      addons: addons,
+      note: note,
+      configuration: configuration,
+      delta: quantity,
     );
   }
 
-  Future<bool> _addProduct(
-    CartConfiguration configuration,
-    CartState current,
-    int quantity,
-  ) async {
-    final generation = _generation;
-    CartItem? duplicate;
-    for (final item in current.cart.items) {
-      if (item.configurationIdentity == configuration.identity) {
-        duplicate = item;
-        break;
-      }
-    }
+  Future<void> increment(CartItem item) => _changeExisting(item, 1);
 
-    final previous = current;
-    if (duplicate != null) {
-      final optimistic = duplicate.copyWith(
-        quantity: duplicate.quantity + quantity,
-      );
-      state = AsyncData(
-        current.copyWith(cart: current.cart.replaceItem(optimistic)),
-      );
-    }
+  Future<void> decrement(CartItem item) => _changeExisting(item, -1);
 
-    try {
-      if (duplicate != null) {
-        await ref
-            .read(cartApiProvider)
-            .updateQuantity(duplicate.id, duplicate.quantity + quantity);
-      } else {
-        await ref
-            .read(cartApiProvider)
-            .addItem(
-              storeType: storeType.wire,
-              configuration: configuration,
-              quantity: quantity,
-            );
-      }
-      if (!ref.mounted || generation != _generation) return false;
-      final reconciled = await _reconcile();
-      if (!ref.mounted || generation != _generation) return true;
-      if (!reconciled && duplicate == null) {
-        // Yozuv serverga yetdi, lekin GET xato berdi: yangi satr server
-        // id'siz ko'rsatilmaydi. Konfiguratsiya "tasdiqlanmagan" deb
-        // belgilanadi — tugma qayta "Sotib olish" bo'lmaydi.
-        final held = state.value;
-        if (held != null) {
-          state = AsyncData(
-            held.copyWith(
-              unconfirmedKeys: {
-                ...held.unconfirmedKeys,
-                configuration.identity,
-              },
-            ),
-          );
-        }
-        _scheduleUnconfirmedRetry();
-      }
-      // Mahsulot savatda — solishtirish xatosi buni bekor qilmaydi.
-      return true;
-    } on NetworkFailure {
-      if (!ref.mounted || generation != _generation) return false;
-      // OFLAYN: amal navbatga tushadi va internet qaytganda yuboriladi.
-      // Optimistik ko'rinish saqlanadi — foydalanuvchi uchun savat ishlayveradi.
-      if (duplicate != null) {
-        await ref
-            .read(offlineCartQueueProvider)
-            .enqueueSetQuantity(duplicate.id, duplicate.quantity + quantity);
-        final held = state.value ?? previous;
-        state = AsyncData(held.copyWith(mutationFailure: () => null));
-        return true;
-      }
-      // Yangi element serverda hali yo'q — ko'rinishda ko'rsata olmaymiz
-      // (server id kerak), lekin navbatda saqlanadi va ulanishda qo'shiladi.
-      await ref
-          .read(offlineCartQueueProvider)
-          .enqueueAdd(
-            storeType: storeType.wire,
-            configuration: configuration,
-            quantity: quantity,
-          );
-      state = AsyncData(previous.copyWith(mutationFailure: () => null));
-      return true;
-    } on ApiFailure catch (failure) {
-      if (!ref.mounted || generation != _generation) return false;
-      state = AsyncData(previous.copyWith(mutationFailure: () => failure));
-      return false;
-    } on Object {
-      if (ref.mounted && generation == _generation) {
-        state = AsyncData(
-          previous.copyWith(mutationFailure: () => const UnknownFailure()),
-        );
-      }
-      return false;
-    }
-  }
-
-  Future<void> increment(CartItem item) =>
-      _setQuantity(item, item.quantity + 1);
-
-  Future<void> decrement(CartItem item) =>
-      item.quantity <= 1 ? remove(item) : _setQuantity(item, item.quantity - 1);
-
-  Future<void> remove(CartItem item) => _mutate(
-    CartMutationKeys.item(item.id),
-    (current) => _remove(item, current),
-  );
-
-  Future<bool> _remove(CartItem item, CartState current) async {
-    final generation = _generation;
-    final previous = current;
-    state = AsyncData(current.copyWith(cart: current.cart.removeItem(item.id)));
-    try {
-      await ref.read(cartApiProvider).deleteItem(item.id);
-      if (!ref.mounted || generation != _generation) return false;
-      await _reconcile();
-      return true;
-    } on NetworkFailure {
-      if (!ref.mounted || generation != _generation) return false;
-      // Oflayn: element ekrandan olib tashlangan holicha qoladi.
-      await ref.read(offlineCartQueueProvider).enqueueRemove(item.id);
-      final held = state.value ?? previous;
-      state = AsyncData(held.copyWith(mutationFailure: () => null));
-      return true;
-    } on ApiFailure catch (failure) {
-      if (!ref.mounted || generation != _generation) return false;
-      state = AsyncData(previous.copyWith(mutationFailure: () => failure));
-      return false;
-    }
-  }
+  Future<void> remove(CartItem item) => _setExistingQuantity(item, 0);
 
   Future<void> clear() => _mutate(CartMutationKeys.clear, _clear);
 
@@ -405,41 +321,373 @@ class CartController extends AsyncNotifier<CartState> {
     }
   }
 
-  Future<void> _setQuantity(CartItem item, int quantity) => _mutate(
-    CartMutationKeys.item(item.id),
-    (current) => _applyQuantity(item, quantity, current),
-  );
+  Future<void> _changeExisting(CartItem item, int delta) async {
+    await _changeQuantity(
+      product: item.product,
+      variant: item.variant,
+      addons: item.selectedAddons,
+      note: item.note,
+      configuration: CartConfiguration(
+        productId: item.product.id,
+        variantId: item.variant?.id,
+        addons: item.selectedAddons,
+        note: item.note,
+      ),
+      delta: delta,
+    );
+  }
 
-  Future<bool> _applyQuantity(
-    CartItem item,
-    int quantity,
-    CartState current,
-  ) async {
-    final generation = _generation;
-    final previous = current;
+  Future<void> _setExistingQuantity(CartItem item, int quantity) async {
+    final current = state.value;
+    if (current == null) return;
+    final latest = _findByIdentity(
+      current.cart.items,
+      item.configurationIdentity,
+    );
+    final currentQuantity =
+        _quantityIntents[item.configurationIdentity]?.desiredQuantity ??
+        latest?.quantity ??
+        item.quantity;
+    await _changeQuantity(
+      product: item.product,
+      variant: item.variant,
+      addons: item.selectedAddons,
+      note: item.note,
+      configuration: CartConfiguration(
+        productId: item.product.id,
+        variantId: item.variant?.id,
+        addons: item.selectedAddons,
+        note: item.note,
+      ),
+      delta: quantity - currentQuantity,
+    );
+  }
+
+  Future<bool> _changeQuantity({
+    required ProductSummary product,
+    required ProductVariant? variant,
+    required List<SelectedAddon> addons,
+    required String note,
+    required CartConfiguration configuration,
+    required int delta,
+  }) {
+    final current = state.value;
+    if (current == null || delta == 0) return Future.value(delta == 0);
+    final identity = configuration.identity;
+    final visible = _findByIdentity(current.cart.items, identity);
+    var intent = _quantityIntents[identity];
+    if (intent == null) {
+      final isLocal = visible?.id.startsWith(_localCartItemPrefix) ?? false;
+      final localId =
+          visible?.id ??
+          '$_localCartItemPrefix${DateTime.now().microsecondsSinceEpoch}';
+      final template =
+          visible ??
+          CartItem(
+            id: localId,
+            product: product,
+            variant: variant,
+            quantity: 0,
+            selectedAddons: List.unmodifiable(addons),
+            note: note,
+            subtotal: '0.00',
+          );
+      intent = _QuantityIntent(
+        configuration: configuration,
+        template: template,
+        confirmedItem: isLocal ? null : visible,
+        desiredQuantity: visible?.quantity ?? 0,
+        addAlreadyCommitted:
+            isLocal && current.unconfirmedKeys.contains(identity),
+        discardOfflineAdd:
+            isLocal && !current.unconfirmedKeys.contains(identity),
+      );
+      _quantityIntents[identity] = intent;
+    }
+
+    intent.desiredQuantity = (intent.desiredQuantity + delta).clamp(0, 999999);
+    intent.revision++;
+    final waiter = Completer<bool>();
+    intent.waiters.add(waiter);
+    _pending.add(intent.key);
+
+    final optimisticCart = _applyIntent(current.cart, intent);
     state = AsyncData(
       current.copyWith(
-        cart: current.cart.replaceItem(item.copyWith(quantity: quantity)),
+        cart: optimisticCart,
+        busyKeys: {..._pending},
+        mutationFailure: () => null,
       ),
     );
+    _scheduleQuantityIntent(intent);
+    return waiter.future;
+  }
+
+  void _scheduleQuantityIntent(_QuantityIntent intent) {
+    intent.timer?.cancel();
+    if (intent.running) return;
+    intent.timer = Timer(_quantityDebounce, () {
+      intent.timer = null;
+      if (!ref.mounted ||
+          _quantityIntents[intent.configuration.identity] != intent) {
+        return;
+      }
+      intent.running = true;
+      final work = _queueTail.then((_) => _flushQuantityIntent(intent));
+      _queueTail = work.then((_) {}, onError: (Object _) {});
+    });
+  }
+
+  Future<void> _flushQuantityIntent(_QuantityIntent intent) async {
+    final generation = _generation;
     try {
-      await ref.read(cartApiProvider).updateQuantity(item.id, quantity);
-      if (!ref.mounted || generation != _generation) return false;
-      await _reconcile();
-      return true;
+      while (ref.mounted &&
+          generation == _generation &&
+          _quantityIntents[intent.configuration.identity] == intent) {
+        final revision = intent.revision;
+        final target = intent.desiredQuantity;
+
+        if (intent.confirmedItem == null && intent.addAlreadyCommitted) {
+          final serverCart = await ref
+              .read(cartApiProvider)
+              .fetch(storeType.wire);
+          final serverLine = _findByIdentity(
+            serverCart.items,
+            intent.configuration.identity,
+          );
+          if (serverLine == null) {
+            throw const UnknownFailure();
+          }
+          intent.confirmedItem = serverLine;
+          intent.template = serverLine;
+          intent.addAlreadyCommitted = false;
+          _publishServerCart(serverCart);
+          continue;
+        }
+
+        if (intent.confirmedItem == null) {
+          if (target <= 0) {
+            _settleQuantityIntent(intent, success: true);
+            return;
+          }
+          if (intent.discardOfflineAdd) {
+            await ref
+                .read(offlineCartQueueProvider)
+                .discardAdd(
+                  storeType: storeType.wire,
+                  configuration: intent.configuration,
+                );
+            intent.discardOfflineAdd = false;
+          }
+          await ref
+              .read(cartApiProvider)
+              .addItem(
+                storeType: storeType.wire,
+                configuration: intent.configuration,
+                quantity: target,
+              );
+          intent.addAlreadyCommitted = true;
+
+          CartData serverCart;
+          try {
+            serverCart = await ref.read(cartApiProvider).fetch(storeType.wire);
+          } on Object catch (error) {
+            if (!ref.mounted || generation != _generation) return;
+            final held = state.value;
+            if (held != null) {
+              state = AsyncData(
+                held.copyWith(
+                  unconfirmedKeys: {
+                    ...held.unconfirmedKeys,
+                    intent.configuration.identity,
+                  },
+                  mutationFailure: () =>
+                      error is ApiFailure ? error : const UnknownFailure(),
+                ),
+              );
+            }
+            _scheduleUnconfirmedRetry();
+            _settleQuantityIntent(intent, success: true, preserveFailure: true);
+            return;
+          }
+          final serverLine = _findByIdentity(
+            serverCart.items,
+            intent.configuration.identity,
+          );
+          if (serverLine == null) throw const UnknownFailure();
+          intent.confirmedItem = serverLine;
+          intent.template = serverLine;
+          intent.addAlreadyCommitted = false;
+          _publishServerCart(serverCart);
+          if (revision != intent.revision || target != intent.desiredQuantity) {
+            continue;
+          }
+        } else {
+          final confirmed = intent.confirmedItem!;
+          if (target <= 0) {
+            await ref.read(cartApiProvider).deleteItem(confirmed.id);
+            intent.confirmedItem = null;
+          } else {
+            await ref
+                .read(cartApiProvider)
+                .updateQuantity(confirmed.id, target);
+            intent.confirmedItem = _itemWithQuantity(confirmed, target);
+            intent.template = intent.confirmedItem!;
+          }
+          if (revision != intent.revision || target != intent.desiredQuantity) {
+            continue;
+          }
+        }
+
+        final serverCart = await ref
+            .read(cartApiProvider)
+            .fetch(storeType.wire);
+        if (!ref.mounted || generation != _generation) return;
+        _publishServerCart(serverCart);
+        if (revision != intent.revision || target != intent.desiredQuantity) {
+          continue;
+        }
+        _settleQuantityIntent(intent, success: true);
+        return;
+      }
     } on NetworkFailure {
-      if (!ref.mounted || generation != _generation) return false;
-      // Oflayn: yangi miqdor ekranda qoladi, amal navbatga tushadi.
+      if (!ref.mounted || generation != _generation) return;
+      await _queueOfflineIntent(intent);
+      _settleQuantityIntent(intent, success: true);
+    } on ApiFailure catch (failure) {
+      if (!ref.mounted || generation != _generation) return;
+      _rollbackIntent(intent, failure);
+    } on Object {
+      if (!ref.mounted || generation != _generation) return;
+      _rollbackIntent(intent, const UnknownFailure());
+    }
+  }
+
+  Future<void> _queueOfflineIntent(_QuantityIntent intent) async {
+    final target = intent.desiredQuantity;
+    final confirmed = intent.confirmedItem;
+    if (confirmed == null || confirmed.id.startsWith(_localCartItemPrefix)) {
       await ref
           .read(offlineCartQueueProvider)
-          .enqueueSetQuantity(item.id, quantity);
-      final held = state.value ?? previous;
-      state = AsyncData(held.copyWith(mutationFailure: () => null));
-      return true;
-    } on ApiFailure catch (failure) {
-      if (!ref.mounted || generation != _generation) return false;
-      state = AsyncData(previous.copyWith(mutationFailure: () => failure));
-      return false;
+          .enqueueAdd(
+            storeType: storeType.wire,
+            configuration: intent.configuration,
+            quantity: target,
+          );
+      return;
+    }
+    if (target <= 0) {
+      await ref.read(offlineCartQueueProvider).enqueueRemove(confirmed.id);
+    } else {
+      await ref
+          .read(offlineCartQueueProvider)
+          .enqueueSetQuantity(confirmed.id, target);
+    }
+  }
+
+  void _publishServerCart(CartData serverCart) {
+    final held = state.value;
+    if (held == null) return;
+    var visible = serverCart;
+    for (final pendingIntent in _quantityIntents.values) {
+      final serverLine = _findByIdentity(
+        serverCart.items,
+        pendingIntent.configuration.identity,
+      );
+      if (serverLine != null && pendingIntent.confirmedItem == null) {
+        pendingIntent.confirmedItem = serverLine;
+        pendingIntent.template = serverLine;
+        pendingIntent.addAlreadyCommitted = false;
+      }
+      visible = _applyIntent(visible, pendingIntent);
+    }
+    state = AsyncData(
+      held.copyWith(
+        cart: visible,
+        busyKeys: {..._pending},
+        unconfirmedKeys: {
+          for (final key in held.unconfirmedKeys)
+            if (_findByIdentity(serverCart.items, key) == null) key,
+        },
+        mutationFailure: () => null,
+      ),
+    );
+  }
+
+  CartData _applyIntent(CartData cart, _QuantityIntent intent) {
+    final existing = _findByIdentity(cart.items, intent.configuration.identity);
+    if (intent.desiredQuantity <= 0) {
+      return existing == null ? cart : cart.removeItem(existing.id);
+    }
+    final source = existing ?? intent.template;
+    final optimistic = _itemWithQuantity(source, intent.desiredQuantity);
+    return existing == null
+        ? cart.upsertItem(optimistic)
+        : cart.replaceItem(optimistic);
+  }
+
+  CartItem _itemWithQuantity(CartItem item, int quantity) {
+    final oldQuantity = item.quantity;
+    final oldSubtotal = double.tryParse(item.subtotal);
+    final basePrice =
+        double.tryParse(item.variant?.price ?? item.product.price) ?? 0;
+    final addonsPrice = item.selectedAddons.fold<double>(
+      0,
+      (total, addon) => total + (double.tryParse(addon.price) ?? 0),
+    );
+    final unitPrice = oldQuantity > 0 && oldSubtotal != null && oldSubtotal > 0
+        ? oldSubtotal / oldQuantity
+        : basePrice + addonsPrice;
+    return item.copyWith(
+      quantity: quantity,
+      subtotal: (unitPrice * quantity).toStringAsFixed(2),
+    );
+  }
+
+  CartItem? _findByIdentity(List<CartItem> items, String identity) {
+    for (final item in items) {
+      if (item.configurationIdentity == identity) return item;
+    }
+    return null;
+  }
+
+  void _rollbackIntent(_QuantityIntent intent, ApiFailure failure) {
+    final held = state.value;
+    if (held == null) return;
+    var cart = held.cart;
+    final visible = _findByIdentity(cart.items, intent.configuration.identity);
+    if (visible != null) cart = cart.removeItem(visible.id);
+    final confirmed = intent.confirmedItem;
+    if (confirmed != null) cart = cart.upsertItem(confirmed);
+    state = AsyncData(
+      held.copyWith(cart: cart, mutationFailure: () => failure),
+    );
+    _settleQuantityIntent(intent, success: false, preserveFailure: true);
+  }
+
+  void _settleQuantityIntent(
+    _QuantityIntent intent, {
+    required bool success,
+    bool preserveFailure = false,
+  }) {
+    final identity = intent.configuration.identity;
+    if (_quantityIntents[identity] != intent) return;
+    intent.timer?.cancel();
+    _quantityIntents.remove(identity);
+    _pending.remove(intent.key);
+    final held = state.value;
+    if (held != null) {
+      state = AsyncData(
+        preserveFailure
+            ? held.copyWith(busyKeys: {..._pending})
+            : held.copyWith(
+                busyKeys: {..._pending},
+                mutationFailure: () => null,
+              ),
+      );
+    }
+    for (final waiter in intent.waiters) {
+      if (!waiter.isCompleted) waiter.complete(success);
     }
   }
 
@@ -450,7 +698,7 @@ class CartController extends AsyncNotifier<CartState> {
       if (!ref.mounted || generation != _generation) return false;
       // Navbatda turgan mutatsiyalarning kalitlari SAQLANADI — aks holda
       // ular hali bajarilmagan bo'lsa ham spinnerlari yo'qolib ketardi.
-      state = AsyncData(CartState(cart: cart, busyKeys: {..._pending}));
+      _publishServerCart(cart);
       return true;
     } on Object catch (error) {
       // The write already succeeded. A failed READ must not enqueue/replay it.

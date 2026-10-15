@@ -8,6 +8,7 @@
 library;
 
 abstract final class Api {
+  static const String androidAppRelease = '/app-release/android/';
   // ── Auth ───────────────────────────────────────────────────────────────────
   static const String sendOtp = '/auth/send-otp/';
   static const String verifyOtp = '/auth/verify-otp/';
@@ -25,7 +26,12 @@ abstract final class Api {
 
   /// Refresh/otp endpointlariga Bearer qo'shilmaydi va 401 da refresh
   /// urinilmaydi — aks holda rekursiya bo'ladi.
-  static const Set<String> authExempt = {sendOtp, verifyOtp, tokenRefresh};
+  static const Set<String> authExempt = {
+    sendOtp,
+    verifyOtp,
+    tokenRefresh,
+    androidAppRelease,
+  };
 
   // ── Profil ─────────────────────────────────────────────────────────────────
   /// Profil shakli: `language`, `requires_onboarding`, `missing_fields`,
@@ -57,6 +63,12 @@ abstract final class Api {
   static String product(String id) => '/catalog/products/$id/';
   static String productReport(String id) => '/catalog/products/$id/report/';
 
+  // ── Shaxsiy tavsiyalar ─────────────────────────────────────────────────────
+  static const String recoEvents = '/recommendations/events/';
+  static const String recoForYou = '/recommendations/for-you/';
+  static String recoSimilar(String productId) =>
+      '/recommendations/similar/$productId/';
+
   // ── Sharhlar ───────────────────────────────────────────────────────────────
   static String productReviews(String productId) =>
       '/products/$productId/reviews/';
@@ -87,6 +99,7 @@ abstract final class Api {
 
   // ── Yetkazib berish ────────────────────────────────────────────────────────
   static const String deliveryEstimate = '/delivery/estimate/';
+  static const String deliveryCoverage = '/delivery/coverage/';
 
   // ── To'lovlar ──────────────────────────────────────────────────────────────
   static const String paymePaymentCreate = '/payments/payme/create/';

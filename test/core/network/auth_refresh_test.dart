@@ -1,3 +1,4 @@
+import 'package:beshkashtan_customer/core/config/api_endpoints.dart';
 import 'package:beshkashtan_customer/core/localization/uzbek_transliterator.dart';
 import 'package:beshkashtan_customer/core/network/api_client.dart';
 import 'package:beshkashtan_customer/core/network/api_failure.dart';
@@ -102,6 +103,25 @@ void main() {
       adapter: adapter,
     );
   }
+
+  test(
+    'release check sends no bearer and never refreshes/logs out on 401',
+    () async {
+      final adapter = _ScriptedAdapter((options) {
+        expect(options.headers.containsKey('Authorization'), false);
+        return _json({'detail': 'unexpected gateway 401'}, 401);
+      });
+      final client = buildClient(adapter);
+      await expectLater(
+        client.get(Api.androidAppRelease),
+        throwsA(isA<ApiFailure>()),
+      );
+      expect(refreshCallCount, 0);
+      expect(sessionExpiredCount, 0);
+      expect(await tokens.readAccess(), 'eski');
+      client.raw.close();
+    },
+  );
 
   test('401 → refresh → so‘rov yangi token bilan qayta yuboriladi', () async {
     final seenAuthHeaders = <String>[];

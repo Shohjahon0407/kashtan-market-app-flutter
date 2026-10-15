@@ -9,6 +9,7 @@ import 'package:beshkashtan_customer/features/cart/domain/cart_controller.dart';
 import 'package:beshkashtan_customer/features/home/data/home_api.dart';
 import 'package:beshkashtan_customer/features/home/data/home_models.dart';
 import 'package:beshkashtan_customer/features/home/domain/home_controller.dart';
+import 'package:beshkashtan_customer/features/recommendations/domain/interaction_tracker.dart';
 import 'package:beshkashtan_customer/features/videos/data/video_api.dart';
 import 'package:beshkashtan_customer/features/videos/data/video_models.dart';
 import 'package:beshkashtan_customer/features/videos/domain/video_feed_controller.dart';
@@ -18,6 +19,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import 'helpers/fake_recommendations_api.dart';
 
 class _MockHomeApi extends Mock implements HomeApi {}
 
@@ -57,6 +60,7 @@ Future<void> _pumpApp(WidgetTester tester, {String? localeCode}) async {
       overrides: [
         prefsStoreProvider.overrideWithValue(prefs),
         homeApiProvider.overrideWithValue(homeApi),
+        recommendationsApiProvider.overrideWithValue(FakeRecommendationsApi()),
         videoApiProvider.overrideWithValue(videoApi),
         cartApiProvider.overrideWithValue(cartApi),
       ],

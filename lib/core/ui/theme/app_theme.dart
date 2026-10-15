@@ -46,7 +46,9 @@ abstract final class AppTheme {
       fontFamily: fontFamily,
       textTheme: textTheme,
 
-      splashFactory: InkSparkle.splashFactory,
+      splashFactory: NoSplash.splashFactory,
+      splashColor: Colors.transparent,
+      highlightColor: Colors.transparent,
 
       appBarTheme: AppBarTheme(
         backgroundColor: canvas,
@@ -84,6 +86,7 @@ abstract final class AppTheme {
             borderRadius: BorderRadius.circular(AppRadius.md),
           ),
           textStyle: textTheme.labelLarge,
+          overlayColor: Colors.transparent,
         ),
       ),
 
@@ -96,6 +99,7 @@ abstract final class AppTheme {
             borderRadius: BorderRadius.circular(AppRadius.md),
           ),
           textStyle: textTheme.labelLarge,
+          overlayColor: Colors.transparent,
         ),
       ),
 
@@ -103,6 +107,13 @@ abstract final class AppTheme {
         style: TextButton.styleFrom(
           foregroundColor: scheme.primary,
           textStyle: textTheme.labelLarge,
+          overlayColor: Colors.transparent,
+        ),
+      ),
+
+      iconButtonTheme: const IconButtonThemeData(
+        style: ButtonStyle(
+          overlayColor: WidgetStatePropertyAll<Color>(Colors.transparent),
         ),
       ),
 

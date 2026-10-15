@@ -172,7 +172,19 @@ String homeCacheKey(String suffix) => 'home_$suffix';
 String landingCacheKey(String storeType, String suffix) =>
     'landing_${storeType}_$suffix';
 String catalogCacheKey(String storeType, String suffix) =>
-    'catalog_${storeType}_$suffix';
+    // Ushbu kataloglar barcha cursor sahifalarining aggregate snapshotidir.
+    // Eski build faqat birinchi sahifani yozgan; yangi versiya uni o'qib yarim
+    // katalog ko'rsatmasligi uchun kalitlar alohida versiyalanadi.
+    switch (storeType) {
+      'meat' => 'catalog_meat_complete_v2_$suffix',
+      'shashlik' => 'catalog_shashlik_complete_v2_$suffix',
+      _ => 'catalog_${storeType}_$suffix',
+    };
+String catalogCategoryCacheKey(
+  String storeType,
+  String categoryId,
+  String suffix,
+) => 'catalog_${storeType}_category_${categoryId}_$suffix';
 String productCacheKey(String productId, String suffix) =>
     'product_${productId}_$suffix';
 String ordersCacheKey(String storeType, String period, String suffix) =>

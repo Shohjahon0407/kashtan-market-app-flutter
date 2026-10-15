@@ -6,6 +6,7 @@ import '../localization/app_locale.dart';
 import '../localization/locale_controller.dart';
 import '../localization/uzbek_transliterator.dart';
 import '../storage/account_scope.dart';
+import '../storage/device_id.dart';
 import '../storage/secure_token_store.dart';
 import 'api_client.dart';
 import 'connectivity_controller.dart';
@@ -80,6 +81,7 @@ final apiClientProvider = Provider<ApiClient>((ref) {
       }
     }),
     onSessionExpired: () => ref.read(onSessionExpiredProvider)(),
+    deviceId: () => ref.mounted ? ref.read(deviceIdProvider) : null,
   );
 
   // Til o'zgarganda transliteratsiya rejimini yangilaymiz. Bu yagona nuqta —

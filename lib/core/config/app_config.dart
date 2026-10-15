@@ -29,6 +29,12 @@ abstract final class AppConfig {
 
   static const String _defaultBackendOrigin = 'https://api.beshkashtan.uz';
 
+  /// Keep online payment hidden until the integration is ready for release.
+  static const bool paymeEnabled = bool.fromEnvironment(
+    'PAYME_ENABLED',
+    defaultValue: false,
+  );
+
   static const String _originOverride = String.fromEnvironment(
     'BACKEND_ORIGIN',
   );
@@ -127,7 +133,7 @@ abstract final class AppConfig {
   static String get mapTileUrl => !usesMapboxTiles
       ? osmTileUrl
       : 'https://api.mapbox.com/styles/v1/mapbox/streets-v12/tiles/'
-            '256/{z}/{x}/{y}@2x?access_token=$mapboxAccessToken';
+            '512/{z}/{x}/{y}{r}.webp?access_token=$mapboxAccessToken';
 
   static String get addressTileUrl => mapTileUrl;
   static String get trackingTileUrl => mapTileUrl;

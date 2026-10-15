@@ -7,6 +7,7 @@ import 'package:beshkashtan_customer/features/catalog/data/product_models.dart';
 import 'package:beshkashtan_customer/features/checkout/data/checkout_api.dart';
 import 'package:beshkashtan_customer/features/checkout/data/checkout_models.dart';
 import 'package:beshkashtan_customer/features/checkout/domain/addresses_controller.dart';
+import 'package:beshkashtan_customer/features/checkout/domain/device_location.dart';
 import 'package:beshkashtan_customer/features/checkout/presentation/checkout_screen.dart';
 import 'package:beshkashtan_customer/generated/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
@@ -114,6 +115,9 @@ void main() {
         overrides: [
           cartApiProvider.overrideWithValue(cartApi),
           checkoutApiProvider.overrideWithValue(checkoutApi),
+          addressLocationAccessProvider.overrideWithValue(() async {
+            throw const DeviceLocationException(DeviceLocationFailure.denied);
+          }),
           cartControllerProvider.overrideWith2(_TestCartController.new),
           addressesControllerProvider.overrideWith(
             _TestAddressesController.new,
@@ -155,7 +159,9 @@ void main() {
     expect(submit, findsOneWidget);
 
     // Ekran ichidagi (body) kontekstdan snackbar — xuddi _submit/_prepare kabi.
-    final bodyContext = tester.element(find.text(l10n.checkoutFulfillment));
+    final bodyContext = tester.element(
+      find.byKey(const ValueKey('checkout-content')),
+    );
     ScaffoldMessenger.of(bodyContext).showSnackBar(
       const SnackBar(
         behavior: SnackBarBehavior.floating,

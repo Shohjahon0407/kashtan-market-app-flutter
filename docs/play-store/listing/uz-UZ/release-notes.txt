@@ -1,7 +1,5 @@
-Besh Kashtan 1.1.0
-
-• Kirish kodi endi o'zi to'ldiriladi: SMS kelganda 6 xonali kodni qo'lda ko'chirish shart emas.
-• Buyurtma berish, to'lov va savatdagi kamdan-kam uchraydigan xatoliklar bartaraf etildi.
-• Internet uzilib-ulanganda savat, ro'yxatlar va bildirishnomalar yo'qolmaydi.
-• Ilova fon rejimida batareyani sezilarli kam sarflaydi.
-• Narx va matnlar barcha tillarda to'g'ri ko'rsatiladi; dialog va tugmalar kichik ekranlarda to'g'ri joylashadi.
+• Do‘kon kartalari va mahsulot kataloglari yangilandi.
+• Savat boshqaruvi va ortga qaytish qulaylashtirildi.
+• Buyurtma xaritasi, manzil tanlash va GPS aniqlash yaxshilandi.
+• Kuryer ma’lumotlari va mahsulotlar cheki tartiblandi.
+• Hozircha faqat naqd to‘lov mavjud; Payme vaqtincha yashirildi.

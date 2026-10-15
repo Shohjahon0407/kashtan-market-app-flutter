@@ -68,12 +68,17 @@ void main() {
 
     expect(find.byKey(const ValueKey('home-store-meat')), findsOneWidget);
     final image = tester.widget<Image>(find.byType(Image).first);
-    expect(image.image, isA<AssetImage>());
-    expect((image.image as AssetImage).assetName, 'assets/stores/meat.webp');
+    final resized = image.image as ResizeImage;
+    expect(
+      (resized.imageProvider as AssetImage).assetName,
+      'assets/stores/meat.webp',
+    );
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('server rasmi lokal assetdan ustun turadi', (tester) async {
+  testWidgets('tanlangan yangi meat fotosi server rasmidan ustun turadi', (
+    tester,
+  ) async {
     await _pump(tester, const [
       StoreHubItem(
         storeType: StoreType.meat,
@@ -86,6 +91,12 @@ void main() {
       ),
     ]);
 
-    expect(find.byType(CachedNetworkImage), findsOneWidget);
+    expect(find.byType(CachedNetworkImage), findsNothing);
+    final image = tester.widget<Image>(find.byType(Image));
+    expect(image.alignment, Alignment.topCenter);
+    expect(
+      ((image.image as ResizeImage).imageProvider as AssetImage).assetName,
+      'assets/stores/meat.webp',
+    );
   });
 }

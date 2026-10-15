@@ -73,8 +73,15 @@ class OfflineCartQueue {
     required CartConfiguration configuration,
     required int quantity,
   }) async {
-    await _mutate(
-      (ops) => ops.add({
+    await _mutate((ops) {
+      ops.removeWhere(
+        (op) =>
+            op['type'] == 'add' &&
+            op['store_type'] == storeType &&
+            _addIdentity(op) == configuration.identity,
+      );
+      if (quantity < 1) return;
+      ops.add({
         'type': 'add',
         'store_type': storeType,
         'product_id': configuration.productId,
@@ -83,8 +90,30 @@ class OfflineCartQueue {
         'addon_ids': [for (final addon in configuration.addons) addon.id],
         'note': configuration.note,
         'quantity': quantity,
-      }),
-    );
+      });
+    });
+  }
+
+  /// Online yozuv boshlanishidan oldin shu konfiguratsiyaning eski offline
+  /// niyatini olib tashlaydi. Aks holda reconnect paytida bir mahsulot ikki
+  /// marta qo'shilishi mumkin.
+  Future<void> discardAdd({
+    required String storeType,
+    required CartConfiguration configuration,
+  }) => _mutate(
+    (ops) => ops.removeWhere(
+      (op) =>
+          op['type'] == 'add' &&
+          op['store_type'] == storeType &&
+          _addIdentity(op) == configuration.identity,
+    ),
+  );
+
+  String _addIdentity(Map<String, dynamic> op) {
+    final addonIds = [
+      for (final id in (op['addon_ids'] as List? ?? const [])) '$id',
+    ]..sort();
+    return '${op['product_id']}|${op['variant_id'] ?? ''}|${addonIds.join(',')}|${'${op['note'] ?? ''}'.trim()}';
   }
 
   Future<void> enqueueSetQuantity(String itemId, int quantity) async {

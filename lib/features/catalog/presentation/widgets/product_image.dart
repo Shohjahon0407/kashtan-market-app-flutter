@@ -7,6 +7,7 @@ class ProductImageView extends StatelessWidget {
     this.fit = BoxFit.cover,
     this.iconSize = 38,
     this.imageBuilder,
+    this.memCacheWidth = 700,
     super.key,
   });
 
@@ -14,6 +15,7 @@ class ProductImageView extends StatelessWidget {
   final BoxFit fit;
   final double iconSize;
   final ImageWidgetBuilder? imageBuilder;
+  final int memCacheWidth;
 
   @override
   Widget build(BuildContext context) {
@@ -24,27 +26,22 @@ class ProductImageView extends StatelessWidget {
       imageBuilder: imageBuilder,
       // Dekodlangan rasm xotirada ~700px kenglikda saqlanadi: grid/reyllarda
       // scroll ravon bo'ladi va RAM ancha tejaladi (fayl keshi to'liq qoladi).
-      memCacheWidth: 700,
-      placeholder: (_, _) => _fallback(context, loading: true),
+      memCacheWidth: memCacheWidth,
+      placeholder: (_, _) => _fallback(context),
       errorWidget: (_, _, _) => _fallback(context),
     );
   }
 
-  Widget _fallback(BuildContext context, {bool loading = false}) {
+  Widget _fallback(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     return ColoredBox(
       color: colors.surfaceContainerHighest,
       child: Center(
-        child: loading
-            ? const SizedBox.square(
-                dimension: 22,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            : Icon(
-                Icons.image_outlined,
-                size: iconSize,
-                color: colors.outlineVariant,
-              ),
+        child: Icon(
+          Icons.image_outlined,
+          size: iconSize,
+          color: colors.outlineVariant,
+        ),
       ),
     );
   }

@@ -1,16 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../core/localization/failure_l10n.dart';
 import '../../../core/network/api_failure.dart';
 import '../../../core/routing/auth_gate.dart';
+import '../../../core/routing/back_navigation.dart';
 import '../../../core/routing/routes.dart';
 import '../../../core/routing/store_navigation.dart';
 import '../../../core/store_scope/store_type.dart';
 import '../../../core/ui/formatters/uzs.dart';
 import '../../../core/ui/theme/app_buttons.dart';
 import '../../../core/ui/theme/app_dimens.dart';
+import '../../../core/ui/widgets/smooth_press.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../../catalog/data/product_models.dart';
 import '../../catalog/domain/catalog_controller.dart';
@@ -35,8 +36,7 @@ class MainCartScreen extends ConsumerWidget {
       appBar: AppBar(
         leading: IconButton(
           tooltip: MaterialLocalizations.of(context).backButtonTooltip,
-          onPressed: () =>
-              context.canPop() ? context.pop() : context.go(Routes.home),
+          onPressed: () => appBack(context),
           icon: const Icon(Icons.arrow_back),
         ),
         title: Text(l10n.cartTitle.toUpperCase()),
@@ -319,11 +319,11 @@ class _CartItemRow extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
-    final state = ref.watch(cartControllerProvider(storeType)).value;
-    // Faqat shu satr bandligi — boshqa mahsulot o'zgartirilayotganda bu
-    // qatordagi tugmalar ishlab turaveradi.
-    final busy = state?.isBusy(CartMutationKeys.item(item.id)) ?? false;
+    ref.watch(cartControllerProvider(storeType));
     final controller = ref.read(cartControllerProvider(storeType).notifier);
+    final quantityText = storeType == StoreType.shashlik
+        ? _shashlikCartQuantityLabel(l10n, item.product, item.quantity)
+        : null;
     final needsAddonNames = item.selectedAddons.any(
       (addon) => addon.name.isEmpty,
     );
@@ -395,10 +395,10 @@ class _CartItemRow extends ConsumerWidget {
           const SizedBox(width: AppSpacing.sm),
           CartQuantityStepper(
             quantity: item.quantity,
-            busy: busy,
+            quantityText: quantityText,
             onDecrement: () => controller.decrement(item),
             onIncrement: () => controller.increment(item),
-            semanticLabel: l10n.cartItemsCount(item.quantity),
+            semanticLabel: quantityText ?? l10n.cartItemsCount(item.quantity),
           ),
         ],
       ),
@@ -409,18 +409,18 @@ class _CartItemRow extends ConsumerWidget {
 class CartQuantityStepper extends StatelessWidget {
   const CartQuantityStepper({
     required this.quantity,
-    required this.busy,
     required this.onDecrement,
     required this.onIncrement,
     required this.semanticLabel,
+    this.quantityText,
     super.key,
   });
 
   final int quantity;
-  final bool busy;
   final VoidCallback onDecrement;
   final VoidCallback onIncrement;
   final String semanticLabel;
+  final String? quantityText;
 
   @override
   Widget build(BuildContext context) {
@@ -437,35 +437,40 @@ class CartQuantityStepper extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _StepperButton(
-              icon: Icons.remove,
-              onPressed: busy ? null : onDecrement,
-            ),
+            _StepperButton(icon: Icons.remove, onPressed: onDecrement),
             SizedBox(
-              width: 32,
+              width: quantityText == null ? 32 : 104,
               child: Center(
-                child: busy
-                    ? const SizedBox.square(
-                        dimension: 14,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : Text(
-                        '$quantity',
-                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
+                child: Text(
+                  quantityText ?? '$quantity',
+                  maxLines: 1,
+                  overflow: TextOverflow.fade,
+                  softWrap: false,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w800),
+                ),
               ),
             ),
-            _StepperButton(
-              icon: Icons.add,
-              onPressed: busy ? null : onIncrement,
-            ),
+            _StepperButton(icon: Icons.add, onPressed: onIncrement),
           ],
         ),
       ),
     );
   }
+}
+
+String _shashlikCartQuantityLabel(
+  AppLocalizations l10n,
+  ProductSummary product,
+  int quantity,
+) {
+  final unit = product.unitCode.trim().toLowerCase();
+  final normalizedName = product.name.toLowerCase();
+  final isKilogram = unit == 'kg' || normalizedName.contains('kilo');
+  return isKilogram
+      ? l10n.shashlikKilogramQuantity(quantity)
+      : l10n.shashlikPieceQuantity(quantity);
 }
 
 class _StepperButton extends StatelessWidget {
@@ -475,12 +480,15 @@ class _StepperButton extends StatelessWidget {
   final VoidCallback? onPressed;
 
   @override
-  Widget build(BuildContext context) => IconButton(
-    visualDensity: VisualDensity.compact,
-    constraints: const BoxConstraints.tightFor(width: 40, height: 40),
-    padding: EdgeInsets.zero,
-    onPressed: onPressed,
-    icon: Icon(icon, size: 16),
+  Widget build(BuildContext context) => SmoothPress(
+    enabled: onPressed != null,
+    child: IconButton(
+      visualDensity: VisualDensity.compact,
+      constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+      padding: EdgeInsets.zero,
+      onPressed: onPressed,
+      icon: Icon(icon, size: 16),
+    ),
   );
 }
 

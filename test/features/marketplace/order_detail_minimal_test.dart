@@ -42,8 +42,18 @@ void main() {
 
     expect(find.byKey(const ValueKey('order-delivered-hero')), findsOneWidget);
     expect(find.text('Yetkazildi'), findsOneWidget);
-    expect(find.text('Olma × 2'), findsOneWidget);
-    expect(find.text("17\u00A0000 so'm"), findsOneWidget);
+    // Stepper: barcha bosqichlar o'tilgan, yakuniy "yetkazildi" joriy.
+    expect(
+      find.byKey(const ValueKey('order-stage-current-delivered')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('order-stage-pulse')), findsNothing);
+    // Mahsulotlar alohida "Buyurtma tafsilotlari" ekranida — bu yerda
+    // faqat kirish qatori (soni + jami).
+    expect(find.byKey(const ValueKey('order-summary-entry')), findsOneWidget);
+    expect(find.text('Buyurtma tafsilotlari'), findsOneWidget);
+    expect(find.text("2 ta mahsulot · 17\u00A0000 so'm"), findsOneWidget);
+    expect(find.text('Olma × 2'), findsNothing);
     expect(find.textContaining('BK-SECRET'), findsNothing);
     expect(find.text('1234'), findsNothing);
     expect(find.text('Qabul qildim'), findsNothing);
@@ -58,9 +68,11 @@ void main() {
     );
     final ru = await AppLocalizations.delegate.load(const Locale('ru'));
 
-    expect(uz.orderStatusDelivering, 'Yetkazilmoqda');
-    expect(cyrl.orderStatusDelivering, 'Етказилмоқда');
-    expect(ru.orderStatusDelivering, 'Доставляется');
+    expect(uz.orderStatusDelivering, "Kuryer yo'lda");
+    expect(cyrl.orderStatusDelivering, 'Курер йўлда');
+    expect(ru.orderStatusDelivering, 'Курьер в пути');
+    expect(uz.orderStatusAwaiting, 'Tasdiqlanishi kutilmoqda');
+    expect(uz.orderStatusPreparing, 'Tayyorlanmoqda');
   });
 }
 

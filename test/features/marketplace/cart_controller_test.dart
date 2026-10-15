@@ -214,6 +214,81 @@ void main() {
     },
   );
 
+  test('ketma-ket beshta add bitta quantity=5 POST ga birlashadi', () async {
+    final api = _MockCartApi();
+    var serverCart = _cartWithQuantity(0);
+    when(() => api.fetch('household')).thenAnswer((_) async => serverCart);
+    when(
+      () => api.addItem(
+        storeType: 'household',
+        configuration: any(named: 'configuration'),
+        quantity: any(named: 'quantity'),
+      ),
+    ).thenAnswer((invocation) async {
+      final quantity = invocation.namedArguments[#quantity] as int;
+      serverCart = _cartWithQuantity(quantity);
+    });
+    final container = await containerWith(api);
+    final provider = cartControllerProvider(StoreType.household);
+    final subscription = container.listen(provider, (_, _) {});
+    addTearDown(subscription.close);
+    await container.read(provider.future);
+
+    final writes = <Future<bool>>[
+      for (var i = 0; i < 5; i++)
+        container.read(provider.notifier).addProduct(_product),
+    ];
+
+    expect(container.read(provider).value?.cart.totalQuantity, 5);
+    await Future.wait(writes);
+
+    expect(container.read(provider).value?.cart.totalQuantity, 5);
+    verify(
+      () => api.addItem(
+        storeType: 'household',
+        configuration: any(named: 'configuration'),
+        quantity: 5,
+      ),
+    ).called(1);
+    verifyNever(() => api.updateQuantity(any(), any()));
+  });
+
+  test('so‘rov davomida bosilgan plus ham yo‘qolmaydi', () async {
+    final api = _MockCartApi();
+    final firstPatch = Completer<void>();
+    var serverCart = _cartWithQuantity(1);
+    final sentQuantities = <int>[];
+    when(() => api.fetch('household')).thenAnswer((_) async => serverCart);
+    when(() => api.updateQuantity('item-1', any())).thenAnswer((invocation) {
+      final quantity = invocation.positionalArguments[1] as int;
+      sentQuantities.add(quantity);
+      if (quantity == 2) return firstPatch.future;
+      serverCart = _cartWithQuantity(quantity);
+      return Future<void>.value();
+    });
+    final container = await containerWith(api);
+    final provider = cartControllerProvider(StoreType.household);
+    final subscription = container.listen(provider, (_, _) {});
+    addTearDown(subscription.close);
+    final initial = await container.read(provider.future);
+
+    final first = container
+        .read(provider.notifier)
+        .increment(initial.cart.items.single);
+    await Future<void>.delayed(const Duration(milliseconds: 220));
+    expect(sentQuantities, [2]);
+
+    final visible = container.read(provider).value!.cart.items.single;
+    final second = container.read(provider.notifier).increment(visible);
+    expect(container.read(provider).value!.cart.totalQuantity, 3);
+
+    firstPatch.complete();
+    await Future.wait([first, second]);
+
+    expect(sentQuantities, [2, 3]);
+    expect(container.read(provider).value!.cart.totalQuantity, 3);
+  });
+
   test('mutation xatosida optimistik quantity rollback bo‘ladi', () async {
     // Server xatosi (5xx) — rollback. NetworkFailure esa endi rollback EMAS:
     // u oflayn navbatga tushadi (quyidagi alohida test).

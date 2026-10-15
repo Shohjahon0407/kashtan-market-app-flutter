@@ -52,6 +52,7 @@ class ApiClient {
     int Function()? networkEvidenceRevision,
     void Function()? onOfflineRequest,
     String Function()? sessionOwner,
+    String? Function()? deviceId,
   }) {
     final transformer = LocalizedJsonTransformer()..script = script();
 
@@ -90,6 +91,7 @@ class ApiClient {
         ),
       LangInterceptor(apiLang),
       UzScriptRequestInterceptor(script),
+      if (deviceId != null) DeviceIdInterceptor(deviceId),
       AuthInterceptor(
         tokenStore: tokenStore,
         bareDio: bareDio,
@@ -340,3 +342,20 @@ Map<String, String> apiDefaultHeaders({bool isWeb = kIsWeb}) => {
   'Content-Type': 'application/json',
   if (!isWeb) 'X-App-Client': 'customer',
 };
+
+/// Anonim qurilma ID'si (`X-Device-Id`) — mehmonning ko'rgan mahsulotlari
+/// tavsiyaga ta'sir qilishi uchun. Qiymat bo'lmasa sarlavha qo'shilmaydi.
+class DeviceIdInterceptor extends Interceptor {
+  const DeviceIdInterceptor(this._deviceId);
+
+  static const header = 'X-Device-Id';
+
+  final String? Function() _deviceId;
+
+  @override
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    final value = _deviceId();
+    if (value != null && value.isNotEmpty) options.headers[header] = value;
+    handler.next(options);
+  }
+}

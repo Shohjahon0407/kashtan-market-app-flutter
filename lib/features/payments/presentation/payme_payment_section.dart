@@ -8,6 +8,7 @@ import '../../../generated/l10n/app_localizations.dart';
 import '../../orders/data/order_models.dart';
 import '../data/payment_models.dart';
 import '../domain/payme_payment_controller.dart';
+import '../domain/payment_availability.dart';
 
 /// Payme brend rangi. Real logotip keyin `assets/brand/` ga qo'shilsa
 /// (pubspec o'zgarmaydi) tugma ichida Image.asset bilan ishlatiladi.
@@ -50,7 +51,8 @@ class _PaymePaymentSectionState extends ConsumerState<PaymePaymentSection> {
   void initState() {
     super.initState();
     _lifecycle = AppLifecycleListener(onResume: _onResume);
-    if (widget.autoStart &&
+    if (ref.read(paymeEnabledProvider) &&
+        widget.autoStart &&
         PaymentStatus.fromWire(widget.order.paymentStatus) !=
             PaymentStatus.paid) {
       _silenceUnavailable = true;
@@ -67,6 +69,7 @@ class _PaymePaymentSectionState extends ConsumerState<PaymePaymentSection> {
   }
 
   void _onResume() {
+    if (!ref.read(paymeEnabledProvider)) return;
     final controller = paymePaymentControllerProvider(widget.order.id);
     if (ref.read(controller).phase != PaymePhase.awaitingReturn) return;
     if (_resumeCheckDone) return;
@@ -75,6 +78,7 @@ class _PaymePaymentSectionState extends ConsumerState<PaymePaymentSection> {
   }
 
   Future<void> _startPayment() async {
+    if (!ref.read(paymeEnabledProvider)) return;
     if (!OfflineGate.check(ref)) return;
     _resumeCheckDone = false;
     await ref
@@ -84,6 +88,7 @@ class _PaymePaymentSectionState extends ConsumerState<PaymePaymentSection> {
 
   @override
   Widget build(BuildContext context) {
+    if (!ref.watch(paymeEnabledProvider)) return const SizedBox.shrink();
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final state = ref.watch(paymePaymentControllerProvider(widget.order.id));

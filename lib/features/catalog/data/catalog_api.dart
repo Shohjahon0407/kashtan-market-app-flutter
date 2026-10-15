@@ -14,6 +14,7 @@ class CatalogApi {
     this.cache,
     this.cacheKeySuffix,
     this.sessionSeed,
+    this.recoSession,
   });
 
   final ApiClient _client;
@@ -29,6 +30,11 @@ class CatalogApi {
   /// alohida yuborilmaydi.
   final int? sessionSeed;
 
+  /// Shaxsiy tartib sessiyasi (`reco`): backend userning qiziqishiga qarab
+  /// mos mahsulotlarni oldinga chiqaradi. Faqat oddiy ko'rishda, birinchi
+  /// sahifada (keyingilarini `nextUrl` olib yuradi).
+  final int? Function()? recoSession;
+
   Future<CursorPage<ProductSummary>> fetchProducts({
     required String storeType,
     String? categoryId,
@@ -36,7 +42,7 @@ class CatalogApi {
     String? nextUrl,
   }) async {
     final trimmed = query.trim();
-    final data = nextUrl != null
+    Object? data = nextUrl != null
         ? await _client.getUrl(nextUrl)
         : await _client.get(
             trimmed.isEmpty ? Api.products : Api.productSearch,
@@ -46,17 +52,88 @@ class CatalogApi {
               'category': ?categoryId,
               if (trimmed.isNotEmpty) 'q': trimmed,
               if (trimmed.isEmpty && sessionSeed != null) 'seed': sessionSeed,
+              if (trimmed.isEmpty) 'reco': ?recoSession?.call(),
             },
           );
-    final isPlainFirstPage =
-        nextUrl == null && categoryId == null && trimmed.isEmpty;
-    if (isPlainFirstPage && data is Map<String, dynamic>) {
+    final shouldCollectAllPages =
+        nextUrl == null &&
+        (storeType == 'meat' || storeType == 'shashlik') &&
+        categoryId == null &&
+        trimmed.isEmpty;
+    if (shouldCollectAllPages) {
+      data = await _collectCursorPages(data);
+    }
+    final isCacheableFirstPage = nextUrl == null && trimmed.isEmpty;
+    if (isCacheableFirstPage && data is Map<String, dynamic>) {
       final suffix = cacheKeySuffix?.call();
       if (cache != null && suffix != null) {
-        unawaited(cache!.write(catalogCacheKey(storeType, suffix), data));
+        final key = categoryId == null
+            ? catalogCacheKey(storeType, suffix)
+            : catalogCategoryCacheKey(storeType, categoryId, suffix);
+        unawaited(cache!.write(key, data));
       }
     }
     return PageDecoder.cursor(data, ProductSummary.fromJson);
+  }
+
+  /// Sanoqli mahsulotli maxsus kataloglar UI'da bir martada guruhlanadi, ammo
+  /// backend rasmli/rasmsiz mahsulotlarni alohida cursor bosqichida qaytaradi.
+  /// Disk keshi ham to'liq bo'lishi uchun cursorlar atomik yig'iladi: keyingi
+  /// sahifa xato bersa yarim snapshot yozilmaydi.
+  Future<Map<String, dynamic>> _collectCursorPages(Object? firstPage) async {
+    if (firstPage is! Map<String, dynamic>) {
+      throw const UnknownFailure.malformed(
+        'Aggregate katalog cursor javobi obyekt emas',
+      );
+    }
+
+    final merged = <Map<String, dynamic>>[];
+    final productIds = <String>{};
+    final visitedUrls = <String>{};
+    var page = firstPage;
+
+    for (var pageIndex = 0; pageIndex < 20; pageIndex++) {
+      final rawResults = page['results'];
+      if (rawResults is! List) {
+        throw const UnknownFailure.malformed(
+          'Aggregate katalog cursor javobida results massivi yo\'q',
+        );
+      }
+      for (final raw in rawResults) {
+        if (raw is! Map) continue;
+        final product = Map<String, dynamic>.from(raw);
+        final id = '${product['id'] ?? ''}';
+        if (id.isEmpty || productIds.add(id)) merged.add(product);
+      }
+
+      final next = page['next'];
+      if (next == null || '$next'.isEmpty) {
+        return <String, dynamic>{
+          ...firstPage,
+          'results': merged,
+          'next': null,
+          'next_phase': null,
+          'previous': null,
+        };
+      }
+      final nextUrl = '$next';
+      if (!visitedUrls.add(nextUrl)) {
+        throw const UnknownFailure.malformed(
+          'Aggregate katalog cursor havolasi takrorlandi',
+        );
+      }
+      final nextPage = await _client.getUrl(nextUrl);
+      if (nextPage is! Map<String, dynamic>) {
+        throw const UnknownFailure.malformed(
+          'Aggregate katalogning keyingi sahifasi obyekt emas',
+        );
+      }
+      page = nextPage;
+    }
+
+    throw const UnknownFailure.malformed(
+      'Aggregate katalogda cursor sahifalari limiti oshdi',
+    );
   }
 
   Future<ProductDetail> fetchDetail(String id) async {

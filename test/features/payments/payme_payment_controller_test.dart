@@ -7,6 +7,7 @@ import 'package:beshkashtan_customer/features/orders/domain/orders_controller.da
 import 'package:beshkashtan_customer/features/payments/data/payment_models.dart';
 import 'package:beshkashtan_customer/features/payments/data/payments_api.dart';
 import 'package:beshkashtan_customer/features/payments/domain/payme_payment_controller.dart';
+import 'package:beshkashtan_customer/features/payments/domain/payment_availability.dart';
 import 'package:beshkashtan_customer/features/payments/presentation/payme_payment_section.dart';
 import 'package:beshkashtan_customer/generated/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
@@ -43,6 +44,7 @@ const _createResult = PaymePaymentCreateResult(
 );
 
 Future<ProviderContainer> _container({
+  bool paymeEnabled = true,
   required PaymentsApi paymentsApi,
   required OrdersApi ordersApi,
   required PaymentUrlLauncher launcher,
@@ -51,6 +53,7 @@ Future<ProviderContainer> _container({
   final prefs = await PrefsStore.load();
   final container = ProviderContainer(
     overrides: [
+      paymeEnabledProvider.overrideWithValue(paymeEnabled),
       prefsStoreProvider.overrideWithValue(prefs),
       paymentsApiProvider.overrideWithValue(paymentsApi),
       ordersApiProvider.overrideWithValue(ordersApi),
@@ -63,6 +66,55 @@ Future<ProviderContainer> _container({
 
 void main() {
   _autoStartTests();
+  test('disabled Payme never creates a payment or launches a URL', () async {
+    final api = _MockPaymentsApi();
+    var launches = 0;
+    final container = await _container(
+      paymeEnabled: false,
+      paymentsApi: api,
+      ordersApi: _MockOrdersApi(),
+      launcher: (uri, {LaunchMode mode = LaunchMode.platformDefault}) async {
+        launches++;
+        return true;
+      },
+    );
+    final provider = paymePaymentControllerProvider('order-1');
+    final subscription = container.listen(provider, (_, _) {});
+    addTearDown(subscription.close);
+    await container.read(provider.notifier).startPayment();
+    expect(container.read(provider).phase, PaymePhase.idle);
+    verifyNever(() => api.createPaymePayment(any()));
+    expect(launches, 0);
+  });
+  testWidgets('disabled section stays hidden even with autoStart and resume', (
+    tester,
+  ) async {
+    final api = _MockPaymentsApi();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [paymentsApiProvider.overrideWithValue(api)],
+        child: MaterialApp(
+          locale: const Locale('uz'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          home: Scaffold(
+            body: PaymePaymentSection(
+              order: _order('pending'),
+              autoStart: true,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Payme'), findsNothing);
+    expect(find.byType(FilledButton), findsNothing);
+    verifyNever(() => api.createPaymePayment(any()));
+    expect(tester.takeException(), isNull);
+  });
   test(
     'muvaffaqiyat: https URL tashqi rejimda ochiladi, holat awaitingReturn',
     () async {
@@ -206,6 +258,7 @@ void _autoStartTests() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          paymeEnabledProvider.overrideWithValue(true),
           prefsStoreProvider.overrideWithValue(prefs),
           paymentsApiProvider.overrideWithValue(paymentsApi),
           ordersApiProvider.overrideWithValue(_MockOrdersApi()),
@@ -249,6 +302,7 @@ void _autoStartTests() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          paymeEnabledProvider.overrideWithValue(true),
           prefsStoreProvider.overrideWithValue(prefs),
           paymentsApiProvider.overrideWithValue(paymentsApi),
           ordersApiProvider.overrideWithValue(_MockOrdersApi()),

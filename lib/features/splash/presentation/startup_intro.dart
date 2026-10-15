@@ -10,6 +10,7 @@ class StartupIntro extends StatefulWidget {
   const StartupIntro({
     required this.isAppReady,
     required this.child,
+    this.onFinished,
     super.key,
   });
 
@@ -20,6 +21,7 @@ class StartupIntro extends StatefulWidget {
 
   final bool isAppReady;
   final Widget child;
+  final VoidCallback? onFinished;
 
   @override
   State<StartupIntro> createState() => _StartupIntroState();
@@ -82,6 +84,7 @@ class _StartupIntroState extends State<StartupIntro>
     await _exitController.forward();
     if (!mounted) return;
     setState(() => _finished = true);
+    widget.onFinished?.call();
   }
 
   @override

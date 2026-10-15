@@ -39,7 +39,7 @@ ProductSummary _product(String id) => ProductSummary.fromJson({
   'name': 'Mahsulot $id',
   'description': '',
   'price': '20000.00',
-  'main_image': null,
+  'main_image': 'https://example.test/products/$id.jpg',
   'unit_display': 'dona',
   'is_purchasable': true,
   'store_type': 'household',
@@ -61,12 +61,8 @@ const _landing = StoreLandingData(
   sections: [],
 );
 
-/// Regressiya: bitta mahsulotni savatga qo'shganda GRID'DAGI BARCHA kartalar
-/// spinnerga aylanib ketardi.
-///
-/// Sabab: `busyKeys` butun savat uchun global o'qilardi
-/// (`busyKeys.isNotEmpty`), ya'ni istalgan mutatsiya hamma kartani band deb
-/// ko'rsatardi. Endi har bir karta FAQAT o'z kalitini kuzatadi.
+/// Cart mutationlar optimistic: bosilgan karta darhol stepperga aylanadi,
+/// ammo hech bir karta tarmoq spinnerini ko'rsatmaydi.
 void main() {
   setUpAll(() {
     registerFallbackValue(const CartConfiguration(productId: 'fallback'));
@@ -136,8 +132,9 @@ void main() {
       )
       .isNotEmpty;
 
-  testWidgets('bitta mahsulot qo\'shilayotganda faqat O\'SHA karta bandligini '
-      'ko\'rsatadi', (tester) async {
+  testWidgets('qo‘shish paytida quantity darhol chiqadi va spinner yo‘q', (
+    tester,
+  ) async {
     final cartApi = _MockCartApi();
     final adding = Completer<void>();
     when(
@@ -160,8 +157,8 @@ void main() {
 
     expect(
       hasSpinner(tester, '1'),
-      isTrue,
-      reason: 'bosilgan karta bandligini ko\'rsatishi kerak',
+      isFalse,
+      reason: 'cart mutation spinner bilan almashtirilmasligi kerak',
     );
     expect(
       hasSpinner(tester, '2'),
@@ -169,11 +166,18 @@ void main() {
       reason: 'boshqa kartalar bandligini KO\'RSATMASLIGI kerak',
     );
     expect(
-      tester.widget<ButtonStyleButton>(buyButton('2')).onPressed,
-      isNotNull,
-      reason: 'boshqa kartalar bosiladigan holatda qolishi kerak',
+      find.byKey(const ValueKey('product-card-stepper-1')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('product-card-stepper-1')),
+        matching: find.text('1'),
+      ),
+      findsOneWidget,
     );
 
+    await tester.pump(const Duration(milliseconds: 200));
     adding.complete();
     await tester.pumpAndSettle();
   });
@@ -204,15 +208,19 @@ void main() {
     await pumpCatalog(tester, cartApi: cartApi);
 
     await tester.tap(buyButton('1'));
-    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
     // Birinchi so'rov hali tugamagan — ikkinchi kartani bosamiz.
     await tester.tap(buyButton('2'));
-    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
 
     expect(
       hasSpinner(tester, '2'),
-      isTrue,
-      reason: 'navbatdagi karta ham darhol bandligini ko\'rsatadi',
+      isFalse,
+      reason: 'navbatdagi kartada ham spinner chiqmasligi kerak',
+    );
+    expect(
+      find.byKey(const ValueKey('product-card-stepper-2')),
+      findsOneWidget,
     );
     expect(addedProductIds, ['1'], reason: 'so\'rovlar ketma-ket ketadi');
 
