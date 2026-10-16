@@ -6,9 +6,11 @@ import 'package:beshkashtan_customer/features/cart/data/cart_api.dart';
 import 'package:beshkashtan_customer/features/cart/data/cart_models.dart';
 import 'package:beshkashtan_customer/features/cart/domain/cart_controller.dart';
 import 'package:beshkashtan_customer/features/catalog/data/catalog_api.dart';
+import 'package:beshkashtan_customer/features/catalog/data/category_banners.dart';
 import 'package:beshkashtan_customer/features/catalog/data/product_models.dart';
 import 'package:beshkashtan_customer/features/catalog/domain/catalog_controller.dart';
 import 'package:beshkashtan_customer/features/catalog/presentation/catalog_screen.dart';
+import 'package:beshkashtan_customer/features/catalog/presentation/widgets/category_product_banners.dart';
 import 'package:beshkashtan_customer/features/catalog/presentation/widgets/household_category_landing.dart';
 import 'package:beshkashtan_customer/features/catalog/presentation/widgets/meat_product_card.dart';
 import 'package:beshkashtan_customer/features/catalog/presentation/widgets/product_card.dart';
@@ -40,6 +42,8 @@ class _MockStoreApi extends Mock implements StoreApi {}
 class _MockCartApi extends Mock implements CartApi {}
 
 class _MockFavoritesApi extends Mock implements FavoritesApi {}
+
+class _MockCategoryBannersApi extends Mock implements CategoryBannersApi {}
 
 ProductSummary _product(
   String id, {
@@ -175,6 +179,9 @@ void main() {
     String? initialCategoryId,
     bool? searchOnly,
     FakeRecommendationsApi? recommendationsApi,
+    List<CategoryProductBanner> categoryBanners = const [],
+    List<ProductSummary> categoryRecommendations = const [],
+    double textScale = 1,
   }) async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await PrefsStore.load();
@@ -182,6 +189,10 @@ void main() {
     final storeApi = _MockStoreApi();
     final cartApi = _MockCartApi();
     final favoritesApi = _MockFavoritesApi();
+    final bannersApi = _MockCategoryBannersApi();
+    when(
+      () => bannersApi.fetch(any()),
+    ).thenAnswer((_) async => CategoryBannerPage(categoryBanners, null));
     when(() => catalogApi.fetchProducts(storeType: storeType.wire)).thenAnswer(
       (_) async => CursorPage(
         items:
@@ -221,6 +232,18 @@ void main() {
         overrides: [
           prefsStoreProvider.overrideWithValue(prefs),
           catalogApiProvider.overrideWithValue(catalogApi),
+          categoryBannersApiProvider.overrideWithValue(bannersApi),
+          if (initialCategoryId != null) ...[
+            catalogControllerProvider(storeType).overrideWith(
+              () => CatalogController(
+                storeType,
+                initialCategoryId: initialCategoryId,
+              ),
+            ),
+            categoryRecommendationsProvider(
+              initialCategoryId,
+            ).overrideWith((ref) async => categoryRecommendations),
+          ],
           storeApiProvider.overrideWithValue(storeApi),
           cartApiProvider.overrideWithValue(cartApi),
           favoritesApiProvider.overrideWithValue(favoritesApi),
@@ -229,6 +252,12 @@ void main() {
           ),
         ],
         child: MaterialApp(
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: TextScaler.linear(textScale)),
+            child: child!,
+          ),
           locale: const Locale('uz'),
           theme: ThemeData.light(),
           darkTheme: ThemeData.dark(),
@@ -759,7 +788,7 @@ void main() {
 
     expect(find.text('Asboblar'), findsOneWidget);
     expect(find.byType(ProductCard), findsOneWidget);
-    expect(find.byKey(const ValueKey('catalog-search-field')), findsNothing);
+    expect(find.byKey(const ValueKey('catalog-search-field')), findsOneWidget);
     verify(
       () => harness.catalogApi.fetchProducts(
         storeType: 'household',
@@ -768,6 +797,240 @@ void main() {
       ),
     ).called(1);
   });
+
+  testWidgets(
+    'Xozmak category orders banner, search, recommendations then grid',
+    (tester) async {
+      final previousVisibilityInterval =
+          VisibilityDetectorController.instance.updateInterval;
+      VisibilityDetectorController.instance.updateInterval = Duration.zero;
+      addTearDown(
+        () => VisibilityDetectorController.instance.updateInterval =
+            previousVisibilityInterval,
+      );
+      tester.view.physicalSize = const Size(430, 1400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final ad = CategoryProductBanner.fromJson({
+        'id': 'ad',
+        'title': 'Hafta reklamasi',
+        'subtitle': 'Sifatli asbob',
+        'badge': 'Taklif',
+        'product': {
+          'id': 'ad-product',
+          'name': 'Drel',
+          'price': '120000',
+          'store_type': 'household',
+        },
+      });
+      await pumpCatalog(
+        tester,
+        ThemeMode.light,
+        initialCategoryId: 'category-1',
+        categoryBanners: [ad],
+        categoryRecommendations: [_product('recommended')],
+      );
+      expect(find.byType(CategoryProductBanners), findsOneWidget);
+      expect(
+        tester.getTopLeft(find.text('Hafta reklamasi')).dy,
+        lessThan(
+          tester
+              .getTopLeft(find.byKey(const ValueKey('catalog-search-field')))
+              .dy,
+        ),
+      );
+      expect(
+        tester
+            .getTopLeft(find.byKey(const ValueKey('catalog-search-field')))
+            .dy,
+        lessThan(tester.getTopLeft(find.text('Sizga tavsiya etamiz')).dy),
+      );
+      expect(
+        tester.getTopLeft(find.text('Sizga tavsiya etamiz')).dy,
+        lessThan(tester.getTopLeft(find.text('Kategoriya mahsulotlari')).dy),
+      );
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
+
+  testWidgets(
+    'category search hides ads/recs, fallback has category label; clear restores',
+    (tester) async {
+      final previousVisibilityInterval =
+          VisibilityDetectorController.instance.updateInterval;
+      VisibilityDetectorController.instance.updateInterval = Duration.zero;
+      addTearDown(
+        () => VisibilityDetectorController.instance.updateInterval =
+            previousVisibilityInterval,
+      );
+      final ad = CategoryProductBanner.fromJson({
+        'id': 'ad',
+        'title': 'Hafta reklamasi',
+        'product': {
+          'id': 'ad-product',
+          'price': '120000',
+          'store_type': 'household',
+        },
+      });
+      final harness = await pumpCatalog(
+        tester,
+        ThemeMode.light,
+        initialCategoryId: 'category-1',
+        categoryBanners: [ad],
+        categoryRecommendations: [_product('recommended')],
+      );
+      when(
+        () => harness.catalogApi.fetchProducts(
+          storeType: 'household',
+          categoryId: 'category-1',
+          query: 'choynak',
+        ),
+      ).thenAnswer((_) async => const CursorPage(items: [], nextUrl: null));
+      when(
+        () => harness.catalogApi.fetchProducts(
+          storeType: 'household',
+          query: 'choynak',
+        ),
+      ).thenAnswer(
+        (_) async => CursorPage(
+          items: [
+            ProductSummary.fromJson({
+              'id': 'other',
+              'name': 'Choynak',
+              'price': '5000',
+              'store_type': 'household',
+              'category': {'id': 'kitchen', 'name': 'Oshxona'},
+              'main_image': 'https://example.test/choynak.jpg',
+            }),
+          ],
+          nextUrl: null,
+        ),
+      );
+      await tester.enterText(
+        find.byKey(const ValueKey('catalog-search-field')),
+        'choynak',
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+      expect(find.byType(CategoryProductBanners), findsNothing);
+      expect(find.text('Sizga tavsiya etamiz'), findsNothing);
+      expect(find.text('Oshxona'), findsOneWidget);
+      expect(find.text('Choynak'), findsOneWidget);
+      final l10n = AppLocalizations.of(
+        tester.element(find.byType(CatalogScreen)),
+      );
+      await tester.tap(find.byTooltip(l10n.commonClose));
+      await tester.pumpAndSettle();
+      expect(find.byType(CategoryProductBanners), findsOneWidget);
+      expect(find.text('Sizga tavsiya etamiz'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
+
+  testWidgets(
+    'category keyboard retains focus while first character hides banner',
+    (tester) async {
+      final previousInterval =
+          VisibilityDetectorController.instance.updateInterval;
+      VisibilityDetectorController.instance.updateInterval = Duration.zero;
+      addTearDown(
+        () => VisibilityDetectorController.instance.updateInterval =
+            previousInterval,
+      );
+      final ad = CategoryProductBanner.fromJson({
+        'id': 'ad',
+        'title': 'Taklif',
+        'product': {'id': 'ad-p', 'price': '2000', 'store_type': 'household'},
+      });
+      final harness = await pumpCatalog(
+        tester,
+        ThemeMode.light,
+        initialCategoryId: 'category-1',
+        categoryBanners: [ad],
+      );
+      when(
+        () => harness.catalogApi.fetchProducts(
+          storeType: 'household',
+          categoryId: 'category-1',
+          query: 'ustachilik',
+        ),
+      ).thenAnswer(
+        (_) async => CursorPage(items: [_product('match')], nextUrl: null),
+      );
+      final finder = find.byKey(const ValueKey('catalog-search-field'));
+      await tester.showKeyboard(finder);
+      final originalFocus = tester
+          .widget<EditableText>(find.byType(EditableText))
+          .focusNode;
+      for (var i = 1; i <= 'ustachilik'.length; i++) {
+        tester.testTextInput.enterText('ustachilik'.substring(0, i));
+        await tester.pump(const Duration(milliseconds: 20));
+        expect(
+          tester.widget<EditableText>(find.byType(EditableText)).focusNode,
+          same(originalFocus),
+        );
+        expect(originalFocus.hasFocus, isTrue);
+      }
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+      expect(tester.widget<TextField>(finder).controller!.text, 'ustachilik');
+      verify(
+        () => harness.catalogApi.fetchProducts(
+          storeType: 'household',
+          categoryId: 'category-1',
+          query: 'ustachilik',
+        ),
+      ).called(1);
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
+
+  for (final size in const [Size(320, 900), Size(800, 360)]) {
+    testWidgets('full category page large text and scrolling $size', (
+      tester,
+    ) async {
+      final interval = VisibilityDetectorController.instance.updateInterval;
+      VisibilityDetectorController.instance.updateInterval = Duration.zero;
+      addTearDown(
+        () => VisibilityDetectorController.instance.updateInterval = interval,
+      );
+      tester.view.physicalSize = size;
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final ad = CategoryProductBanner.fromJson({
+        'id': 'ad',
+        'title': 'Uy ta’miri uchun maxsus qulay taklif',
+        'subtitle': 'Qurilish va ustachilik uchun ishonchli mahsulotlar',
+        'product': {
+          'id': 'ad-product',
+          'price': '120000',
+          'store_type': 'household',
+        },
+      });
+      await pumpCatalog(
+        tester,
+        ThemeMode.light,
+        initialCategoryId: 'category-1',
+        categoryBanners: [ad],
+        categoryRecommendations: [_product('recommended')],
+        textScale: 2,
+      );
+      for (var i = 0; i < 8; i++) {
+        expect(tester.takeException(), isNull);
+        await tester.dragFrom(
+          Offset(5, size.height - 100),
+          const Offset(0, -200),
+        );
+        await tester.pumpAndSettle();
+      }
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+  }
 
   testWidgets('qidiruv paneli pinned appbar ichida qoladi', (tester) async {
     await pumpCatalog(tester, ThemeMode.light, searchOnly: true);

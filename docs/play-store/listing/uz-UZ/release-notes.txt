@@ -1,5 +1,4 @@
-• Do‘kon kartalari va mahsulot kataloglari yangilandi.
-• Savat boshqaruvi va ortga qaytish qulaylashtirildi.
-• Buyurtma xaritasi, manzil tanlash va GPS aniqlash yaxshilandi.
-• Kuryer ma’lumotlari va mahsulotlar cheki tartiblandi.
-• Hozircha faqat naqd to‘lov mavjud; Payme vaqtincha yashirildi.
+• Xozmak kategoriyalarida mahsulot reklamasi bannerlari qo‘shildi.
+• Har kategoriyada qidiruv: topilmasa Xozmakning boshqa kategoriyalaridan izlaydi.
+• Shu kategoriya mahsulotlaridan shaxsiy tavsiyalar ko‘rsatiladi.
+• Bannerlar yumshoq almashadi, mahsulotni tez ochish mumkin.

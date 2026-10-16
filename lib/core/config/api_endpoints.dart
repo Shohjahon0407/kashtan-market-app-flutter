@@ -55,6 +55,8 @@ abstract final class Api {
 
   // ── Katalog ────────────────────────────────────────────────────────────────
   static const String categories = '/catalog/categories/';
+  static String categoryBanners(String id) =>
+      '/catalog/categories/${Uri.encodeComponent(id)}/banners/';
   static const String products = '/catalog/products/';
   static const String productSearch = '/catalog/products/search/';
   static const String productsFeatured = '/catalog/products/featured/';

@@ -1,4 +1,9 @@
 {
+  "categoryAdDetails": "Батафсил",
+  "categorySearchHint": "Шу категориядан маҳсулот қидириш…",
+  "categoryRecommendationsTitle": "Сизга тавсия этамиз",
+  "categoryProductsTitle": "Категория маҳсулотлари",
+  "categorySearchFallback": "Бу категорияда топилмади. Хозмакнинг бошқа категорияларидаги натижалар:",
   "appUpdateTitle": "Янгиланиш мавжуд",
   "appUpdateBody": "Илованинг {version} версияси чиқди. Янги имкониятлар ва яхшиланишлардан фойдаланиш учун янгиланг.",
   "appUpdateDownload": "Юклаб олиш",

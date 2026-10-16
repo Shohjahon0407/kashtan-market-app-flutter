@@ -373,6 +373,7 @@ StatefulShellRoute _storeShellRoute(
                     ),
                     storeType: storeType,
                     initialCategoryId: categoryId,
+                    initialQuery: state.uri.queryParameters['q'] ?? '',
                   ),
                 );
               },

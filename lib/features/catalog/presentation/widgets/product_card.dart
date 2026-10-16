@@ -24,6 +24,7 @@ class ProductCard extends ConsumerWidget {
     required this.storeType,
     this.compact = false,
     this.catalogStyle = false,
+    this.onTap,
     super.key,
   });
 
@@ -31,6 +32,7 @@ class ProductCard extends ConsumerWidget {
   final StoreType storeType;
   final bool compact;
   final bool catalogStyle;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -68,7 +70,7 @@ class ProductCard extends ConsumerWidget {
       clipBehavior: Clip.antiAlias,
       margin: EdgeInsets.zero,
       child: InkWell(
-        onTap: () => openStoreProduct(context, storeType, product.id),
+        onTap: onTap ?? () => openStoreProduct(context, storeType, product.id),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

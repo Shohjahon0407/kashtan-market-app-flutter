@@ -1,4 +1,9 @@
 {
+  "categoryAdDetails": "Batafsil",
+  "categorySearchHint": "Shu kategoriyadan mahsulot qidirish…",
+  "categoryRecommendationsTitle": "Sizga tavsiya etamiz",
+  "categoryProductsTitle": "Kategoriya mahsulotlari",
+  "categorySearchFallback": "Bu kategoriyada topilmadi. Xozmakning boshqa kategoriyalaridagi natijalar:",
   "appUpdateTitle": "Yangilanish mavjud",
   "appUpdateBody": "Ilovaning {version} versiyasi chiqdi. Yangi imkoniyatlar va yaxshilanishlardan foydalanish uchun yangilang.",
   "@appUpdateBody": {"placeholders": {"version": {"type": "String"}}},

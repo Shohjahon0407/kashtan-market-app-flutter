@@ -27,6 +27,8 @@ class RecommendationsApi {
   /// saqlaydi); [storeType] berilmasa — barcha do'konlardan.
   Future<ForYouPage> forYou({
     String? storeType,
+    String? categoryId,
+    bool imagesOnly = false,
     int limit = 20,
     int offset = 0,
     int? session,
@@ -38,6 +40,8 @@ class RecommendationsApi {
         if (offset > 0) 'offset': offset,
         'session': ?session,
         'store_type': ?storeType,
+        'category': ?categoryId,
+        if (imagesOnly) 'images_only': true,
       },
     );
     final map = JsonRead.map(data);

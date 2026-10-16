@@ -99,6 +99,36 @@ abstract class AppLocalizations {
     Locale('ru'),
   ];
 
+  /// No description provided for @categoryAdDetails.
+  ///
+  /// In uz, this message translates to:
+  /// **'Batafsil'**
+  String get categoryAdDetails;
+
+  /// No description provided for @categorySearchHint.
+  ///
+  /// In uz, this message translates to:
+  /// **'Shu kategoriyadan mahsulot qidirish…'**
+  String get categorySearchHint;
+
+  /// No description provided for @categoryRecommendationsTitle.
+  ///
+  /// In uz, this message translates to:
+  /// **'Sizga tavsiya etamiz'**
+  String get categoryRecommendationsTitle;
+
+  /// No description provided for @categoryProductsTitle.
+  ///
+  /// In uz, this message translates to:
+  /// **'Kategoriya mahsulotlari'**
+  String get categoryProductsTitle;
+
+  /// No description provided for @categorySearchFallback.
+  ///
+  /// In uz, this message translates to:
+  /// **'Bu kategoriyada topilmadi. Xozmakning boshqa kategoriyalaridagi natijalar:'**
+  String get categorySearchFallback;
+
   /// No description provided for @appUpdateTitle.
   ///
   /// In uz, this message translates to:

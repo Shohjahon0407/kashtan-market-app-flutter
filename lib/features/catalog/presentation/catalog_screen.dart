@@ -21,15 +21,18 @@ import '../../recommendations/presentation/similar_products_rail.dart';
 import '../../store/data/store_models.dart';
 import '../../store/domain/store_landing_controller.dart';
 import '../../store/presentation/widgets/store_state_views.dart';
+import '../data/category_banners.dart';
 import '../data/product_models.dart';
 import '../domain/catalog_controller.dart';
 import 'widgets/catalog_loading_skeleton.dart';
+import 'widgets/category_product_banners.dart';
 import 'widgets/household_category_landing.dart';
 import 'widgets/imageless_reveal.dart';
 import 'widgets/meat_product_card.dart';
 import 'widgets/photo_category_landing.dart';
 import 'widgets/product_card.dart';
 import 'widgets/product_image.dart';
+import 'widgets/product_rail.dart';
 import 'widgets/restaurant_category_landing.dart';
 import 'widgets/shashlik_catalog.dart';
 
@@ -38,12 +41,14 @@ class CatalogScreen extends ConsumerStatefulWidget {
     required this.storeType,
     this.initialCategoryId,
     this.searchOnly = false,
+    this.initialQuery = '',
     super.key,
   });
 
   final StoreType storeType;
   final String? initialCategoryId;
   final bool searchOnly;
+  final String initialQuery;
 
   @override
   ConsumerState<CatalogScreen> createState() => _CatalogScreenState();
@@ -53,6 +58,10 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
   final _scrollController = ScrollController();
   final _searchController = TextEditingController();
   final _debouncer = Debouncer(const Duration(milliseconds: 350));
+  bool get _isHouseholdCategory =>
+      widget.storeType == StoreType.household &&
+      !widget.searchOnly &&
+      widget.initialCategoryId?.isNotEmpty == true;
   var _initialCategoryLoading = false;
   var _shashlikSection = ShashlikSection.kebabs;
 
@@ -139,14 +148,48 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
             mainAxisSpacing: AppSpacing.sm,
             childAspectRatio: 0.70,
           ),
-          delegate: SliverChildBuilderDelegate(
-            (context, index) => ProductCard(
-              product: items[start + index],
+          delegate: SliverChildBuilderDelegate((context, index) {
+            final product = items[start + index];
+            final otherCategory =
+                _isHouseholdCategory &&
+                ref
+                        .read(catalogControllerProvider(widget.storeType))
+                        .value
+                        ?.searchFallback ==
+                    true &&
+                product.category != null &&
+                product.category!.id != widget.initialCategoryId;
+            final card = ProductCard(
+              product: product,
               storeType: widget.storeType,
               catalogStyle: true,
-            ),
-            childCount: end - start,
-          ),
+              onTap: otherCategory
+                  ? () => context.push(
+                      Routes.storeCategoryProducts(
+                        widget.storeType.wire,
+                        product.category!.id,
+                        query: _searchController.text.trim(),
+                      ),
+                    )
+                  : null,
+            );
+            if (!otherCategory) return card;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 5),
+                  child: Text(
+                    product.category!.name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.labelSmall,
+                  ),
+                ),
+                Expanded(child: card),
+              ],
+            );
+          }, childCount: end - start),
         ),
       );
 
@@ -172,12 +215,29 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
   @override
   void initState() {
     super.initState();
+    _searchController.text = widget.initialQuery;
     _scrollController.addListener(_onScroll);
     _initialCategoryLoading = widget.initialCategoryId?.isNotEmpty ?? false;
     if (_initialCategoryLoading) {
       WidgetsBinding.instance.addPostFrameCallback(
         (_) => _applyInitialCategory(),
       );
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant CatalogScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialCategoryId != oldWidget.initialCategoryId ||
+        widget.initialQuery != oldWidget.initialQuery) {
+      _debouncer.cancel();
+      _searchController.text = widget.initialQuery;
+      _initialCategoryLoading = widget.initialCategoryId?.isNotEmpty ?? false;
+      if (_initialCategoryLoading) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _applyInitialCategory();
+        });
+      }
     }
   }
 
@@ -233,15 +293,19 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
       await ref.read(catalogControllerProvider(widget.storeType).future);
       if (!mounted) return;
       if (ref
-              .read(catalogControllerProvider(widget.storeType))
-              .value
-              ?.categoryId ==
-          widget.initialCategoryId) {
+                  .read(catalogControllerProvider(widget.storeType))
+                  .value
+                  ?.categoryId ==
+              widget.initialCategoryId &&
+          widget.initialQuery.isEmpty) {
         return;
       }
       await ref
           .read(catalogControllerProvider(widget.storeType).notifier)
-          .applyFilter(categoryId: widget.initialCategoryId);
+          .applyFilter(
+            categoryId: widget.initialCategoryId,
+            query: widget.initialQuery,
+          );
     } finally {
       if (mounted) setState(() => _initialCategoryLoading = false);
     }
@@ -262,7 +326,10 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
   void _applySearch(String value) {
     ref
         .read(catalogControllerProvider(widget.storeType).notifier)
-        .applyFilter(query: value);
+        .applyFilter(
+          categoryId: _isHouseholdCategory ? widget.initialCategoryId : null,
+          query: value,
+        );
   }
 
   void _clearSearch() {
@@ -327,7 +394,9 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
     final initialCategory = widget.initialCategoryId;
     final hasMatchingInitialCategory =
         initialCategory != null &&
-        watchedCatalog.value?.categoryId == initialCategory;
+        watchedCatalog.value?.categoryId == initialCategory &&
+        (widget.initialQuery.isEmpty ||
+            watchedCatalog.value?.query == widget.initialQuery);
     final catalog = _initialCategoryLoading && !hasMatchingInitialCategory
         ? const AsyncValue<CatalogState>.loading()
         : watchedCatalog;
@@ -365,6 +434,14 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
           RefreshIndicator(
             onRefresh: () async {
               ref.invalidate(storeLandingProvider(widget.storeType));
+              if (_isHouseholdCategory) {
+                ref.invalidate(
+                  categoryBannersProvider(widget.initialCategoryId!),
+                );
+                ref.invalidate(
+                  categoryRecommendationsProvider(widget.initialCategoryId!),
+                );
+              }
               await ref
                   .read(catalogControllerProvider(widget.storeType).notifier)
                   .refresh();
@@ -393,7 +470,9 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
                     ),
                   ),
                   actions: [
-                    if (_supportsPhotoCategoryLanding && !widget.searchOnly)
+                    if (_supportsPhotoCategoryLanding &&
+                        !widget.searchOnly &&
+                        !_isHouseholdCategory)
                       IconButton(
                         key: ValueKey('${widget.storeType.wire}-search-button'),
                         tooltip: l10n.commonSearch,
@@ -466,6 +545,61 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
                         )
                       : null,
                 ),
+                if (_isHouseholdCategory) ...[
+                  SliverToBoxAdapter(
+                    key: const ValueKey('category-banner-slot'),
+                    child: isSearching
+                        ? const SizedBox.shrink()
+                        : _categoryBannerSection(),
+                  ),
+                  SliverToBoxAdapter(
+                    key: const ValueKey('category-search-slot'),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                      child: TextField(
+                        key: const ValueKey('catalog-search-field'),
+                        controller: _searchController,
+                        onChanged: _onSearchChanged,
+                        onSubmitted: _submitSearch,
+                        textInputAction: TextInputAction.search,
+                        decoration: InputDecoration(
+                          hintText: l10n.categorySearchHint,
+                          filled: true,
+                          fillColor: Theme.of(context).colorScheme.surface,
+                          prefixIcon: const Icon(Icons.search),
+                          suffixIcon: _searchController.text.isEmpty
+                              ? null
+                              : IconButton(
+                                  tooltip: l10n.commonClose,
+                                  onPressed: _clearSearch,
+                                  icon: const Icon(Icons.close),
+                                ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  if (!isSearching)
+                    SliverToBoxAdapter(child: _categoryRecommendationSection()),
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 6,
+                      ),
+                      child: Text(
+                        isSearching
+                            ? l10n.commonSearch
+                            : l10n.categoryProductsTitle,
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
                 if (!isSearching && !_supportsPhotoCategoryLanding)
                   ..._landingSlivers(context, landing),
                 ..._catalogSlivers(context, catalog, isSearching: isSearching),
@@ -828,6 +962,50 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
     ];
   }
 
+  Widget _categoryBannerSection() {
+    final banners = ref
+        .watch(categoryBannersProvider(widget.initialCategoryId!))
+        .value;
+    if (banners == null || banners.items.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    return CategoryProductBanners(
+      banners: banners.items,
+      hasMore: banners.nextUrl != null,
+      loadMoreFailed: banners.loadMoreFailed,
+      onLoadMore: () => ref
+          .read(categoryBannersProvider(widget.initialCategoryId!).notifier)
+          .loadMore(),
+      onTap: (banner) =>
+          openStoreProduct(context, StoreType.household, banner.product.id),
+    );
+  }
+
+  Widget _categoryRecommendationSection() {
+    final items =
+        ref
+            .watch(categoryRecommendationsProvider(widget.initialCategoryId!))
+            .value ??
+        [];
+    if (items.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      child: ProductRail(
+        title: AppLocalizations.of(context).categoryRecommendationsTitle,
+        products: items,
+        storeType: StoreType.household,
+        keyPrefix: 'category-recommendation',
+        visibleCards: MediaQuery.textScalerOf(context).scale(1) > 1.3
+            ? 1.5
+            : 2.6,
+        cardHeight: 240 + (MediaQuery.textScalerOf(context).scale(1) - 1) * 90,
+        storageKey: PageStorageKey(
+          'category-recommendations-${widget.initialCategoryId}',
+        ),
+      ),
+    );
+  }
+
   List<Widget> _catalogSlivers(
     BuildContext context,
     AsyncValue<CatalogState> catalog, {
@@ -859,6 +1037,18 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
         ),
       ],
       AsyncData(:final value) => [
+        if (_isHouseholdCategory &&
+            value.searchFallback &&
+            value.query.isNotEmpty)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Text(
+                l10n.categorySearchFallback,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
+          ),
         if (value.query.isEmpty)
           ..._gridWithInlineRails(value.visibleItems)
         else

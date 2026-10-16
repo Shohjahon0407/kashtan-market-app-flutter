@@ -70,8 +70,17 @@ abstract final class Routes {
   static String storeCatalogSearch(String storeType) =>
       '${storeCatalog(storeType)}/search';
 
-  static String storeCategoryProducts(String storeType, String categoryId) =>
-      '${storeCatalog(storeType)}/category/${Uri.encodeComponent(categoryId)}';
+  static String storeCategoryProducts(
+    String storeType,
+    String categoryId, {
+    String? query,
+  }) {
+    final path =
+        '${storeCatalog(storeType)}/category/${Uri.encodeComponent(categoryId)}';
+    return query == null || query.isEmpty
+        ? path
+        : '$path?${Uri(queryParameters: {'q': query}).query}';
+  }
 
   static String storeFavorites(String storeType) =>
       '${storeRoot(storeType)}/favorites';

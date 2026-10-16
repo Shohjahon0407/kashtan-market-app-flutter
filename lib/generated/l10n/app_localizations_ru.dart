@@ -9,6 +9,22 @@ class AppLocalizationsRu extends AppLocalizations {
   AppLocalizationsRu([String locale = 'ru']) : super(locale);
 
   @override
+  String get categoryAdDetails => 'Подробнее';
+
+  @override
+  String get categorySearchHint => 'Поиск товаров в этой категории…';
+
+  @override
+  String get categoryRecommendationsTitle => 'Рекомендуем вам';
+
+  @override
+  String get categoryProductsTitle => 'Товары категории';
+
+  @override
+  String get categorySearchFallback =>
+      'В этой категории не найдено. Результаты из других категорий Xozmak:';
+
+  @override
   String get appUpdateTitle => 'Доступно обновление';
 
   @override

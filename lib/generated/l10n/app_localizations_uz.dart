@@ -9,6 +9,22 @@ class AppLocalizationsUz extends AppLocalizations {
   AppLocalizationsUz([String locale = 'uz']) : super(locale);
 
   @override
+  String get categoryAdDetails => 'Batafsil';
+
+  @override
+  String get categorySearchHint => 'Shu kategoriyadan mahsulot qidirish…';
+
+  @override
+  String get categoryRecommendationsTitle => 'Sizga tavsiya etamiz';
+
+  @override
+  String get categoryProductsTitle => 'Kategoriya mahsulotlari';
+
+  @override
+  String get categorySearchFallback =>
+      'Bu kategoriyada topilmadi. Xozmakning boshqa kategoriyalaridagi natijalar:';
+
+  @override
   String get appUpdateTitle => 'Yangilanish mavjud';
 
   @override
@@ -1528,6 +1544,22 @@ class AppLocalizationsUz extends AppLocalizations {
 /// The translations for Uzbek, using the Cyrillic script (`uz_Cyrl`).
 class AppLocalizationsUzCyrl extends AppLocalizationsUz {
   AppLocalizationsUzCyrl() : super('uz_Cyrl');
+
+  @override
+  String get categoryAdDetails => 'Батафсил';
+
+  @override
+  String get categorySearchHint => 'Шу категориядан маҳсулот қидириш…';
+
+  @override
+  String get categoryRecommendationsTitle => 'Сизга тавсия этамиз';
+
+  @override
+  String get categoryProductsTitle => 'Категория маҳсулотлари';
+
+  @override
+  String get categorySearchFallback =>
+      'Бу категорияда топилмади. Хозмакнинг бошқа категорияларидаги натижалар:';
 
   @override
   String get appUpdateTitle => 'Янгиланиш мавжуд';

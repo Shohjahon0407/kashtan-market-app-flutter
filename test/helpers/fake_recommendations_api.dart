@@ -27,6 +27,8 @@ class FakeRecommendationsApi extends Fake implements RecommendationsApi {
   @override
   Future<ForYouPage> forYou({
     String? storeType,
+    String? categoryId,
+    bool imagesOnly = false,
     int limit = 20,
     int offset = 0,
     int? session,

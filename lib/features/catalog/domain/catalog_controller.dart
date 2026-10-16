@@ -47,6 +47,7 @@ class CatalogState {
     this.pagePhase,
     this.nextPhase,
     this.imagelessRevealed = false,
+    this.searchFallback = false,
   });
 
   final List<ProductSummary> items;
@@ -58,6 +59,7 @@ class CatalogState {
   final String? pagePhase;
   final String? nextPhase;
   final bool imagelessRevealed;
+  final bool searchFallback;
 
   bool get hasMore => nextUrl != null && nextUrl!.isNotEmpty;
 
@@ -96,6 +98,7 @@ class CatalogState {
     String? Function()? pagePhase,
     String? Function()? nextPhase,
     bool? imagelessRevealed,
+    bool? searchFallback,
   }) => CatalogState(
     items: items ?? this.items,
     nextUrl: nextUrl != null ? nextUrl() : this.nextUrl,
@@ -108,6 +111,7 @@ class CatalogState {
     pagePhase: pagePhase != null ? pagePhase() : this.pagePhase,
     nextPhase: nextPhase != null ? nextPhase() : this.nextPhase,
     imagelessRevealed: imagelessRevealed ?? this.imagelessRevealed,
+    searchFallback: searchFallback ?? this.searchFallback,
   );
 }
 
@@ -268,7 +272,13 @@ class CatalogController extends AsyncNotifier<CatalogState> {
     final normalizedQuery = query.trim();
     // Store qidiruvi har doim butun store bo'yicha ishlaydi. Aks holda avval
     // tanlangan, UI'da ko'rinmay qolgan kategoriya natijalarni nolga tushiradi.
-    final normalizedCategoryId = normalizedQuery.isEmpty ? categoryId : null;
+    final categorySearch =
+        storeType == StoreType.household && initialCategoryId != null;
+    final normalizedCategoryId = normalizedQuery.isEmpty
+        ? categoryId
+        : categorySearch
+        ? (categoryId ?? initialCategoryId)
+        : null;
     final revision = ++_requestRevision;
     final previous = state.value;
     // Filtr o'zgarganda spinner (yangi kontent kutilmoqda). Ayni filtrni
@@ -301,7 +311,7 @@ class CatalogController extends AsyncNotifier<CatalogState> {
       state = AsyncData(previous.copyWith(imagelessRevealed: false));
     }
     try {
-      final page = await ref
+      var page = await ref
           .read(catalogApiProvider)
           .fetchProducts(
             storeType: storeType.wire,
@@ -309,6 +319,14 @@ class CatalogController extends AsyncNotifier<CatalogState> {
             query: normalizedQuery,
           );
       if (!ref.mounted || revision != _requestRevision) return;
+      var searchFallback = false;
+      if (categorySearch && normalizedQuery.isNotEmpty && page.items.isEmpty) {
+        page = await ref
+            .read(catalogApiProvider)
+            .fetchProducts(storeType: storeType.wire, query: normalizedQuery);
+        if (!ref.mounted || revision != _requestRevision) return;
+        searchFallback = true;
+      }
       final result = CatalogState(
         items: page.items,
         nextUrl: page.nextUrl,
@@ -318,6 +336,7 @@ class CatalogController extends AsyncNotifier<CatalogState> {
             preserveDisclosure && !filterChanged && previous.imagelessRevealed,
         categoryId: normalizedCategoryId,
         query: normalizedQuery,
+        searchFallback: searchFallback,
       );
       _remember(result);
       state = AsyncData(result);
