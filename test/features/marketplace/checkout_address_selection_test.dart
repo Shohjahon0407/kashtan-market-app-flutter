@@ -21,6 +21,9 @@ import 'package:beshkashtan_customer/features/checkout/domain/device_location.da
 import 'package:beshkashtan_customer/features/checkout/domain/order_draft_controller.dart';
 import 'package:beshkashtan_customer/features/checkout/presentation/checkout_screen.dart';
 import 'package:beshkashtan_customer/features/orders/data/order_models.dart';
+import 'package:beshkashtan_customer/features/orders/domain/order_live_controller.dart';
+import 'package:beshkashtan_customer/features/orders/domain/orders_controller.dart';
+import 'package:beshkashtan_customer/features/orders/presentation/order_detail_screen.dart';
 import 'package:beshkashtan_customer/features/payments/data/payment_models.dart';
 import 'package:beshkashtan_customer/generated/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
@@ -53,6 +56,7 @@ class _Submission extends CheckoutController {
   _Submission(super.type, this.onSubmit);
   final Future<OrderData?> Function() onSubmit;
   int calls = 0;
+  void publish(CheckoutSubmissionState value) => state = value;
   @override
   Future<OrderData?> submit({
     required FulfillmentType fulfillmentType,
@@ -78,6 +82,21 @@ class _Cart extends CartController {
     if (refreshFailure != null) throw refreshFailure!;
     if (afterRefresh != null) state = AsyncData(CartState(cart: afterRefresh!));
   }
+
+  void empty() =>
+      state = AsyncData(CartState(cart: CartData.empty(storeType.wire)));
+}
+
+class _Tracking extends OrderTrackingController {
+  _Tracking(super.id, this.order);
+  final OrderData order;
+  @override
+  Future<OrderTrackingData> build() async => OrderTrackingData.fromJson({
+    'status': order.status,
+    'user_status': order.userStatus,
+    'store_type': order.storeTypeWire,
+    'fulfillment_type': order.fulfillmentType,
+  });
 }
 
 class _Addresses extends AddressesController {
@@ -148,6 +167,7 @@ Future<_Fixture> _mount(
   String? initialLocation,
   bool settle = true,
   _Submission? submission,
+  OrderData? placedOrder,
 }) async {
   final fixture = cart ?? _cart();
   final api = _Api();
@@ -170,6 +190,14 @@ Future<_Fixture> _mount(
       offlineCartQueueProvider.overrideWithValue(queue),
       if (submission != null)
         checkoutControllerProvider(_type).overrideWith(() => submission),
+      if (placedOrder != null) ...[
+        orderDetailProvider(
+          placedOrder.id,
+        ).overrideWith((ref) async => placedOrder),
+        orderTrackingControllerProvider(
+          placedOrder.id,
+        ).overrideWith(() => _Tracking(placedOrder.id, placedOrder)),
+      ],
       accountScopeProvider.overrideWithValue('user_review'),
       apiLangProvider.overrideWithValue('uz'),
       cartApiProvider.overrideWithValue(cartApi),
@@ -204,6 +232,13 @@ Future<_Fixture> _mount(
   final router = GoRouter(
     initialLocation: initialLocation ?? Routes.checkout(_type.wire),
     routes: [
+      GoRoute(
+        path: '${Routes.storeOrders(_type.wire)}/:orderId',
+        builder: (_, state) => OrderDetailScreen(
+          storeType: _type,
+          orderId: state.pathParameters['orderId']!,
+        ),
+      ),
       GoRoute(
         path: Routes.storeCart(_type.wire),
         builder: (context, state) => Scaffold(
@@ -265,6 +300,89 @@ Future<_Fixture> _mount(
 }
 
 void main() {
+  testWidgets(
+    'successful order shows tracking stages despite cart/draft clearing before navigation',
+    (tester) async {
+      final order = OrderData.fromJson({
+        'id': 'new-order',
+        'order_number': 'TEST',
+        'store_type': 'household',
+        'fulfillment_type': 'delivery',
+        'status': 'preparing',
+        'user_status': 'preparing',
+        'payment_method': 'cash_to_courier',
+        'payment_status': 'pending',
+        'subtotal': '17000',
+        'delivery_fee': '5000',
+        'total': '22000',
+        'items': <Map<String, dynamic>>[],
+      });
+      final response = Completer<OrderData?>();
+      late _Fixture f;
+      late _Submission submission;
+      submission = _Submission(_type, () async {
+        submission.publish(const CheckoutSubmissionState(isSubmitting: true));
+        (f.container.read(cartControllerProvider(_type).notifier) as _Cart)
+            .empty();
+        submission.publish(CheckoutSubmissionState(lastOrder: order));
+        return response.future;
+      });
+      f = await _mount(tester, submission: submission, placedOrder: order);
+      await tester.tap(find.byKey(const ValueKey('checkout-submit')));
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(const Duration(milliseconds: 500));
+      for (var frame = 0; frame < 4; frame++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      expect(submission.calls, 1);
+      expect(f.container.read(orderDraftProvider(_type)).preparing, isFalse);
+      expect(f.container.read(orderDraftProvider(_type)).estimating, isFalse);
+      expect(f.container.read(orderDraftProvider(_type)).failure, isNull);
+      expect(
+        f.container.read(cartControllerProvider(_type)).requireValue.cart.items,
+        isEmpty,
+      );
+      expect(
+        f.container.read(checkoutControllerProvider(_type)).lastOrder?.id,
+        order.id,
+      );
+      expect(
+        find.byType(OrderDetailScreen),
+        findsOneWidget,
+        reason:
+            'Published successful order must take priority over empty cart, without waiting for cleanup continuation',
+      );
+      response.complete(order);
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.byType(OrderDetailScreen), findsOneWidget);
+      expect(
+        f.router.routeInformationProvider.value.uri.path,
+        Routes.orderDetail(_type.wire, order.id),
+      );
+      expect(find.byKey(const ValueKey('order-stage-title')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('order-stage-current-accepted')),
+        findsOneWidget,
+      );
+      f.container.read(orderLiveProvider(order.id).notifier).applyLifecycle({
+        'status': 'out_for_delivery',
+        'user_status': 'out_for_delivery',
+      }, language: 'uz');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(
+        find.byKey(const ValueKey('order-stage-current-onWay')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('cart-root')), findsNothing);
+      expect(submission.calls, 1);
+      expect(f.container.read(orderDraftProvider(_type)).selection, isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+    },
+  );
+
   testWidgets('submit revalidates fee and stops when radius changed', (
     tester,
   ) async {

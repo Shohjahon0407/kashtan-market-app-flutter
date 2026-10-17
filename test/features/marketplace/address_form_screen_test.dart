@@ -62,6 +62,7 @@ Future<void> _mount(
   bool pushed = false,
   void Function(String?)? onResult,
   Future<List<DeliveryCoverageBranch>> Function()? coverage,
+  Future<List<DeliveryCoverageBranch>> Function()? storeCoverage,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -83,6 +84,19 @@ Future<void> _mount(
                     latitude: store == null ? 41.5 : 41.31,
                     longitude: store == null ? 69.5 : 69.24,
                     radiusKm: store == null ? 100 : 8,
+                  ),
+                ],
+        ),
+        deliveryCoverageProvider.overrideWith(
+          (ref, type) async => storeCoverage != null
+              ? storeCoverage()
+              : const [
+                  DeliveryCoverageBranch(
+                    id: 'xozmak-branch',
+                    name: 'Xozmak',
+                    latitude: 41.31,
+                    longitude: 69.24,
+                    radiusKm: 2,
                   ),
                 ],
         ),
@@ -486,7 +500,7 @@ void main() {
           .circles
           .single
           .radius,
-      8000,
+      2000,
     );
     expect(
       tester
@@ -500,7 +514,57 @@ void main() {
       tester.widget<MarkerLayer>(find.byType(MarkerLayer)).markers,
       hasLength(2),
     );
+    expect(find.textContaining('8 km'), findsNothing);
+    expect(find.textContaining('2 km'), findsOneWidget);
   });
+
+  testWidgets(
+    'store coverage error never falls back to the global 8 km circle',
+    (tester) async {
+      await _mount(
+        tester,
+        store: StoreType.household,
+        location: () async => _position(),
+        storeCoverage: () async => throw const NetworkFailure(),
+      );
+      expect(find.textContaining('8 km'), findsNothing);
+      expect(find.byType(CircleLayer), findsNothing);
+      expect(
+        tester
+            .widget<FilledButton>(find.byKey(const ValueKey('address-confirm')))
+            .onPressed,
+        isNull,
+      );
+    },
+  );
+
+  testWidgets(
+    'save revalidates store radius rather than global address maximum',
+    (tester) async {
+      var calls = 0;
+      await _mount(
+        tester,
+        store: StoreType.household,
+        storeCoverage: () async => [
+          DeliveryCoverageBranch(
+            id: 'xozmak',
+            name: 'Xozmak',
+            latitude: 41.31,
+            longitude: 69.24,
+            radiusKm: ++calls == 1 ? 8 : 1,
+          ),
+        ],
+      );
+      _select(tester, const LatLng(41.34, 69.24));
+      await tester.pump();
+      expect(_confirm(tester).onPressed, isNotNull);
+      await tester.tap(find.byKey(const ValueKey('address-confirm')));
+      await tester.pumpAndSettle();
+      expect(calls, 2);
+      expect(_Addresses.saved, isEmpty);
+      expect(_confirm(tester).onPressed, isNull);
+    },
+  );
 
   for (final locale in [
     const Locale('uz'),

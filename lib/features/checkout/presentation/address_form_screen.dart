@@ -64,6 +64,10 @@ class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
   AsyncValue<List<DeliveryCoverageBranch>> _coverage = const AsyncLoading();
   AddressDeliveryBoundary? _boundary;
   bool _radiusNotice = false;
+  FutureProvider<List<DeliveryCoverageBranch>> get _coverageSource =>
+      widget.storeType == null
+      ? addressCoverageProvider
+      : deliveryCoverageProvider(widget.storeType!.wire);
   bool get _canConfirm =>
       !_coverage.isLoading &&
       !_coverage.hasError &&
@@ -148,7 +152,7 @@ class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
               ),
       );
     }
-    _coverage = ref.watch(addressCoverageProvider);
+    _coverage = ref.watch(_coverageSource);
     final branch = largestAddressCoverage(_coverage.value ?? const []);
     _boundary = branch == null ? null : AddressDeliveryBoundary(branch);
     final signature = branch == null
@@ -685,8 +689,7 @@ class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
                     ] else if (_coverage.hasError || _boundary == null) ...[
                       Text(l10n.checkoutMapCoverageUnavailable),
                       TextButton(
-                        onPressed: () =>
-                            ref.invalidate(addressCoverageProvider),
+                        onPressed: () => ref.invalidate(_coverageSource),
                         child: Text(l10n.commonRetry),
                       ),
                     ],
@@ -932,7 +935,7 @@ class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
       // Refresh before saving: an admin may have reduced the radius while
       // this form was open. Do not save against an old preview circle.
       final latest = largestAddressCoverage(
-        await ref.refresh(addressCoverageProvider.future),
+        await ref.refresh(_coverageSource.future),
       );
       if (!mounted) return;
       if (latest == null ||

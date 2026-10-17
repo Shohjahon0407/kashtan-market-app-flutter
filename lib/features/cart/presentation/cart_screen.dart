@@ -206,6 +206,18 @@ class _CartScreenState extends ConsumerState<CartScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !ref.read(authControllerProvider).isAuthenticated) return;
+      final draft = ref.read(orderDraftProvider(widget.storeType));
+      if (draft.selection == null &&
+          draft.fulfillment == FulfillmentType.delivery) {
+        unawaited(
+          ref
+              .read(orderDraftProvider(widget.storeType).notifier)
+              .prepare(useSavedAddress: true),
+        );
+      }
+    });
   }
 
   @override
@@ -242,7 +254,9 @@ class _CartScreenState extends ConsumerState<CartScreen>
       );
     }
     if (ref.read(authControllerProvider).isAuthenticated) {
-      await ref.read(orderDraftProvider(widget.storeType).notifier).prepare();
+      await ref
+          .read(orderDraftProvider(widget.storeType).notifier)
+          .prepare(useSavedAddress: true);
     } else {
       await ref
           .read(cartControllerProvider(widget.storeType).notifier)
@@ -252,13 +266,25 @@ class _CartScreenState extends ConsumerState<CartScreen>
 
   Future<void> _chooseAddress() async {
     if (_working) return;
+    final guest = !ref.read(authControllerProvider).isAuthenticated;
     if (!await requireAuthentication(context, ref) || !mounted) return;
     setState(() => _working = true);
     try {
       final controller = ref.read(
         orderDraftProvider(widget.storeType).notifier,
       );
-      if (!await controller.prepare(revalidateQuote: false) || !mounted) return;
+      final prepared = await controller.prepare(
+        revalidateQuote: guest,
+        useSavedAddress: guest,
+      );
+      if (!mounted) return;
+      // The login continuation may discover an existing account address.
+      // Do not ask the user to select it again or request GPS unnecessarily.
+      if (guest &&
+          ref.read(orderDraftProvider(widget.storeType)).selection != null) {
+        return;
+      }
+      if (!prepared) return;
       final result = await pickCartDeliveryAddress(
         context,
         ref,
@@ -289,7 +315,7 @@ class _CartScreenState extends ConsumerState<CartScreen>
       if (guest && intent.fulfillment == FulfillmentType.pickup) {
         controller.setFulfillment(FulfillmentType.pickup);
       }
-      if (!await controller.prepare() || !mounted) return;
+      if (!await controller.prepare(useSavedAddress: true) || !mounted) return;
       final data = ref.read(cartControllerProvider(widget.storeType)).value;
       if (guest &&
           data != null &&
@@ -325,7 +351,10 @@ class _CartScreenState extends ConsumerState<CartScreen>
           ? null
           : draft.quoteFor(latestData.cart, addresses);
       if (latestData == null || !_eligible(latestData, draft, quote)) return;
-      await context.push<void>(Routes.checkout(widget.storeType.wire));
+      // Busy covers cart preparation, not the lifetime of the checkout route.
+      // Checkout edits return via go(...?focus=...), which may reuse this cart
+      // without completing the original push future. Awaiting it locks the cart.
+      unawaited(context.push<void>(Routes.checkout(widget.storeType.wire)));
     } finally {
       if (mounted) setState(() => _working = false);
     }

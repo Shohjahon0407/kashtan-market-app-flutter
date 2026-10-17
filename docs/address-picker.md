@@ -7,6 +7,10 @@ Savatda **Yetkazish manzilini tanlash** bosilganda popup emas, alohida
 ochilmaydi. Asosiy vazifa — buyurtma boradigan saqlangan
 manzilni tanlash; xaritadan yangi manzil yaratish ikkinchi darajali amal.
 
+Saqlangan yaroqli manzil bo‘lsa, savat uning asosiy/birinchi manzilini avtomatik
+olib server quote’ini tekshiradi; davom etishda ushbu picker ochilmaydi. Picker
+faqat manzil bo‘lmaganda yoki foydalanuvchi uni almashtirishni bosganda kerak.
+
 - Ichki URL: `/store/:type/cart/address/select`; shu route ostidagi
   `new` va `:addressId/edit` formalarida tugma **Manzilni saqlash** bo‘ladi.
   Eski checkout `address/select`, `address/new` va `address/:addressId/edit`
@@ -81,9 +85,12 @@ qo‘shimcha sarlavha ko‘rsatmasi help oynasida mavjud, asosiy nom qisqartiril
 - Edit’da eski manzil komponentlari va `is_default` saqlanadi. Nuqta ko‘chirilsa
   eski ko‘cha/uy ma’lumotlari yangi koordinataga noto‘g‘ri bog‘lanib qolmaydi;
   kuryer izohi saqlanadi.
-- Yangi va tahrirlash manzil ekranlari `GET /api/user/delivery/coverage/?scope=address`
-  orqali barcha faol, ko‘rinadigan do‘konlar orasidagi eng katta radiusli filialni
-  oladi. Savat bo‘sh bo‘lsa ham ishlaydi; 4 ta bilan hardcode qilinmaydi.
+- Do‘kon savatidan yangi va tahrirlash ekranlari
+  `GET /api/user/delivery/coverage/?store_type=<type>` orqali shu savat do‘konining
+  radiuslarini oladi. Xatoda umumiy maksimumga yoki 8 km defaultga qaytilmaydi.
+  Profil orqali umumiy manzil yaratish esa `?scope=address` orqali barcha faol,
+  ko‘rinadigan do‘konlar orasidagi eng katta radiusli filialni oladi; savat bo‘sh
+  bo‘lsa ham ishlaydi. Do‘konlar soni yoki radius hardcode qilinmaydi.
   Doira eng katta radiusga ega filialning haqiqiy koordinatasidan chiziladi.
   Teng radiuslarda filial ID bo‘yicha deterministik tanlov ishlatiladi.
 - Radius ma’lum bo‘lganda kamera markazi va tanlanadigan nuqta yashil doiradan chiqmaydi. GPS

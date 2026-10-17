@@ -211,6 +211,46 @@ Future<void> _tick() async {
 
 void main() {
   test(
+    'saved default is restored and quoted without opening a selector',
+    () async {
+      final f = await _fixture();
+      f.addresses.publish([_work, _home]);
+      expect(await f.draft.prepare(useSavedAddress: true), isTrue);
+      expect(_state(f).addressId, 'home');
+      expect(
+        _state(f).quoteFor(_cart(), [_home, _work])?.deliveryPrice,
+        '5000',
+      );
+    },
+  );
+
+  test(
+    'without default use first coordinates; without coordinates require address',
+    () async {
+      final f = await _fixture();
+      const legacy = UserAddress(id: 'old', title: 'Eski', isDefault: true);
+      f.addresses.publish([legacy, _work]);
+      expect(await f.draft.prepare(useSavedAddress: true), isTrue);
+      expect(_state(f).addressId, 'work');
+      f.draft.clear();
+      f.addresses.publish([legacy]);
+      expect(await f.draft.prepare(useSavedAddress: true), isTrue);
+      expect(_state(f).selection, isNull);
+    },
+  );
+
+  test(
+    'saved address network failure is not treated as an empty address book',
+    () async {
+      final f = await _fixture();
+      f.addresses.readFailure = const NetworkFailure();
+      expect(await f.draft.prepare(useSavedAddress: true), isFalse);
+      expect(_state(f).failure, isA<NetworkFailure>());
+      expect(_state(f).quoteFor(_cart(), [_home]), isNull);
+    },
+  );
+
+  test(
     'offline queue is flushed before guest merge and authoritative cart read',
     () async {
       final f = await _fixture();

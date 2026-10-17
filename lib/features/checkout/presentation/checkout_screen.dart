@@ -18,6 +18,7 @@ import '../../../generated/l10n/app_localizations.dart';
 import '../../cart/data/cart_models.dart';
 import '../../cart/domain/cart_controller.dart';
 import '../../catalog/presentation/widgets/product_image.dart';
+import '../../orders/data/order_models.dart';
 import '../../payments/data/payment_models.dart';
 import '../../payments/domain/payment_availability.dart';
 import '../data/checkout_models.dart';
@@ -46,6 +47,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
   bool _redirectScheduled = false;
   bool _preparing = false;
   bool _submittingPreflight = false;
+  bool _orderOpened = false;
 
   @override
   void initState() {
@@ -122,6 +124,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
   /// itself is visible before redirecting an incomplete direct-link entry.
   void _scheduleCart(String notice, String focus) {
     if (_redirectScheduled ||
+        _orderHandoffActive ||
         !_entryCheckComplete ||
         ModalRoute.of(context)?.isCurrent != true ||
         GoRouter.maybeOf(context) == null) {
@@ -129,12 +132,37 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
     }
     _redirectScheduled = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || ModalRoute.of(context)?.isCurrent != true) {
+      if (!mounted ||
+          _orderHandoffActive ||
+          ModalRoute.of(context)?.isCurrent != true) {
         _redirectScheduled = false;
         return;
       }
       _returnToCart(focus, notice: notice);
     });
+  }
+
+  bool get _orderHandoffActive {
+    final submission = ref.read(checkoutControllerProvider(widget.storeType));
+    return _submittingPreflight ||
+        _orderOpened ||
+        submission.isSubmitting ||
+        submission.lastOrder != null;
+  }
+
+  void _openCreatedOrder(OrderData order, PaymentMethod method) {
+    if (!mounted || _orderOpened) return;
+    _orderOpened = true;
+    final router = GoRouter.maybeOf(context);
+    final autoPay =
+        ref.read(paymeEnabledProvider) && method == PaymentMethod.payme;
+    ref.read(orderDraftProvider(widget.storeType).notifier).clear();
+    if (router != null) {
+      AppBackCoordinator.of(router).discardCheckout();
+      router.go(
+        Routes.orderDetail(widget.storeType.wire, order.id, autoPay: autoPay),
+      );
+    }
   }
 
   void _returnToCart(String focus, {String? notice}) {
@@ -184,6 +212,19 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    ref.listen(checkoutControllerProvider(widget.storeType), (previous, next) {
+      final order = next.lastOrder;
+      if (order == null || previous?.lastOrder?.id == order.id) return;
+      final method = ref
+          .read(orderDraftProvider(widget.storeType))
+          .paymentMethod;
+      // Success is terminal: cart refresh/draft reset must never win a redirect
+      // to the empty cart while submit's async cleanup is still unwinding.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _openCreatedOrder(order, method);
+      });
+      WidgetsBinding.instance.ensureVisualUpdate();
+    });
     final cartAsync = ref.watch(cartControllerProvider(widget.storeType));
     final addressesAsync = ref.watch(addressesControllerProvider);
     final draft = ref.watch(orderDraftProvider(widget.storeType));
@@ -240,7 +281,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
 
     if (!pending &&
         failure == null &&
-        !checkout.isSubmitting &&
+        !_orderHandoffActive &&
         cartState?.hasPendingMutation != true &&
         cartState?.unconfirmedKeys.isNotEmpty != true) {
       if (cart == null || cart.items.isEmpty) {
@@ -262,6 +303,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
     }
 
     final ready =
+        !_orderHandoffActive &&
         cartState != null &&
         !pending &&
         (pickup || (!addressesAsync.hasError && !addressesAsync.isLoading)) &&
@@ -711,20 +753,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
             note: _noteController.text,
           );
       if (!mounted || order == null) return;
-      ref.read(orderDraftProvider(widget.storeType).notifier).clear();
-      final router = GoRouter.maybeOf(context);
-      if (router != null) {
-        AppBackCoordinator.of(router).discardCheckout();
-        context.go(
-          Routes.orderDetail(
-            widget.storeType.wire,
-            order.id,
-            autoPay:
-                ref.read(paymeEnabledProvider) &&
-                draft.paymentMethod == PaymentMethod.payme,
-          ),
-        );
-      }
+      _openCreatedOrder(order, draft.paymentMethod);
     } on ApiFailure catch (failure) {
       if (!mounted) return;
       if (failure is ValidationFailure) {
@@ -762,7 +791,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
           ),
         );
     } finally {
-      _submittingPreflight = false;
+      if (mounted) setState(() => _submittingPreflight = false);
     }
   }
 }

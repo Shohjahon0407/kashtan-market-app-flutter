@@ -21,8 +21,14 @@ final deliveryCoverageProvider = FutureProvider.autoDispose
     .family<List<DeliveryCoverageBranch>, String>((ref, storeType) {
       ref.watch(accountScopeProvider);
       ref.watch(apiLangProvider);
-      return ref.watch(checkoutApiProvider).fetchCoverage(storeType);
-    });
+      return ref
+          .watch(checkoutApiProvider)
+          .fetchCoverage(storeType)
+          .timeout(
+            const Duration(seconds: 20),
+            onTimeout: () => throw const NetworkFailure(),
+          );
+    }, retry: (_, _) => null);
 
 /// Shared address limit: independent from the currently selected store/cart.
 final addressCoverageProvider =

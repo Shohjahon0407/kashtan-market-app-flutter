@@ -227,10 +227,16 @@ class OrderDraftController extends Notifier<OrderDraftState> {
 
   /// Merge and reconcile before opening the address selector or checkout.
   /// A successful synchronization does not imply that the minimum is met.
-  Future<bool> prepare({bool revalidateQuote = true}) {
+  Future<bool> prepare({
+    bool revalidateQuote = true,
+    bool useSavedAddress = false,
+  }) {
     final active = _prepareInFlight;
     if (active != null) return active;
-    final future = _prepare(revalidateQuote: revalidateQuote);
+    final future = _prepare(
+      revalidateQuote: revalidateQuote,
+      useSavedAddress: useSavedAddress,
+    );
     _prepareInFlight = future;
     unawaited(
       future.whenComplete(() {
@@ -240,7 +246,10 @@ class OrderDraftController extends Notifier<OrderDraftState> {
     return future;
   }
 
-  Future<bool> _prepare({required bool revalidateQuote}) async {
+  Future<bool> _prepare({
+    required bool revalidateQuote,
+    required bool useSavedAddress,
+  }) async {
     final epoch = _epoch;
     state = state.copyWith(
       preparing: true,
@@ -297,7 +306,7 @@ class OrderDraftController extends Notifier<OrderDraftState> {
         if (CheckoutRules.pickupAllowed(cart.cart)) return true;
         setFulfillment(FulfillmentType.delivery);
       }
-      if (state.selection == null) return true;
+      if (state.selection == null && !useSavedAddress) return true;
       await ref.read(addressesControllerProvider.future);
       if (!_current(epoch)) return false;
       final addressController = ref.read(addressesControllerProvider.notifier);
@@ -312,6 +321,25 @@ class OrderDraftController extends Notifier<OrderDraftState> {
           failure: () => addressFailure,
         );
         return !revalidateQuote;
+      }
+      if (state.selection == null && useSavedAddress) {
+        final addresses =
+            ref.read(addressesControllerProvider).value ??
+            const <UserAddress>[];
+        final usable = addresses.where(hasDeliveryCoordinates);
+        final saved =
+            usable.where((address) => address.isDefault).firstOrNull ??
+            usable.firstOrNull;
+        if (saved == null) return true;
+        // This is only a pending server quote, never a zero-price assumption.
+        state = state.copyWith(
+          selection: () => DeliveryAddressSelection(
+            address: saved,
+            estimate: const DeliveryEstimate(available: false, detail: ''),
+            storeScope: deliveryStoreScope(cart.cart),
+          ),
+          quoteInvalidated: true,
+        );
       }
       // Opening the selector must not require the previous quote to be valid:
       // choosing a different address is how unavailable delivery is resolved.

@@ -485,7 +485,7 @@ void main() {
       router.go(Routes.storeCart('household'));
       await tester.pumpAndSettle();
       expect(find.byType(DeliveryAddressScreen), findsNothing);
-      expect(find.textContaining('yana 7\u00a0000'), findsNothing);
+      expect(find.textContaining('yana 7\u00a0000'), findsWidgets);
 
       await tester.tap(find.byKey(const ValueKey('cart-address')));
       await tester.pumpAndSettle();
@@ -508,7 +508,7 @@ void main() {
               latitude: 41.31,
               longitude: 69.24,
             ),
-      ).called(1);
+      ).called(2);
 
       await tester.tap(find.byKey(const ValueKey('cart-address')));
       await tester.pumpAndSettle();

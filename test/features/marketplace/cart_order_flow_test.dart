@@ -23,6 +23,7 @@ import 'package:beshkashtan_customer/features/checkout/domain/addresses_controll
 import 'package:beshkashtan_customer/features/checkout/domain/delivery_address_selection.dart';
 import 'package:beshkashtan_customer/features/checkout/domain/device_location.dart';
 import 'package:beshkashtan_customer/features/checkout/domain/order_draft_controller.dart';
+import 'package:beshkashtan_customer/features/checkout/presentation/checkout_screen.dart';
 import 'package:beshkashtan_customer/features/checkout/presentation/delivery_address_screen.dart';
 import 'package:beshkashtan_customer/features/favorites/domain/favorites_controller.dart';
 import 'package:beshkashtan_customer/features/home/data/home_models.dart';
@@ -114,8 +115,10 @@ class _Favorites extends FavoritesController {
 }
 
 class _Addresses extends AddressesController {
+  _Addresses(this.addresses);
+  final List<UserAddress> addresses;
   @override
-  Future<List<UserAddress>> build() async => [_address];
+  Future<List<UserAddress>> build() async => addresses;
   @override
   Future<void> refresh() async {}
 }
@@ -223,8 +226,9 @@ class _Api extends Fake implements CheckoutApi {
   int requests = 0;
   int branchCount = 1;
   DeliveryEstimate response = _quote;
+  List<UserAddress> savedAddresses = [_address];
   @override
-  Future<List<UserAddress>> fetchAddresses() async => [_address];
+  Future<List<UserAddress>> fetchAddresses() async => savedAddresses;
   @override
   Future<DeliveryEstimate> estimate({
     required String storeType,
@@ -274,11 +278,15 @@ Future<_Harness> _mount(
   Locale locale = const Locale('uz'),
   bool router = false,
   bool guest = false,
+  bool savedAddress = false,
+  bool realCheckout = false,
 }) async {
   SharedPreferences.setMockInitialValues({});
   final prefs = await PrefsStore.load();
   final cart = _CartApi(type, unitPrice: unitPrice)..quantity = empty ? 0 : 1;
-  final api = _Api(cart.log)..branchCount = branchCount;
+  final api = _Api(cart.log)
+    ..branchCount = branchCount
+    ..savedAddresses = confirmed || savedAddress ? [_address] : [];
   final container = ProviderContainer(
     overrides: [
       prefsStoreProvider.overrideWithValue(prefs),
@@ -294,7 +302,9 @@ Future<_Harness> _mount(
       homeControllerProvider.overrideWith(_Home.new),
       cartApiProvider.overrideWithValue(cart),
       checkoutApiProvider.overrideWithValue(api),
-      addressesControllerProvider.overrideWith(_Addresses.new),
+      addressesControllerProvider.overrideWith(
+        () => _Addresses(api.savedAddresses),
+      ),
       favoritesControllerProvider.overrideWith(_Favorites.new),
       reportButtonEnabledProvider.overrideWith((ref, _) => false),
       cartRecommendationsProvider.overrideWith(
@@ -303,6 +313,7 @@ Future<_Harness> _mount(
             : [],
       ),
       addressLocationAccessProvider.overrideWithValue(() async {
+        cart.log.add('gps');
         throw const DeviceLocationException(DeviceLocationFailure.denied);
       }),
     ],
@@ -330,12 +341,16 @@ Future<_Harness> _mount(
           routes: [
             GoRoute(
               path: Routes.storeCart(type.wire),
-              builder: (_, _) => CartScreen(storeType: type),
+              builder: (_, state) => CartScreen(
+                storeType: type,
+                initialFocus: state.uri.queryParameters['focus'],
+              ),
               routes: [
                 GoRoute(
                   path: 'checkout',
-                  builder: (_, _) =>
-                      const Scaffold(body: Text('Compact checkout')),
+                  builder: (_, _) => realCheckout
+                      ? CheckoutScreen(storeType: type)
+                      : const Scaffold(body: Text('Compact checkout')),
                 ),
                 GoRoute(
                   path: 'address/select',
@@ -393,6 +408,134 @@ Future<void> _show(WidgetTester tester, Finder finder) async {
 }
 
 void main() {
+  for (final edit in ['checkout-edit-location', 'checkout-edit-cart']) {
+    testWidgets(
+      '$edit returns to a usable cart across repeated checkout trips',
+      (tester) async {
+        tester.view.devicePixelRatio = 1;
+        tester.view.physicalSize = const Size(360, 800);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        addTearDown(tester.view.resetPhysicalSize);
+        final h = await _mount(
+          tester,
+          savedAddress: true,
+          unitPrice: 50000,
+          router: true,
+          realCheckout: true,
+        );
+        for (var trip = 0; trip < 2; trip++) {
+          await tester.tap(_primary);
+          await tester.pumpAndSettle();
+          expect(find.byType(CheckoutScreen), findsOneWidget);
+          final button = find.byKey(ValueKey(edit));
+          await _show(tester, button);
+          await tester.tap(button);
+          await tester.pumpAndSettle();
+          expect(find.byType(CartScreen), findsOneWidget);
+          expect(
+            h.container.read(orderDraftProvider(StoreType.household)).preparing,
+            isFalse,
+          );
+          expect(
+            h.container
+                .read(orderDraftProvider(StoreType.household))
+                .estimating,
+            isFalse,
+          );
+          expect(_button(tester).onPressed, isNotNull);
+          expect(
+            find.descendant(
+              of: _primary,
+              matching: find.text('Buyurtmani davom ettirish'),
+            ),
+            findsOneWidget,
+          );
+          expect(
+            tester
+                .widget<SegmentedButton<FulfillmentType>>(
+                  find.byKey(const ValueKey('cart-fulfillment')),
+                )
+                .onSelectionChanged,
+            isNotNull,
+          );
+          expect(
+            h.container.read(orderDraftProvider(StoreType.household)).addressId,
+            'home',
+          );
+        }
+        if (edit == 'checkout-edit-location') {
+          final address = find.byKey(const ValueKey('cart-address'));
+          await _show(tester, address);
+          await tester.tap(address);
+          await tester.pumpAndSettle();
+          expect(find.byType(DeliveryAddressScreen), findsOneWidget);
+          await tester.binding.handlePopRoute();
+          await tester.pumpAndSettle();
+          expect(_button(tester).onPressed, isNotNull);
+        } else {
+          final add = find.descendant(
+            of: find.byType(CartQuantityStepper),
+            matching: find.byIcon(Icons.add),
+          );
+          await _show(tester, add);
+          await tester.tap(add);
+          await tester.pump(const Duration(milliseconds: 300));
+          await tester.pumpAndSettle();
+          expect(h.cart.quantity, 2);
+          expect(_button(tester).onPressed, isNotNull);
+        }
+      },
+    );
+  }
+
+  testWidgets(
+    'guest login restores saved delivery address without GPS or selector',
+    (tester) async {
+      final h = await _mount(
+        tester,
+        guest: true,
+        savedAddress: true,
+        unitPrice: 50000,
+        router: true,
+      );
+      await tester.tap(_primary);
+      await tester.pumpAndSettle();
+      expect(
+        h.container.read(orderDraftProvider(StoreType.household)).addressId,
+        'home',
+      );
+      expect(find.byType(DeliveryAddressScreen), findsNothing);
+      expect(h.cart.log, isNot(contains('gps')));
+      await tester.tap(_primary);
+      await tester.pumpAndSettle();
+      expect(find.text('Compact checkout'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'saved address is quoted automatically and continues without address picker',
+    (tester) async {
+      final h = await _mount(
+        tester,
+        savedAddress: true,
+        unitPrice: 50000,
+        router: true,
+      );
+      expect(
+        h.container.read(orderDraftProvider(StoreType.household)).addressId,
+        'home',
+      );
+      expect(h.api.requests, 1);
+      expect(h.cart.log, isNot(contains('gps')));
+      expect(find.text('Yetkazish manzilini tanlash'), findsNothing);
+      expect(find.byType(DeliveryAddressScreen), findsNothing);
+      await tester.tap(_primary);
+      await tester.pumpAndSettle();
+      expect(find.text('Compact checkout'), findsOneWidget);
+      expect(find.byType(DeliveryAddressScreen), findsNothing);
+    },
+  );
+
   testWidgets(
     'cart entry does not open address or request location; unknown fee is not zero',
     (tester) async {
@@ -410,7 +553,7 @@ void main() {
         findsOneWidget,
       );
       expect(h.api.requests, 0);
-      expect(h.cart.log, isNot(contains('merge')));
+      expect(h.cart.log, isNot(contains('gps')));
     },
   );
 
@@ -464,10 +607,10 @@ void main() {
   );
 
   testWidgets(
-    'address action merges server cart before opening selector; back remains unconfirmed',
+    'explicit address change still opens selector; back retains saved selection',
     (tester) async {
-      final h = await _mount(tester, router: true);
-      await tester.tap(_primary);
+      final h = await _mount(tester, router: true, savedAddress: true);
+      await tester.tap(find.byKey(const ValueKey('cart-address')));
       await tester.pumpAndSettle();
       expect(find.byType(DeliveryAddressScreen), findsOneWidget);
       expect(
@@ -478,13 +621,10 @@ void main() {
       await tester.pumpAndSettle();
       expect(
         h.container.read(orderDraftProvider(StoreType.household)).selection,
-        isNull,
+        isNotNull,
       );
       expect(
-        find.descendant(
-          of: _primary,
-          matching: find.text('Yetkazish manzilini tanlash'),
-        ),
+        find.descendant(of: _primary, matching: find.text('Mahsulot qo‘shish')),
         findsOneWidget,
       );
     },

@@ -11,5 +11,8 @@ class ReviewDraft extends OrderDraftController {
   OrderDraftState build() => initial;
 
   @override
-  Future<bool> prepare({bool revalidateQuote = true}) async => true;
+  Future<bool> prepare({
+    bool revalidateQuote = true,
+    bool useSavedAddress = false,
+  }) async => true;
 }

@@ -119,11 +119,19 @@ class CheckoutController extends Notifier<CheckoutSubmissionState> {
       // Ekran yopilgan bo'lsa provider dispose bo'lgan: `ref`/`state` ga
       // tegib bo'lmaydi, buyurtma esa baribir mavjud.
       if (!ref.mounted) return order;
-      await ref.read(cartControllerProvider(storeType).notifier).refresh();
-      if (!ref.mounted) return order;
       for (final query in orderQueriesAffectedBy(storeType)) {
         ref.invalidate(ordersControllerProvider(query));
       }
+      // Creating an order is the terminal result. Let the UI open tracking
+      // before cart reconciliation empties the draft or waits on the network.
+      state = CheckoutSubmissionState(isSubmitting: true, lastOrder: order);
+      try {
+        await ref.read(cartControllerProvider(storeType).notifier).refresh();
+      } on Object {
+        // A failed cleanup cannot turn an already-created order into a failed
+        // submission and invite another POST. Cart keeps its own retry state.
+      }
+      if (!ref.mounted) return order;
       state = CheckoutSubmissionState(lastOrder: order);
       return order;
     } on ValidationFailure {

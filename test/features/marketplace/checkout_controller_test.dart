@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:beshkashtan_customer/core/localization/locale_controller.dart';
+import 'package:beshkashtan_customer/core/network/api_failure.dart';
 import 'package:beshkashtan_customer/core/storage/prefs_store.dart';
 import 'package:beshkashtan_customer/core/store_scope/store_type.dart';
 import 'package:beshkashtan_customer/features/cart/data/cart_api.dart';
@@ -22,6 +23,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 class _MockCartApi extends Mock implements CartApi {}
 
 class _MockOrdersApi extends Mock implements OrdersApi {}
+
+class _CleanupFailureCart extends CartController {
+  _CleanupFailureCart(super.type);
+  @override
+  Future<CartState> build() async => CartState(cart: cart(false));
+  @override
+  Future<void> refresh() async => throw const NetworkFailure();
+}
 
 final _product = ProductSummary.fromJson({
   'id': 'product-1',
@@ -72,6 +81,44 @@ final _order = OrderData.fromJson({
 });
 
 void main() {
+  test(
+    'cart cleanup failure cannot turn a created order into a failed submission',
+    () async {
+      final ordersApi = _MockOrdersApi();
+      when(
+        () => ordersApi.create(
+          storeType: 'household',
+          fulfillmentType: FulfillmentType.delivery,
+          paymentMethod: any(named: 'paymentMethod'),
+          addressId: 'address-1',
+          pickupBranchId: null,
+          note: '',
+          idempotencyKey: any(named: 'idempotencyKey'),
+        ),
+      ).thenAnswer((_) async => _order);
+      final container = ProviderContainer(
+        overrides: [
+          ordersApiProvider.overrideWithValue(ordersApi),
+        cartControllerProvider.overrideWith2(_CleanupFailureCart.new),
+        ],
+      );
+      addTearDown(container.dispose);
+      final provider = checkoutControllerProvider(StoreType.household);
+      final subscription = container.listen(provider, (_, _) {});
+      addTearDown(subscription.close);
+      final order = await container
+          .read(provider.notifier)
+          .submit(
+            fulfillmentType: FulfillmentType.delivery,
+            paymentMethod: PaymentMethod.cash,
+            addressId: 'address-1',
+          );
+      expect(order, same(_order));
+      expect(container.read(provider).lastOrder, same(_order));
+      expect(container.read(provider).isSubmitting, isFalse);
+    },
+  );
+
   _paymentMethodTests();
   test(
     'double-submit bloklanadi va success’dan keyin aynan store cart refetch',
@@ -81,9 +128,10 @@ void main() {
       final cartApi = _MockCartApi();
       final ordersApi = _MockOrdersApi();
       var fetchCount = 0;
+      final reconciliation = Completer<CartData>();
       when(() => cartApi.fetch('household')).thenAnswer((_) async {
         fetchCount++;
-        return cart(fetchCount > 1);
+        return fetchCount > 1 ? reconciliation.future : cart(false);
       });
       final create = Completer<OrderData>();
       when(
@@ -133,6 +181,15 @@ void main() {
       expect(container.read(checkoutProvider).isSubmitting, isTrue);
 
       create.complete(_order);
+      await Future<void>.delayed(Duration.zero);
+      expect(
+        container.read(checkoutProvider).lastOrder,
+        same(_order),
+        reason:
+            'Order tracking can open immediately, before cart cleanup completes',
+      );
+      expect(container.read(checkoutProvider).isSubmitting, isTrue);
+      reconciliation.complete(cart(true));
       expect(await first, same(_order));
       expect(container.read(checkoutProvider).isSubmitting, isFalse);
       expect(container.read(cartProvider).value?.cart.items, isEmpty);
