@@ -486,6 +486,12 @@ void main() {
     final createBody = adapter.requests[1].body! as Map<String, dynamic>;
     expect(createBody, {
       'title': 'Uy',
+      'district': '',
+      'neighborhood': '',
+      'street': '',
+      'house': '',
+      'apartment': '',
+      'landmark': '',
       'latitude': 41.308119,
       'longitude': 69.564014,
       'is_default': true,

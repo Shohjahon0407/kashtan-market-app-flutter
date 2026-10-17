@@ -137,6 +137,17 @@ class VideoProductRail {
   final String storeType;
   final String? category;
   final String? categoryId;
+
+  /// Stable partition also protects rails returned by older backend versions.
+  List<ProductSummary> get imageFirstProducts {
+    final withImages = <ProductSummary>[];
+    final withoutImages = <ProductSummary>[];
+    for (final product in products) {
+      final hasImage = product.imageUrl?.trim().isNotEmpty ?? false;
+      (hasImage ? withImages : withoutImages).add(product);
+    }
+    return [...withImages, ...withoutImages];
+  }
 }
 
 class VideoCommentUser {

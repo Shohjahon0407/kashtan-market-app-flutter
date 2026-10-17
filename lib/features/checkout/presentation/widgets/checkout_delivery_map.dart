@@ -355,27 +355,6 @@ class _CoverageMapState extends State<_CoverageMap> {
                   );
                 },
               ),
-              if (gps != null &&
-                  widget.gpsAccuracyMeters != null &&
-                  widget.gpsAccuracyMeters!.isFinite &&
-                  widget.gpsAccuracyMeters! > 0)
-                IgnorePointer(
-                  child: CircleLayer(
-                    circles: [
-                      CircleMarker(
-                        key: const ValueKey('checkout-map-gps-accuracy'),
-                        point: gps,
-                        radius: widget.gpsAccuracyMeters!,
-                        useRadiusInMeter: true,
-                        color: const Color(0xFF2778D2).withValues(alpha: .12),
-                        borderColor: const Color(
-                          0xFF2778D2,
-                        ).withValues(alpha: .4),
-                        borderStrokeWidth: 1,
-                      ),
-                    ],
-                  ),
-                ),
               MarkerLayer(
                 markers: [
                   _marker(

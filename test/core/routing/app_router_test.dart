@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:beshkashtan_customer/app.dart';
 import 'package:beshkashtan_customer/core/localization/locale_controller.dart';
 import 'package:beshkashtan_customer/core/network/network_providers.dart';
 import 'package:beshkashtan_customer/core/network/paginated.dart';
 import 'package:beshkashtan_customer/core/routing/app_router.dart';
+import 'package:beshkashtan_customer/core/routing/back_navigation.dart';
 import 'package:beshkashtan_customer/core/routing/routes.dart';
 import 'package:beshkashtan_customer/core/storage/prefs_store.dart';
 import 'package:beshkashtan_customer/core/storage/secure_token_store.dart';
@@ -16,8 +19,14 @@ import 'package:beshkashtan_customer/features/auth/presentation/widgets/phone_fi
 import 'package:beshkashtan_customer/features/cart/data/cart_api.dart';
 import 'package:beshkashtan_customer/features/cart/data/cart_models.dart';
 import 'package:beshkashtan_customer/features/cart/domain/cart_controller.dart';
+import 'package:beshkashtan_customer/features/cart/presentation/cart_screen.dart';
 import 'package:beshkashtan_customer/features/checkout/data/checkout_api.dart';
+import 'package:beshkashtan_customer/features/checkout/data/checkout_models.dart';
 import 'package:beshkashtan_customer/features/checkout/domain/addresses_controller.dart';
+import 'package:beshkashtan_customer/features/checkout/domain/device_location.dart';
+import 'package:beshkashtan_customer/features/checkout/presentation/address_form_screen.dart';
+import 'package:beshkashtan_customer/features/checkout/presentation/checkout_screen.dart';
+import 'package:beshkashtan_customer/features/checkout/presentation/delivery_address_screen.dart';
 import 'package:beshkashtan_customer/features/home/data/home_api.dart';
 import 'package:beshkashtan_customer/features/home/data/home_models.dart';
 import 'package:beshkashtan_customer/features/home/domain/home_controller.dart';
@@ -79,6 +88,40 @@ const _homeWithStore = HomeData(
   ],
 );
 
+const _routeAddress = UserAddress(
+  id: 'saved',
+  title: 'Uy',
+  isDefault: true,
+  latitude: 41.31,
+  longitude: 69.24,
+);
+const _routeBranch = DeliveryCoverageBranch(
+  id: 'branch',
+  name: 'Store',
+  latitude: 41.31,
+  longitude: 69.24,
+  radiusKm: 2,
+);
+
+class _RoutingAddresses extends AddressesController {
+  @override
+  Future<List<UserAddress>> build() async => [_routeAddress];
+  @override
+  Future<void> refresh() async {}
+  @override
+  Future<UserAddress> save(UserAddress address) async {
+    final saved = UserAddress(
+      id: address.id.isEmpty ? 'created' : address.id,
+      title: address.title,
+      isDefault: address.isDefault,
+      latitude: address.latitude,
+      longitude: address.longitude,
+    );
+    state = AsyncData([...state.value!.where((a) => a.id != saved.id), saved]);
+    return saved;
+  }
+}
+
 void main() {
   late _MockAuthApi api;
   late ProviderContainer container;
@@ -100,6 +143,7 @@ void main() {
     String? access,
     String? refresh,
     HomeData homeData = const HomeData(banners: [], storeHub: []),
+    bool deliveryCart = false,
   }) async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await PrefsStore.load();
@@ -127,6 +171,57 @@ void main() {
           CartData.empty(invocation.positionalArguments.first as String),
     );
     when(() => checkoutApi.fetchAddresses()).thenAnswer((_) async => []);
+    if (deliveryCart) {
+      when(() => cartApi.mergeGuestCart()).thenAnswer((_) async => false);
+      when(() => cartApi.fetch('household')).thenAnswer(
+        (_) async => CartData.fromJson({
+          'id': 'cart',
+          'store_type': 'household',
+          'subtotal': '8000',
+          'minimum_delivery_order_amount': '20000',
+          'total_items': 1,
+          'total_quantity': 1,
+          'items': [
+            {
+              'id': 'line',
+              'quantity': 1,
+              'subtotal': '8000',
+              'product': {
+                'id': 'product',
+                'name': 'Buyum',
+                'price': '8000',
+                'store_type': 'household',
+                'store': {
+                  'id': 'store',
+                  'name': 'Xozmak',
+                  'store_type': 'household',
+                },
+              },
+            },
+          ],
+        }),
+      );
+      when(
+        () => checkoutApi.fetchCoverage('household'),
+      ).thenAnswer((_) async => [_routeBranch]);
+      when(
+        () => checkoutApi.fetchBranches('store'),
+      ).thenAnswer((_) async => []);
+      when(
+        () => checkoutApi.estimate(
+          storeType: any(named: 'storeType'),
+          latitude: any(named: 'latitude'),
+          longitude: any(named: 'longitude'),
+        ),
+      ).thenAnswer(
+        (_) async => const DeliveryEstimate(
+          available: true,
+          detail: '',
+          deliveryPrice: '5000',
+          branch: _routeBranch,
+        ),
+      );
+    }
     when(() => notificationsApi.unreadCount()).thenAnswer((_) async => 0);
     container = ProviderContainer(
       overrides: [
@@ -140,6 +235,16 @@ void main() {
         videoApiProvider.overrideWithValue(videoApi),
         cartApiProvider.overrideWithValue(cartApi),
         checkoutApiProvider.overrideWithValue(checkoutApi),
+        if (deliveryCart) ...[
+          addressesControllerProvider.overrideWith(_RoutingAddresses.new),
+          addressCoverageProvider.overrideWith((_) async => [_routeBranch]),
+          addressLocationAccessProvider.overrideWithValue(() async {
+            throw const DeviceLocationException(DeviceLocationFailure.denied);
+          }),
+          addressLocationResolverProvider.overrideWithValue(() async {
+            throw const DeviceLocationException(DeviceLocationFailure.denied);
+          }),
+        ],
         notificationsApiProvider.overrideWithValue(notificationsApi),
         ordersApiProvider.overrideWithValue(ordersApi),
       ],
@@ -367,5 +472,152 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(HomeScreen), findsOneWidget);
     expect(find.byType(PhoneScreen), findsNothing);
+  });
+
+  testWidgets(
+    'cart selector confirms explicitly, keeps nested add edit routes and back',
+    (tester) async {
+      await pumpApp(tester, access: 'a', refresh: 'r', deliveryCart: true);
+      when(() => api.me()).thenAnswer((_) async => _user);
+      await auth().restoreSession();
+      await tester.pumpAndSettle();
+      final router = container.read(appRouterProvider);
+      router.go(Routes.storeCart('household'));
+      await tester.pumpAndSettle();
+      expect(find.byType(DeliveryAddressScreen), findsNothing);
+      expect(find.textContaining('yana 7\u00a0000'), findsNothing);
+
+      await tester.tap(find.byKey(const ValueKey('cart-address')));
+      await tester.pumpAndSettle();
+      expect(find.byType(DeliveryAddressScreen), findsOneWidget);
+      expect(find.byKey(const ValueKey('store-nav-cart')), findsOneWidget);
+      expect(
+        AppBackCoordinator.of(router).location,
+        Routes.cartDeliveryAddressSelect('household'),
+      );
+      await tester.tap(find.byKey(const ValueKey('delivery-address-confirm')));
+      await tester.pumpAndSettle();
+      expect(find.byType(CartScreen), findsOneWidget);
+      expect(find.byType(CheckoutScreen), findsNothing);
+      expect(find.textContaining('yana 7\u00a0000'), findsWidgets);
+      verify(
+        () => container
+            .read(checkoutApiProvider)
+            .estimate(
+              storeType: 'household',
+              latitude: 41.31,
+              longitude: 69.24,
+            ),
+      ).called(1);
+
+      await tester.tap(find.byKey(const ValueKey('cart-address')));
+      await tester.pumpAndSettle();
+      final add = find.byKey(const ValueKey('checkout-add-new-location'));
+      await tester.ensureVisible(add);
+      await tester.pumpAndSettle();
+      await tester.tap(add);
+      await tester.pumpAndSettle();
+      expect(
+        AppBackCoordinator.of(router).location,
+        Routes.cartDeliveryAddressNew('household'),
+      );
+      expect(find.text('Manzilni saqlash'), findsOneWidget);
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(find.byType(DeliveryAddressScreen), findsOneWidget);
+      final edit = find.byKey(const ValueKey('delivery-address-edit-saved'));
+      await tester.ensureVisible(edit);
+      await tester.pumpAndSettle();
+      await tester.tap(edit);
+      await tester.pumpAndSettle();
+      expect(
+        AppBackCoordinator.of(router).location,
+        Routes.cartDeliveryAddressEdit('household', 'saved'),
+      );
+      router.pop(); // Browser history and Android pop keep the draft selection.
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('delivery-address-back')));
+      await tester.pumpAndSettle();
+      expect(find.byType(CartScreen), findsOneWidget);
+      expect(find.byType(DeliveryAddressScreen), findsNothing);
+      expect(find.textContaining('yana 7\u00a0000'), findsWidgets);
+      expect(
+        container.read(addressesControllerProvider).value!.single.isDefault,
+        isTrue,
+      );
+
+      // Incomplete checkout direct links return to cart, not an auto popup.
+      unawaited(router.push<void>(Routes.checkout('household')));
+      await tester.pumpAndSettle();
+      expect(find.byType(CartScreen), findsOneWidget);
+      expect(find.byType(DeliveryAddressScreen), findsNothing);
+      await unmountApp(tester);
+    },
+  );
+
+  testWidgets(
+    'cart and old checkout address URLs preserve navbar and stable back',
+    (tester) async {
+      await pumpApp(tester, access: 'a', refresh: 'r', deliveryCart: true);
+      when(() => api.me()).thenAnswer((_) async => _user);
+      await auth().restoreSession();
+      await tester.pumpAndSettle();
+      final router = container.read(appRouterProvider);
+      for (final url in [
+        Routes.checkoutAddressNew('household'),
+        Routes.checkoutAddressEdit('household', 'saved'),
+        Routes.deliveryAddressSelect('household'),
+        Routes.cartDeliveryAddressNew('household'),
+        Routes.cartDeliveryAddressEdit('household', 'saved'),
+        Routes.cartDeliveryAddressSelect('household'),
+      ]) {
+        router.go(Routes.home);
+        await tester.pumpAndSettle();
+        router.go(url);
+        await tester.pumpAndSettle();
+        expect(find.byKey(const ValueKey('store-nav-cart')), findsOneWidget);
+        final selecting =
+            url == Routes.deliveryAddressSelect('household') ||
+            url == Routes.cartDeliveryAddressSelect('household');
+        if (selecting) {
+          expect(find.byType(DeliveryAddressScreen), findsOneWidget);
+        } else {
+          expect(find.byType(AddressFormScreen), findsOneWidget);
+          expect(
+            find.text('Manzilni saqlash'),
+            url.contains('/cart/address/select/')
+                ? findsOneWidget
+                : findsNothing,
+          );
+        }
+        router.pop();
+        await tester.pumpAndSettle();
+        if (url.contains('/cart/address/select/')) {
+          expect(find.byType(DeliveryAddressScreen), findsOneWidget);
+          router.pop();
+          await tester.pumpAndSettle();
+        }
+        await tester.pump(const Duration(seconds: 1));
+        expect(find.byType(CartScreen), findsOneWidget);
+        expect(find.byType(DeliveryAddressScreen), findsNothing);
+      }
+      await unmountApp(tester);
+    },
+  );
+
+  testWidgets('guest cart selector direct link requests authentication', (
+    tester,
+  ) async {
+    await pumpApp(tester);
+    await tester.pumpAndSettle();
+    final router = container.read(appRouterProvider);
+    router.go(Routes.cartDeliveryAddressSelect('household'));
+    await tester.pumpAndSettle();
+    expect(find.byType(PhoneScreen), findsOneWidget);
+    expect(find.byType(DeliveryAddressScreen), findsNothing);
+    expect(
+      router.routeInformationProvider.value.uri.queryParameters['returnTo'],
+      Routes.cartDeliveryAddressSelect('household'),
+    );
   });
 }

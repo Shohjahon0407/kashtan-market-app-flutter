@@ -24,6 +24,20 @@ final deliveryCoverageProvider = FutureProvider.autoDispose
       return ref.watch(checkoutApiProvider).fetchCoverage(storeType);
     });
 
+/// Shared address limit: independent from the currently selected store/cart.
+final addressCoverageProvider =
+    FutureProvider.autoDispose<List<DeliveryCoverageBranch>>((ref) {
+      ref.watch(accountScopeProvider);
+      ref.watch(apiLangProvider);
+      return ref
+          .watch(checkoutApiProvider)
+          .fetchAddressCoverage()
+          .timeout(
+            const Duration(seconds: 20),
+            onTimeout: () => throw const NetworkFailure(),
+          );
+    }, retry: (_, _) => null);
+
 final addressesControllerProvider =
     AsyncNotifierProvider<AddressesController, List<UserAddress>>(
       AddressesController.new,
@@ -31,9 +45,15 @@ final addressesControllerProvider =
 
 class AddressesController extends AsyncNotifier<List<UserAddress>> {
   int _generation = 0;
+  ApiFailure? _refreshFailure;
+
+  /// The list remains useful offline, but checkout must know whether the last
+  /// explicit server refresh actually succeeded before trusting its coordinates.
+  ApiFailure? get refreshFailure => _refreshFailure;
   @override
   Future<List<UserAddress>> build() async {
     _generation++;
+    _refreshFailure = null;
     ref.watch(accountScopeProvider);
     ref.onDispose(() => _generation++);
     listenForConnectionRecovery(ref, () async {
@@ -46,7 +66,8 @@ class AddressesController extends AsyncNotifier<List<UserAddress>> {
     final api = ref.watch(checkoutApiProvider);
     try {
       return await api.fetchAddresses();
-    } on ApiFailure {
+    } on ApiFailure catch (failure) {
+      _refreshFailure = failure;
       final cached = await api.cachedAddresses();
       if (cached == null) rethrow;
       return cached;
@@ -60,17 +81,28 @@ class AddressesController extends AsyncNotifier<List<UserAddress>> {
     try {
       final addresses = await ref.read(checkoutApiProvider).fetchAddresses();
       if (!ref.mounted || generation != _generation) return;
+      _refreshFailure = null;
       state = AsyncData(addresses);
     } on Object catch (error, stack) {
       if (!ref.mounted || generation != _generation) return;
+      _refreshFailure = error is ApiFailure ? error : const UnknownFailure();
       state = previous != null ? AsyncData(previous) : AsyncError(error, stack);
     }
   }
 
   Future<UserAddress> save(UserAddress address) async {
+    final generation = _generation;
     final saved = address.id.isEmpty
         ? await ref.read(checkoutApiProvider).createAddress(address)
         : await ref.read(checkoutApiProvider).updateAddress(address);
+    if (!ref.mounted || generation != _generation) return saved;
+    // The write already succeeded. Keep its result available if the following
+    // read fails offline, so the selector can reveal the saved draft card.
+    final previous = state.value ?? const <UserAddress>[];
+    state = AsyncData([
+      for (final current in previous) current.id == saved.id ? saved : current,
+      if (!previous.any((current) => current.id == saved.id)) saved,
+    ]);
     await refresh();
     return saved;
   }

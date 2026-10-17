@@ -74,29 +74,55 @@ void main() {
     ) async {
       await tester.pumpWidget(
         MaterialApp(
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: const TextScaler.linear(2)),
+            child: child!,
+          ),
           home: Scaffold(
             body: MediaQuery(
               data: const MediaQueryData(textScaler: TextScaler.linear(2)),
               child: SizedBox(
                 width: 256,
-                child: MapTileAttribution(useMapbox: useMapbox),
+                child: Align(
+                  alignment: Alignment.topRight,
+                  child: MapTileAttribution(useMapbox: useMapbox),
+                ),
               ),
             ),
           ),
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.text('© OpenStreetMap'), findsOneWidget);
-      expect(find.text('© Mapbox'), useMapbox ? findsOneWidget : findsNothing);
       expect(
-        find.text('Improve this map'),
-        useMapbox ? findsOneWidget : findsNothing,
+        find.text('© OpenStreetMap'),
+        useMapbox ? findsNothing : findsOneWidget,
       );
+      expect(find.text('© Mapbox'), findsNothing);
+      expect(find.text('Improve this map'), findsNothing);
       expect(
         find.byType(SvgPicture),
         useMapbox ? findsOneWidget : findsNothing,
       );
       expect(tester.takeException(), isNull);
+      if (useMapbox) {
+        final compact = tester.getSize(
+          find.byKey(const ValueKey('map-attribution-compact')),
+        );
+        expect(compact.width, lessThanOrEqualTo(120));
+        expect(compact.height, lessThanOrEqualTo(40));
+        await tester.tap(find.byKey(const ValueKey('map-attribution-info')));
+        await tester.pumpAndSettle();
+        expect(find.text('© Mapbox'), findsOneWidget);
+        expect(find.text('© OpenStreetMap'), findsOneWidget);
+        expect(find.text('Improve this map'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+        await tester.binding.handlePopRoute();
+        await tester.pumpAndSettle();
+        expect(find.text('© Mapbox'), findsNothing);
+        expect(find.byType(SvgPicture), findsOneWidget);
+      }
     });
   }
 }

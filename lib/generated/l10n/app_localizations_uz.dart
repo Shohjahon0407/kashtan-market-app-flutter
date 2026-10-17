@@ -9,6 +9,155 @@ class AppLocalizationsUz extends AppLocalizations {
   AppLocalizationsUz([String locale = 'uz']) : super(locale);
 
   @override
+  String get cartContinueOrder => 'Buyurtmani davom ettirish';
+
+  @override
+  String get cartSelectDeliveryAddress => 'Yetkazish manzilini tanlash';
+
+  @override
+  String get cartMinimumRecommendations => 'Minimumni to‘ldirish uchun';
+
+  @override
+  String get cartAllProducts => 'Barcha mahsulotlar';
+
+  @override
+  String get cartUpdating => 'Hisob yangilanmoqda…';
+
+  @override
+  String get cartDeliveryUnknown =>
+      'Yetkazish narxi manzil tanlangach hisoblanadi';
+
+  @override
+  String get cartEdit => 'Savatni tahrirlash';
+
+  @override
+  String get cartChoosePickup => 'Olib ketish filialini tanlang';
+
+  @override
+  String get cartOrderChanged =>
+      'Buyurtma shartlari o‘zgardi. Savatni tekshiring.';
+
+  @override
+  String get cartProductsTitle => 'Mahsulotlar';
+
+  @override
+  String get cartDeliveryNotAvailable => 'Bu manzilga yetkazib berib bo‘lmaydi';
+
+  @override
+  String get cartRefreshError =>
+      'Savatni yangilab bo‘lmadi. Qayta urinib ko‘ring.';
+
+  @override
+  String get checkoutReviewTitle => 'Buyurtmani tekshiring';
+
+  @override
+  String checkoutProductsSummary(int count) {
+    return '$count ta mahsulot';
+  }
+
+  @override
+  String get checkoutEditCart => 'Savatni tahrirlash';
+
+  @override
+  String get checkoutCartChanged =>
+      'Savat yoki yetkazish shartlari o‘zgardi. Davom etishdan oldin qayta tekshiring.';
+
+  @override
+  String get checkoutReceiptOpen => 'Mahsulotlarni ko‘rish';
+
+  @override
+  String get deliveryAddressTitle => 'Yetkazib berish manzili';
+
+  @override
+  String get deliveryAddressSubtitle => 'Buyurtma qayerga yetkazilsin?';
+
+  @override
+  String get deliveryAddressSavedHint =>
+      'Buyurtma uchun saqlangan manzilni tanlang.';
+
+  @override
+  String get deliveryAddressConfirm => 'Tanlangan manzilga yetkazish';
+
+  @override
+  String get deliveryAddressAdd => 'Yangi manzil qo‘shish';
+
+  @override
+  String get deliveryAddressAddOnMap => 'Xaritadan manzil qo‘shish';
+
+  @override
+  String get deliveryAddressEmpty =>
+      'Bu buyurtma uchun yetkazish manzilini qo‘shing.';
+
+  @override
+  String get deliveryAddressSave => 'Manzilni saqlash';
+
+  @override
+  String get deliveryAddressChange => 'Manzilni o‘zgartirish';
+
+  @override
+  String get deliveryAddressCalculating => 'Yetkazish narxi hisoblanmoqda…';
+
+  @override
+  String get deliveryAddressGpsHint =>
+      'GPS bo‘lmasa ham saqlangan manzilni tanlashingiz mumkin.';
+
+  @override
+  String get checkoutMinimumIncludesDelivery =>
+      'Mahsulotlar va yetkazish narxi birga hisoblanadi.';
+
+  @override
+  String get checkoutMinimumNeedsAddress =>
+      'Yetkazish narxini hisoblash uchun manzilni tanlang.';
+
+  @override
+  String get addressCoverageLoading => 'Yetkazish hududi yuklanmoqda…';
+
+  @override
+  String get addressRadiusLimit =>
+      'Nuqtani yashil doira ichida tanlang. Hududdan tashqaridagi manzilni tasdiqlab bo‘lmaydi.';
+
+  @override
+  String get addressAddTitle => 'Yangi manzil qo‘shish';
+
+  @override
+  String get addressEditTitle => 'Manzilni tahrirlash';
+
+  @override
+  String get addressSelectPoint => 'Yetkazish nuqtasini belgilang';
+
+  @override
+  String get addressMapHelp => 'Manzilni qanday tanlash mumkin?';
+
+  @override
+  String get addressMapHelpBody =>
+      'GPS tugmasini bosing yoki xaritani surib aniq nuqtani belgilang. Uy yoki ishxonani tanlab, kuryer uchun kirish yo‘li va eshik kodini yozishingiz mumkin. Nuqta faqat tasdiqlaganingizdan keyin saqlanadi. Radius filial hududining ko‘rinishi; yetkazish imkoniyati va narxi checkout’da tekshiriladi.';
+
+  @override
+  String get addressTypeHome => 'Uy';
+
+  @override
+  String get addressTypeWork => 'Ishxona';
+
+  @override
+  String get addressTypeOther => 'Boshqa';
+
+  @override
+  String get addressTypeLabel => 'MANZIL TURI';
+
+  @override
+  String get addressCourierNote => 'Kuryer uchun mo‘ljal yoki izoh (ixtiyoriy)';
+
+  @override
+  String get addressCourierNoteHint =>
+      'Masalan: magazin orqasidagi darvoza, domofon kodi 124';
+
+  @override
+  String get addressConfirmPoint => 'Ushbu manzilni tasdiqlash';
+
+  @override
+  String get addressMapRetry => 'Xarita yuklanmadi. Qayta yuklash';
+
+  @override
   String get categoryAdDetails => 'Batafsil';
 
   @override
@@ -44,7 +193,7 @@ class AppLocalizationsUz extends AppLocalizations {
 
   @override
   String get checkoutAddressActionHint =>
-      'Xaritadan joy belgilang yoki saqlangan manzilni tanlang';
+      'Buyurtma qayerga yetkazilishini tanlang';
 
   @override
   String get checkoutReceiptTitle => 'Mahsulotlar cheki';
@@ -403,6 +552,31 @@ class AppLocalizationsUz extends AppLocalizations {
 
   @override
   String get cartEmpty => 'Savat bo\'sh';
+
+  @override
+  String get cartEmptyNow => 'Savat hozircha bo‘sh';
+
+  @override
+  String get cartRecommendationsTitle => 'Kerak bo‘lib qolishi mumkin';
+
+  @override
+  String get mapAttributionTitle => 'Xarita manbalari';
+
+  @override
+  String checkoutDeliveryMinimum(String amount) {
+    return 'Yetkazish uchun minimal buyurtma: $amount';
+  }
+
+  @override
+  String checkoutMinimumRemaining(String amount) {
+    return 'Minimal buyurtmagacha yana $amount';
+  }
+
+  @override
+  String get checkoutMinimumReached => 'Minimal buyurtma summasi to‘plandi';
+
+  @override
+  String get checkoutAddProducts => 'Mahsulot qo‘shish';
 
   @override
   String get cartEmptyStore => 'savat bo\'sh';
@@ -822,6 +996,12 @@ class AppLocalizationsUz extends AppLocalizations {
 
   @override
   String get cartAddons => 'Qo\'shimchalar';
+
+  @override
+  String get cartIncreaseQuantity => 'Miqdorni oshirish';
+
+  @override
+  String get cartDecreaseQuantity => 'Miqdorni kamaytirish';
 
   @override
   String get checkoutTitle => 'Buyurtmani rasmiylashtirish';
@@ -1546,6 +1726,154 @@ class AppLocalizationsUzCyrl extends AppLocalizationsUz {
   AppLocalizationsUzCyrl() : super('uz_Cyrl');
 
   @override
+  String get cartContinueOrder => 'Буюртмани давом эттириш';
+
+  @override
+  String get cartSelectDeliveryAddress => 'Етказиш манзилини танлаш';
+
+  @override
+  String get cartMinimumRecommendations => 'Минимумни тўлдириш учун';
+
+  @override
+  String get cartAllProducts => 'Барча маҳсулотлар';
+
+  @override
+  String get cartUpdating => 'Ҳисоб янгиланмоқда…';
+
+  @override
+  String get cartDeliveryUnknown =>
+      'Етказиш нархи манзил танлангач ҳисобланади';
+
+  @override
+  String get cartEdit => 'Саватни таҳрирлаш';
+
+  @override
+  String get cartChoosePickup => 'Олиб кетиш филиалини танланг';
+
+  @override
+  String get cartOrderChanged => 'Буюртма шартлари ўзгарди. Саватни текширинг.';
+
+  @override
+  String get cartProductsTitle => 'Маҳсулотлар';
+
+  @override
+  String get cartDeliveryNotAvailable => 'Бу манзилга етказиб бериб бўлмайди';
+
+  @override
+  String get cartRefreshError =>
+      'Саватни янгилаб бўлмади. Қайта уриниб кўринг.';
+
+  @override
+  String get checkoutReviewTitle => 'Буюртмани текширинг';
+
+  @override
+  String checkoutProductsSummary(int count) {
+    return '$count та маҳсулот';
+  }
+
+  @override
+  String get checkoutEditCart => 'Саватни таҳрирлаш';
+
+  @override
+  String get checkoutCartChanged =>
+      'Сават ёки етказиш шартлари ўзгарди. Давом этишдан олдин қайта текширинг.';
+
+  @override
+  String get checkoutReceiptOpen => 'Маҳсулотларни кўриш';
+
+  @override
+  String get deliveryAddressTitle => 'Етказиб бериш манзили';
+
+  @override
+  String get deliveryAddressSubtitle => 'Буюртма қаерга етказилсин?';
+
+  @override
+  String get deliveryAddressSavedHint =>
+      'Буюртма учун сақланган манзилни танланг.';
+
+  @override
+  String get deliveryAddressConfirm => 'Танланган манзилга етказиш';
+
+  @override
+  String get deliveryAddressAdd => 'Янги манзил қўшиш';
+
+  @override
+  String get deliveryAddressAddOnMap => 'Харитадан манзил қўшиш';
+
+  @override
+  String get deliveryAddressEmpty =>
+      'Бу буюртма учун етказиш манзилини қўшинг.';
+
+  @override
+  String get deliveryAddressSave => 'Манзилни сақлаш';
+
+  @override
+  String get deliveryAddressChange => 'Манзилни ўзгартириш';
+
+  @override
+  String get deliveryAddressCalculating => 'Етказиш нархи ҳисобланмоқда…';
+
+  @override
+  String get deliveryAddressGpsHint =>
+      'GPS бўлмаса ҳам сақланган манзилни танлашингиз мумкин.';
+
+  @override
+  String get checkoutMinimumIncludesDelivery =>
+      'Маҳсулотлар ва етказиш нархи бирга ҳисобланади.';
+
+  @override
+  String get checkoutMinimumNeedsAddress =>
+      'Етказиш нархини ҳисоблаш учун манзилни танланг.';
+
+  @override
+  String get addressCoverageLoading => 'Етказиш ҳудуди юкланмоқда…';
+
+  @override
+  String get addressRadiusLimit =>
+      'Нуқтани яшил доира ичида танланг. Ҳудуддан ташқаридаги манзилни тасдиқлаб бўлмайди.';
+
+  @override
+  String get addressAddTitle => 'Янги манзил қўшиш';
+
+  @override
+  String get addressEditTitle => 'Манзилни таҳрирлаш';
+
+  @override
+  String get addressSelectPoint => 'Етказиш нуқтасини белгиланг';
+
+  @override
+  String get addressMapHelp => 'Манзилни қандай танлаш мумкин?';
+
+  @override
+  String get addressMapHelpBody =>
+      'GPS тугмасини босинг ёки харитани суриб аниқ нуқтани белгиланг. Уй ёки ишхонани танлаб, курьер учун кириш йўли ва эшик кодини ёзишингиз мумкин. Нуқта фақат тасдиқлаганингиздан кейин сақланади. Радиус филиал ҳудудининг кўриниши; етказиш имконияти ва нархи checkout’да текширилади.';
+
+  @override
+  String get addressTypeHome => 'Уй';
+
+  @override
+  String get addressTypeWork => 'Ишхона';
+
+  @override
+  String get addressTypeOther => 'Бошқа';
+
+  @override
+  String get addressTypeLabel => 'МАНЗИЛ ТУРИ';
+
+  @override
+  String get addressCourierNote => 'Курьер учун мўлжал ёки изоҳ (ихтиёрий)';
+
+  @override
+  String get addressCourierNoteHint =>
+      'Масалан: магазин орқасидаги дарвоза, домофон коди 124';
+
+  @override
+  String get addressConfirmPoint => 'Ушбу манзилни тасдиқлаш';
+
+  @override
+  String get addressMapRetry => 'Харита юкланмади. Қайта юклаш';
+
+  @override
   String get categoryAdDetails => 'Батафсил';
 
   @override
@@ -1580,8 +1908,7 @@ class AppLocalizationsUzCyrl extends AppLocalizationsUz {
       'Google Play’ни очиб бўлмади. Қайта уриниб кўринг ёки кейинроқ янгиланг.';
 
   @override
-  String get checkoutAddressActionHint =>
-      'Харитадан жой белгиланг ёки сақланган манзилни танланг';
+  String get checkoutAddressActionHint => 'Буюртма қаерга етказилишини танланг';
 
   @override
   String get checkoutReceiptTitle => 'Маҳсулотлар чеки';
@@ -1940,6 +2267,31 @@ class AppLocalizationsUzCyrl extends AppLocalizationsUz {
 
   @override
   String get cartEmpty => 'Сават бўш';
+
+  @override
+  String get cartEmptyNow => 'Сават ҳозирча бўш';
+
+  @override
+  String get cartRecommendationsTitle => 'Керак бўлиб қолиши мумкин';
+
+  @override
+  String get mapAttributionTitle => 'Харита манбалари';
+
+  @override
+  String checkoutDeliveryMinimum(String amount) {
+    return 'Етказиш учун минимал буюртма: $amount';
+  }
+
+  @override
+  String checkoutMinimumRemaining(String amount) {
+    return 'Минимал буюртмагача яна $amount';
+  }
+
+  @override
+  String get checkoutMinimumReached => 'Минимал буюртма суммаси тўпланди';
+
+  @override
+  String get checkoutAddProducts => 'Маҳсулот қўшиш';
 
   @override
   String get cartEmptyStore => 'сават бўш';
@@ -2358,6 +2710,12 @@ class AppLocalizationsUzCyrl extends AppLocalizationsUz {
 
   @override
   String get cartAddons => 'Қўшимчалар';
+
+  @override
+  String get cartIncreaseQuantity => 'Миқдорни ошириш';
+
+  @override
+  String get cartDecreaseQuantity => 'Миқдорни камайтириш';
 
   @override
   String get checkoutTitle => 'Буюртмани расмийлаштириш';

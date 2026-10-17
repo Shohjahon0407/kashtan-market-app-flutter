@@ -107,11 +107,13 @@ void main() {
     },
   );
   testWidgets(
-    'auto-slide after five seconds and manual swipe load later pages',
+    'auto-slide after 2.5 seconds and manual swipe load later pages',
     (tester) async {
       var loads = 0;
       await mount(tester, count: 4, hasMore: true, onLoad: () => loads++);
-      await tester.pump(const Duration(seconds: 5));
+      await tester.pump(const Duration(milliseconds: 2400));
+      expect(current(tester), 0);
+      await tester.pump(const Duration(milliseconds: 100));
       await tester.pump(const Duration(milliseconds: 600));
       expect(current(tester), 1);
       await tester.drag(find.byType(PageView), const Offset(-500, 0));
@@ -129,13 +131,45 @@ void main() {
     await tester.pump(const Duration(seconds: 6));
     expect(current(tester), 0);
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
-    await tester.pump(const Duration(seconds: 5));
+    await tester.pump(const Duration(milliseconds: 2500));
     await tester.pump(const Duration(milliseconds: 600));
     expect(current(tester), 1);
     await clean(tester);
     await mount(tester, reduced: true);
     await tester.pump(const Duration(seconds: 8));
     expect(current(tester), 0);
+    await clean(tester);
+  });
+  testWidgets('minimal dots replace numbers and active dot becomes a pill', (
+    tester,
+  ) async {
+    await mount(tester, count: 3);
+    expect(find.text('1 / 3'), findsNothing);
+    expect(find.byIcon(Icons.chevron_left), findsNothing);
+    expect(find.byIcon(Icons.chevron_right), findsNothing);
+    double width(int index) => tester
+        .widget<AnimatedContainer>(
+          find.byKey(ValueKey('category-banner-indicator-$index')),
+        )
+        .constraints!
+        .maxWidth;
+    expect(width(0), 20);
+    expect(width(1), 6);
+    await tester.drag(find.byType(PageView), const Offset(-500, 0));
+    await tester.pump(const Duration(milliseconds: 600));
+    expect(width(0), 6);
+    expect(width(1), 20);
+    await clean(tester);
+    await mount(tester, count: 30);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is AnimatedContainer &&
+            widget.key.toString().contains('category-banner-indicator-'),
+      ),
+      findsNWidgets(7),
+    );
+    expect(tester.takeException(), isNull);
     await clean(tester);
   });
   testWidgets('offscreen banner and covering route pause autoplay', (

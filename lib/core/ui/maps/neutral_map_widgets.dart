@@ -3,6 +3,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../generated/l10n/app_localizations.dart';
 import '../../config/app_config.dart';
 
 /// Shared, cached map tiles with optional neutral colors.
@@ -72,9 +73,8 @@ class NeutralMapTiles extends StatelessWidget {
   }
 }
 
-/// Tile provayderining litsenziya attribution'i har doim xarita ustida
-/// ko'rinadi. Mapbox OSM ma'lumotlaridan foydalangani uchun ikkala manba ham
-/// ko'rsatiladi; debug OSM fallbackda faqat OpenStreetMap chiqadi.
+/// Keep the provider logo visible; long credits open from the adjacent info
+/// control instead of covering the mini-map. OSM-only maps retain a text link.
 class MapTileAttribution extends StatelessWidget {
   const MapTileAttribution({this.useMapbox, super.key});
 
@@ -84,61 +84,154 @@ class MapTileAttribution extends StatelessWidget {
   static final _osmUrl = Uri.parse('https://www.openstreetmap.org/copyright');
   static final _feedbackUrl = Uri.parse('https://apps.mapbox.com/feedback/');
 
+  void _showSources(BuildContext context) {
+    final title =
+        Localizations.of<AppLocalizations>(
+          context,
+          AppLocalizations,
+        )?.mapAttributionTitle ??
+        MaterialLocalizations.of(context).licensesPageTitle;
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (context) => SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: MaterialLocalizations.of(
+                        context,
+                      ).closeButtonTooltip,
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+                for (final source in [
+                  ('© Mapbox', _mapboxUrl),
+                  ('© OpenStreetMap', _osmUrl),
+                  ('Improve this map', _feedbackUrl),
+                ])
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: _AttributionLink(
+                      label: source.$1,
+                      uri: source.$2,
+                      fontSize: 15,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
-  Widget build(BuildContext context) => Material(
-    color: Colors.white.withValues(alpha: 0.88),
-    borderRadius: BorderRadius.circular(4),
-    child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
-      child: Column(
+  Widget build(BuildContext context) {
+    if (useMapbox ?? AppConfig.usesMapboxTiles) {
+      final title =
+          Localizations.of<AppLocalizations>(
+            context,
+            AppLocalizations,
+          )?.mapAttributionTitle ??
+          MaterialLocalizations.of(context).licensesPageTitle;
+      return Row(
+        key: const ValueKey('map-attribution-compact'),
         mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          if (useMapbox ?? AppConfig.usesMapboxTiles)
-            InkWell(
+          Material(
+            color: Colors.white.withValues(alpha: .9),
+            borderRadius: BorderRadius.circular(4),
+            child: InkWell(
+              key: const ValueKey('map-attribution-logo'),
               onTap: () =>
                   launchUrl(_mapboxUrl, mode: LaunchMode.externalApplication),
               child: Padding(
-                padding: const EdgeInsets.only(bottom: 3),
-                child: SvgPicture.asset(
-                  'assets/brand/mapbox-logo-black.svg',
-                  height: 30,
-                  semanticsLabel: 'Mapbox',
+                padding: const EdgeInsets.all(4),
+                child: SizedBox(
+                  width: 65,
+                  height: 20,
+                  child: SvgPicture.asset(
+                    'assets/brand/mapbox-logo-black.svg',
+                    fit: BoxFit.contain,
+                    semanticsLabel: 'Mapbox',
+                  ),
                 ),
               ),
             ),
-          Wrap(
-            alignment: WrapAlignment.end,
-            spacing: 6,
-            runSpacing: 2,
-            children: [
-              if (useMapbox ?? AppConfig.usesMapboxTiles)
-                _AttributionLink(label: '© Mapbox', uri: _mapboxUrl),
-              _AttributionLink(label: '© OpenStreetMap', uri: _osmUrl),
-              if (useMapbox ?? AppConfig.usesMapboxTiles)
-                _AttributionLink(label: 'Improve this map', uri: _feedbackUrl),
-            ],
+          ),
+          const SizedBox(width: 4),
+          SizedBox.square(
+            dimension: 36,
+            child: Material(
+              color: Colors.white.withValues(alpha: .94),
+              shape: const CircleBorder(),
+              child: IconButton(
+                key: const ValueKey('map-attribution-info'),
+                tooltip: title,
+                constraints: const BoxConstraints.tightFor(
+                  width: 36,
+                  height: 36,
+                ),
+                padding: EdgeInsets.zero,
+                icon: const Icon(
+                  Icons.info_outline,
+                  size: 19,
+                  color: Color(0xFF263238),
+                ),
+                onPressed: () => _showSources(context),
+              ),
+            ),
           ),
         ],
+      );
+    }
+    return Material(
+      color: Colors.white.withValues(alpha: 0.88),
+      borderRadius: BorderRadius.circular(4),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
+        child: _AttributionLink(label: '© OpenStreetMap', uri: _osmUrl),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _AttributionLink extends StatelessWidget {
-  const _AttributionLink({required this.label, required this.uri});
+  const _AttributionLink({
+    required this.label,
+    required this.uri,
+    this.fontSize = 10,
+  });
 
   final String label;
   final Uri uri;
+  final double fontSize;
 
   @override
   Widget build(BuildContext context) => InkWell(
     onTap: () => launchUrl(uri, mode: LaunchMode.externalApplication),
     child: Text(
       label,
-      style: const TextStyle(
-        color: Color(0xFF263238),
-        fontSize: 10,
+      style: TextStyle(
+        color: const Color(0xFF263238),
+        fontSize: fontSize,
         fontWeight: FontWeight.w600,
         decoration: TextDecoration.underline,
       ),

@@ -7,13 +7,17 @@ import 'package:beshkashtan_customer/features/catalog/data/product_models.dart';
 import 'package:beshkashtan_customer/features/checkout/data/checkout_api.dart';
 import 'package:beshkashtan_customer/features/checkout/data/checkout_models.dart';
 import 'package:beshkashtan_customer/features/checkout/domain/addresses_controller.dart';
+import 'package:beshkashtan_customer/features/checkout/domain/delivery_address_selection.dart';
 import 'package:beshkashtan_customer/features/checkout/domain/device_location.dart';
+import 'package:beshkashtan_customer/features/checkout/domain/order_draft_controller.dart';
 import 'package:beshkashtan_customer/features/checkout/presentation/checkout_screen.dart';
 import 'package:beshkashtan_customer/generated/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+
+import '../../helpers/review_draft.dart';
 
 class _MockCartApi extends Mock implements CartApi {}
 
@@ -114,6 +118,22 @@ void main() {
       ProviderScope(
         overrides: [
           cartApiProvider.overrideWithValue(cartApi),
+          orderDraftProvider.overrideWith2(
+            (type) => ReviewDraft(
+              type,
+              OrderDraftState(
+                selection: DeliveryAddressSelection(
+                  address: _address,
+                  estimate: const DeliveryEstimate(
+                    available: true,
+                    detail: '',
+                    deliveryPrice: '5000',
+                  ),
+                  storeScope: deliveryStoreScope(_cart),
+                ),
+              ),
+            ),
+          ),
           checkoutApiProvider.overrideWithValue(checkoutApi),
           addressLocationAccessProvider.overrideWithValue(() async {
             throw const DeviceLocationException(DeviceLocationFailure.denied);
@@ -140,12 +160,6 @@ void main() {
           ),
         ),
       ),
-    );
-    await tester.pumpAndSettle();
-
-    // Manzil tanlash oynasi ochiladi — manzilni tanlab yopamiz.
-    await tester.tap(
-      find.byKey(const ValueKey('checkout-address-option-address-default')),
     );
     await tester.pumpAndSettle();
 

@@ -97,7 +97,7 @@ class _CategoryProductBannersState extends State<CategoryProductBanners>
         MediaQuery.disableAnimationsOf(context)) {
       return;
     }
-    _timer = Timer.periodic(const Duration(seconds: 5), (_) {
+    _timer = Timer.periodic(const Duration(milliseconds: 2500), (_) {
       if (!_pages.hasClients || !(ModalRoute.of(context)?.isCurrent ?? true)) {
         return;
       }
@@ -122,6 +122,47 @@ class _CategoryProductBannersState extends State<CategoryProductBanners>
         ),
       );
     }
+  }
+
+  Widget _indicators(BuildContext context) {
+    // Keep the strip compact even when many paginated banners are loaded.
+    final count = math.min(7, widget.banners.length);
+    final start = (_index - count ~/ 2).clamp(0, widget.banners.length - count);
+    final colors = Theme.of(context).colorScheme;
+    return Semantics(
+      label: MaterialLocalizations.of(
+        context,
+      ).tabLabel(tabIndex: _index + 1, tabCount: widget.banners.length),
+      child: Padding(
+        padding: const EdgeInsets.only(top: 12, bottom: 8),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(count, (offset) {
+            final index = start + offset;
+            final active = index == _index;
+            final edge =
+                (offset == 0 && start > 0) ||
+                (offset == count - 1 && index < widget.banners.length - 1);
+            return AnimatedContainer(
+              key: ValueKey('category-banner-indicator-$index'),
+              duration: MediaQuery.disableAnimationsOf(context)
+                  ? Duration.zero
+                  : const Duration(milliseconds: 200),
+              curve: Curves.easeOutCubic,
+              margin: const EdgeInsets.symmetric(horizontal: 3),
+              width: active ? 20 : (edge ? 4 : 6),
+              height: 6,
+              decoration: BoxDecoration(
+                color: active
+                    ? colors.primary
+                    : colors.onSurface.withValues(alpha: .18),
+                borderRadius: BorderRadius.circular(10),
+              ),
+            );
+          }),
+        ),
+      ),
+    );
   }
 
   @override
@@ -197,42 +238,11 @@ class _CategoryProductBannersState extends State<CategoryProductBanners>
                     ),
                   ),
                 ),
-                if (widget.banners.length > 1 || widget.hasMore)
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      IconButton(
-                        tooltip: MaterialLocalizations.of(
-                          context,
-                        ).previousPageTooltip,
-                        onPressed: _index > 0 ? () => _go(_index - 1) : null,
-                        icon: const Icon(Icons.chevron_left, size: 20),
-                      ),
-                      Text(
-                        '${_index + 1} / ${widget.banners.length}',
-                        style: Theme.of(context).textTheme.labelSmall,
-                      ),
-                      IconButton(
-                        tooltip: MaterialLocalizations.of(
-                          context,
-                        ).nextPageTooltip,
-                        onPressed: () {
-                          if (_index + 1 < widget.banners.length) {
-                            _go(_index + 1);
-                          } else if (widget.hasMore) {
-                            widget.onLoadMore();
-                          } else {
-                            _go(0);
-                          }
-                        },
-                        icon: const Icon(Icons.chevron_right, size: 20),
-                      ),
-                      if (widget.loadMoreFailed)
-                        TextButton(
-                          onPressed: widget.onLoadMore,
-                          child: Text(l10n.commonRetry),
-                        ),
-                    ],
+                if (widget.banners.length > 1) _indicators(context),
+                if (widget.loadMoreFailed)
+                  TextButton(
+                    onPressed: widget.onLoadMore,
+                    child: Text(l10n.commonRetry),
                   ),
               ],
             );

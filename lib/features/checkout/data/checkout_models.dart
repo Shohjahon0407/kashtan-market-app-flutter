@@ -60,6 +60,12 @@ class UserAddress {
 
   Map<String, dynamic> toRequestJson() => {
     'title': title.trim(),
+    'district': district,
+    'neighborhood': neighborhood,
+    'street': street,
+    'house': house,
+    'apartment': apartment,
+    'landmark': landmark.trim(),
     'latitude': latitude,
     'longitude': longitude,
     'is_default': isDefault,

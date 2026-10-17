@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import '../../../core/config/api_endpoints.dart';
+import '../../../core/config/app_config.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/network/api_failure.dart';
 import '../../../core/network/json_read.dart';
@@ -97,8 +98,74 @@ class CheckoutApi {
   }
 
   Future<List<DeliveryCoverageBranch>> fetchCoverage(String storeType) async {
+    return _fetchCoverage({'store_type': storeType});
+  }
+
+  Future<List<DeliveryCoverageBranch>> fetchAddressCoverage() async {
+    try {
+      return await _fetchCoverage({'scope': 'address'});
+    } on ValidationFailure {
+      // Older deployments require store_type and do not know scope=address.
+      return _publicAddressCoverage();
+    } on NotFoundFailure {
+      return _publicAddressCoverage();
+    }
+  }
+
+  /// Compatibility path using existing public, visible-store APIs. Never
+  /// invent an 8 km default or silently use a partial set of store radii.
+  Future<List<DeliveryCoverageBranch>> _publicAddressCoverage() async {
+    final ids = <String>{};
+    var page = PageDecoder.offset(await _client.get(Api.stores), (map) => map);
+    final visited = <String>{};
+    while (true) {
+      for (final store in page.items) {
+        final id = JsonRead.string(store['id']);
+        if (id.isNotEmpty &&
+            store['is_active'] != false &&
+            store['is_visible_in_app'] != false) {
+          ids.add(id);
+        }
+      }
+      final next = page.nextUrl;
+      if (next == null || next.isEmpty) break;
+      final base = Uri.parse(AppConfig.apiBaseUrl);
+      final uri = base.resolve(next);
+      if (uri.origin != base.origin ||
+          uri.path != '${base.path}${Api.stores}' ||
+          !visited.add(uri.toString())) {
+        throw const UnknownFailure.malformed('Invalid store pagination URL');
+      }
+      page = PageDecoder.offset(
+        await _client.getUrl(uri.toString()),
+        (map) => map,
+      );
+    }
+    final lists = await Future.wait(
+      ids.map((id) async {
+        final data = await _client.get(
+          Api.storeBranches(Uri.encodeComponent(id)),
+        );
+        return PageDecoder.bare(data, (json) => json).items
+            .where((json) => json['is_active'] != false)
+            .map(DeliveryCoverageBranch.fromJson)
+            .where((branch) => branch.hasCoverage);
+      }),
+    );
+    final unique = <String, DeliveryCoverageBranch>{};
+    for (final branches in lists) {
+      for (final branch in branches) {
+        unique[branch.id] = branch;
+      }
+    }
+    return unique.values.toList(growable: false);
+  }
+
+  Future<List<DeliveryCoverageBranch>> _fetchCoverage(
+    Map<String, dynamic> query,
+  ) async {
     final data = JsonRead.map(
-      await _client.get(Api.deliveryCoverage, query: {'store_type': storeType}),
+      await _client.get(Api.deliveryCoverage, query: query),
     );
     if (data == null) {
       throw const UnknownFailure.malformed(

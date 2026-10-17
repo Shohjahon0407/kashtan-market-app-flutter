@@ -51,6 +51,12 @@ void main() {
 
     expect(address.toRequestJson(), {
       'title': 'Uy',
+      'district': '',
+      'neighborhood': '',
+      'street': '',
+      'house': '',
+      'apartment': '',
+      'landmark': '',
       'latitude': 41.311081,
       'longitude': 69.240563,
       'is_default': true,

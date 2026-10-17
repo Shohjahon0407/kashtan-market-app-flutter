@@ -90,7 +90,7 @@ class _LoadedRail extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
           child: ProductRail(
             title: rail.category ?? l10n.videoProductsTitle,
-            products: rail.products,
+            products: rail.imageFirstProducts,
             storeType: storeType,
             keyPrefix: 'video-product',
             cardHeight: cardHeight,

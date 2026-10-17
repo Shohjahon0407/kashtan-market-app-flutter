@@ -99,6 +99,276 @@ abstract class AppLocalizations {
     Locale('ru'),
   ];
 
+  /// No description provided for @cartContinueOrder.
+  ///
+  /// In uz, this message translates to:
+  /// **'Buyurtmani davom ettirish'**
+  String get cartContinueOrder;
+
+  /// No description provided for @cartSelectDeliveryAddress.
+  ///
+  /// In uz, this message translates to:
+  /// **'Yetkazish manzilini tanlash'**
+  String get cartSelectDeliveryAddress;
+
+  /// No description provided for @cartMinimumRecommendations.
+  ///
+  /// In uz, this message translates to:
+  /// **'Minimumni to‘ldirish uchun'**
+  String get cartMinimumRecommendations;
+
+  /// No description provided for @cartAllProducts.
+  ///
+  /// In uz, this message translates to:
+  /// **'Barcha mahsulotlar'**
+  String get cartAllProducts;
+
+  /// No description provided for @cartUpdating.
+  ///
+  /// In uz, this message translates to:
+  /// **'Hisob yangilanmoqda…'**
+  String get cartUpdating;
+
+  /// No description provided for @cartDeliveryUnknown.
+  ///
+  /// In uz, this message translates to:
+  /// **'Yetkazish narxi manzil tanlangach hisoblanadi'**
+  String get cartDeliveryUnknown;
+
+  /// No description provided for @cartEdit.
+  ///
+  /// In uz, this message translates to:
+  /// **'Savatni tahrirlash'**
+  String get cartEdit;
+
+  /// No description provided for @cartChoosePickup.
+  ///
+  /// In uz, this message translates to:
+  /// **'Olib ketish filialini tanlang'**
+  String get cartChoosePickup;
+
+  /// No description provided for @cartOrderChanged.
+  ///
+  /// In uz, this message translates to:
+  /// **'Buyurtma shartlari o‘zgardi. Savatni tekshiring.'**
+  String get cartOrderChanged;
+
+  /// No description provided for @cartProductsTitle.
+  ///
+  /// In uz, this message translates to:
+  /// **'Mahsulotlar'**
+  String get cartProductsTitle;
+
+  /// No description provided for @cartDeliveryNotAvailable.
+  ///
+  /// In uz, this message translates to:
+  /// **'Bu manzilga yetkazib berib bo‘lmaydi'**
+  String get cartDeliveryNotAvailable;
+
+  /// No description provided for @cartRefreshError.
+  ///
+  /// In uz, this message translates to:
+  /// **'Savatni yangilab bo‘lmadi. Qayta urinib ko‘ring.'**
+  String get cartRefreshError;
+
+  /// No description provided for @checkoutReviewTitle.
+  ///
+  /// In uz, this message translates to:
+  /// **'Buyurtmani tekshiring'**
+  String get checkoutReviewTitle;
+
+  /// No description provided for @checkoutProductsSummary.
+  ///
+  /// In uz, this message translates to:
+  /// **'{count} ta mahsulot'**
+  String checkoutProductsSummary(int count);
+
+  /// No description provided for @checkoutEditCart.
+  ///
+  /// In uz, this message translates to:
+  /// **'Savatni tahrirlash'**
+  String get checkoutEditCart;
+
+  /// No description provided for @checkoutCartChanged.
+  ///
+  /// In uz, this message translates to:
+  /// **'Savat yoki yetkazish shartlari o‘zgardi. Davom etishdan oldin qayta tekshiring.'**
+  String get checkoutCartChanged;
+
+  /// No description provided for @checkoutReceiptOpen.
+  ///
+  /// In uz, this message translates to:
+  /// **'Mahsulotlarni ko‘rish'**
+  String get checkoutReceiptOpen;
+
+  /// No description provided for @deliveryAddressTitle.
+  ///
+  /// In uz, this message translates to:
+  /// **'Yetkazib berish manzili'**
+  String get deliveryAddressTitle;
+
+  /// No description provided for @deliveryAddressSubtitle.
+  ///
+  /// In uz, this message translates to:
+  /// **'Buyurtma qayerga yetkazilsin?'**
+  String get deliveryAddressSubtitle;
+
+  /// No description provided for @deliveryAddressSavedHint.
+  ///
+  /// In uz, this message translates to:
+  /// **'Buyurtma uchun saqlangan manzilni tanlang.'**
+  String get deliveryAddressSavedHint;
+
+  /// No description provided for @deliveryAddressConfirm.
+  ///
+  /// In uz, this message translates to:
+  /// **'Tanlangan manzilga yetkazish'**
+  String get deliveryAddressConfirm;
+
+  /// No description provided for @deliveryAddressAdd.
+  ///
+  /// In uz, this message translates to:
+  /// **'Yangi manzil qo‘shish'**
+  String get deliveryAddressAdd;
+
+  /// No description provided for @deliveryAddressAddOnMap.
+  ///
+  /// In uz, this message translates to:
+  /// **'Xaritadan manzil qo‘shish'**
+  String get deliveryAddressAddOnMap;
+
+  /// No description provided for @deliveryAddressEmpty.
+  ///
+  /// In uz, this message translates to:
+  /// **'Bu buyurtma uchun yetkazish manzilini qo‘shing.'**
+  String get deliveryAddressEmpty;
+
+  /// No description provided for @deliveryAddressSave.
+  ///
+  /// In uz, this message translates to:
+  /// **'Manzilni saqlash'**
+  String get deliveryAddressSave;
+
+  /// No description provided for @deliveryAddressChange.
+  ///
+  /// In uz, this message translates to:
+  /// **'Manzilni o‘zgartirish'**
+  String get deliveryAddressChange;
+
+  /// No description provided for @deliveryAddressCalculating.
+  ///
+  /// In uz, this message translates to:
+  /// **'Yetkazish narxi hisoblanmoqda…'**
+  String get deliveryAddressCalculating;
+
+  /// No description provided for @deliveryAddressGpsHint.
+  ///
+  /// In uz, this message translates to:
+  /// **'GPS bo‘lmasa ham saqlangan manzilni tanlashingiz mumkin.'**
+  String get deliveryAddressGpsHint;
+
+  /// No description provided for @checkoutMinimumIncludesDelivery.
+  ///
+  /// In uz, this message translates to:
+  /// **'Mahsulotlar va yetkazish narxi birga hisoblanadi.'**
+  String get checkoutMinimumIncludesDelivery;
+
+  /// No description provided for @checkoutMinimumNeedsAddress.
+  ///
+  /// In uz, this message translates to:
+  /// **'Yetkazish narxini hisoblash uchun manzilni tanlang.'**
+  String get checkoutMinimumNeedsAddress;
+
+  /// No description provided for @addressCoverageLoading.
+  ///
+  /// In uz, this message translates to:
+  /// **'Yetkazish hududi yuklanmoqda…'**
+  String get addressCoverageLoading;
+
+  /// No description provided for @addressRadiusLimit.
+  ///
+  /// In uz, this message translates to:
+  /// **'Nuqtani yashil doira ichida tanlang. Hududdan tashqaridagi manzilni tasdiqlab bo‘lmaydi.'**
+  String get addressRadiusLimit;
+
+  /// No description provided for @addressAddTitle.
+  ///
+  /// In uz, this message translates to:
+  /// **'Yangi manzil qo‘shish'**
+  String get addressAddTitle;
+
+  /// No description provided for @addressEditTitle.
+  ///
+  /// In uz, this message translates to:
+  /// **'Manzilni tahrirlash'**
+  String get addressEditTitle;
+
+  /// No description provided for @addressSelectPoint.
+  ///
+  /// In uz, this message translates to:
+  /// **'Yetkazish nuqtasini belgilang'**
+  String get addressSelectPoint;
+
+  /// No description provided for @addressMapHelp.
+  ///
+  /// In uz, this message translates to:
+  /// **'Manzilni qanday tanlash mumkin?'**
+  String get addressMapHelp;
+
+  /// No description provided for @addressMapHelpBody.
+  ///
+  /// In uz, this message translates to:
+  /// **'GPS tugmasini bosing yoki xaritani surib aniq nuqtani belgilang. Uy yoki ishxonani tanlab, kuryer uchun kirish yo‘li va eshik kodini yozishingiz mumkin. Nuqta faqat tasdiqlaganingizdan keyin saqlanadi. Radius filial hududining ko‘rinishi; yetkazish imkoniyati va narxi checkout’da tekshiriladi.'**
+  String get addressMapHelpBody;
+
+  /// No description provided for @addressTypeHome.
+  ///
+  /// In uz, this message translates to:
+  /// **'Uy'**
+  String get addressTypeHome;
+
+  /// No description provided for @addressTypeWork.
+  ///
+  /// In uz, this message translates to:
+  /// **'Ishxona'**
+  String get addressTypeWork;
+
+  /// No description provided for @addressTypeOther.
+  ///
+  /// In uz, this message translates to:
+  /// **'Boshqa'**
+  String get addressTypeOther;
+
+  /// No description provided for @addressTypeLabel.
+  ///
+  /// In uz, this message translates to:
+  /// **'MANZIL TURI'**
+  String get addressTypeLabel;
+
+  /// No description provided for @addressCourierNote.
+  ///
+  /// In uz, this message translates to:
+  /// **'Kuryer uchun mo‘ljal yoki izoh (ixtiyoriy)'**
+  String get addressCourierNote;
+
+  /// No description provided for @addressCourierNoteHint.
+  ///
+  /// In uz, this message translates to:
+  /// **'Masalan: magazin orqasidagi darvoza, domofon kodi 124'**
+  String get addressCourierNoteHint;
+
+  /// No description provided for @addressConfirmPoint.
+  ///
+  /// In uz, this message translates to:
+  /// **'Ushbu manzilni tasdiqlash'**
+  String get addressConfirmPoint;
+
+  /// No description provided for @addressMapRetry.
+  ///
+  /// In uz, this message translates to:
+  /// **'Xarita yuklanmadi. Qayta yuklash'**
+  String get addressMapRetry;
+
   /// No description provided for @categoryAdDetails.
   ///
   /// In uz, this message translates to:
@@ -162,7 +432,7 @@ abstract class AppLocalizations {
   /// No description provided for @checkoutAddressActionHint.
   ///
   /// In uz, this message translates to:
-  /// **'Xaritadan joy belgilang yoki saqlangan manzilni tanlang'**
+  /// **'Buyurtma qayerga yetkazilishini tanlang'**
   String get checkoutAddressActionHint;
 
   /// No description provided for @checkoutReceiptTitle.
@@ -800,6 +1070,48 @@ abstract class AppLocalizations {
   /// In uz, this message translates to:
   /// **'Savat bo\'sh'**
   String get cartEmpty;
+
+  /// No description provided for @cartEmptyNow.
+  ///
+  /// In uz, this message translates to:
+  /// **'Savat hozircha bo‘sh'**
+  String get cartEmptyNow;
+
+  /// No description provided for @cartRecommendationsTitle.
+  ///
+  /// In uz, this message translates to:
+  /// **'Kerak bo‘lib qolishi mumkin'**
+  String get cartRecommendationsTitle;
+
+  /// No description provided for @mapAttributionTitle.
+  ///
+  /// In uz, this message translates to:
+  /// **'Xarita manbalari'**
+  String get mapAttributionTitle;
+
+  /// No description provided for @checkoutDeliveryMinimum.
+  ///
+  /// In uz, this message translates to:
+  /// **'Yetkazish uchun minimal buyurtma: {amount}'**
+  String checkoutDeliveryMinimum(String amount);
+
+  /// No description provided for @checkoutMinimumRemaining.
+  ///
+  /// In uz, this message translates to:
+  /// **'Minimal buyurtmagacha yana {amount}'**
+  String checkoutMinimumRemaining(String amount);
+
+  /// No description provided for @checkoutMinimumReached.
+  ///
+  /// In uz, this message translates to:
+  /// **'Minimal buyurtma summasi to‘plandi'**
+  String get checkoutMinimumReached;
+
+  /// No description provided for @checkoutAddProducts.
+  ///
+  /// In uz, this message translates to:
+  /// **'Mahsulot qo‘shish'**
+  String get checkoutAddProducts;
 
   /// No description provided for @cartEmptyStore.
   ///
@@ -1574,6 +1886,18 @@ abstract class AppLocalizations {
   /// In uz, this message translates to:
   /// **'Qo\'shimchalar'**
   String get cartAddons;
+
+  /// No description provided for @cartIncreaseQuantity.
+  ///
+  /// In uz, this message translates to:
+  /// **'Miqdorni oshirish'**
+  String get cartIncreaseQuantity;
+
+  /// No description provided for @cartDecreaseQuantity.
+  ///
+  /// In uz, this message translates to:
+  /// **'Miqdorni kamaytirish'**
+  String get cartDecreaseQuantity;
 
   /// No description provided for @checkoutTitle.
   ///

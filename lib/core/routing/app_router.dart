@@ -13,9 +13,11 @@ import '../../features/catalog/domain/catalog_controller.dart';
 import '../../features/catalog/presentation/catalog_screen.dart';
 import '../../features/catalog/presentation/product_detail_screen.dart';
 import '../../features/catalog/presentation/shashlik_family_screen.dart';
+import '../../features/checkout/domain/delivery_address_selection.dart';
 import '../../features/checkout/presentation/address_form_screen.dart';
 import '../../features/checkout/presentation/addresses_screen.dart';
 import '../../features/checkout/presentation/checkout_screen.dart';
+import '../../features/checkout/presentation/delivery_address_screen.dart';
 import '../../features/dev/presentation/api_playground_screen.dart';
 import '../../features/favorites/presentation/favorites_screen.dart';
 import '../../features/home/presentation/home_screen.dart';
@@ -410,19 +412,79 @@ StatefulShellRoute _storeShellRoute(
       routes: [
         GoRoute(
           path: Routes.storeCart(storeType.wire),
-          builder: (context, state) => CartScreen(storeType: storeType),
+          builder: (context, state) => CartScreen(
+            storeType: storeType,
+            initialFocus: state.uri.queryParameters['focus'],
+          ),
           routes: [
+            GoRoute(
+              path: 'address/select',
+              builder: (context, state) => DeliveryAddressScreen(
+                storeType: storeType,
+                selectionRoute: Routes.cartDeliveryAddressSelect(
+                  storeType.wire,
+                ),
+                arguments: state.extra is DeliveryAddressArguments
+                    ? state.extra as DeliveryAddressArguments
+                    : null,
+              ),
+              routes: [
+                GoRoute(
+                  path: 'new',
+                  builder: (context, state) => AddressFormScreen(
+                    storeType: storeType,
+                    saveForSelection: true,
+                  ),
+                ),
+                GoRoute(
+                  path: ':addressId/edit',
+                  builder: (context, state) => AddressFormScreen(
+                    storeType: storeType,
+                    addressId: state.pathParameters['addressId'],
+                    saveForSelection: true,
+                  ),
+                ),
+              ],
+            ),
             GoRoute(
               path: 'checkout',
               builder: (context, state) => CheckoutScreen(storeType: storeType),
               routes: [
                 GoRoute(
+                  path: 'address/select',
+                  builder: (context, state) => DeliveryAddressScreen(
+                    storeType: storeType,
+                    arguments: state.extra is DeliveryAddressArguments
+                        ? state.extra as DeliveryAddressArguments
+                        : null,
+                  ),
+                  routes: [
+                    GoRoute(
+                      path: 'new',
+                      builder: (context, state) => AddressFormScreen(
+                        storeType: storeType,
+                        saveForSelection: true,
+                      ),
+                    ),
+                    GoRoute(
+                      path: ':addressId/edit',
+                      builder: (context, state) => AddressFormScreen(
+                        storeType: storeType,
+                        addressId: state.pathParameters['addressId'],
+                        saveForSelection: true,
+                      ),
+                    ),
+                  ],
+                ),
+                GoRoute(
                   path: 'address/new',
-                  builder: (context, state) => const AddressFormScreen(),
+                  builder: (context, state) =>
+                      AddressFormScreen(storeType: storeType),
                 ),
                 GoRoute(
                   path: 'address/:addressId/edit',
                   builder: (context, state) => AddressFormScreen(
+                    storeType: storeType,
                     addressId: state.pathParameters['addressId'],
                   ),
                 ),
@@ -488,7 +550,7 @@ bool _requiresAuthentication(String path) {
         section == 'orders' ||
         (section == 'cart' &&
             segments.length >= 4 &&
-            segments[3] == 'checkout');
+            (segments[3] == 'checkout' || segments[3] == 'address'));
   }
   return false;
 }

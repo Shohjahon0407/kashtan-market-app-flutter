@@ -9,6 +9,164 @@ class AppLocalizationsRu extends AppLocalizations {
   AppLocalizationsRu([String locale = 'ru']) : super(locale);
 
   @override
+  String get cartContinueOrder => 'Продолжить оформление';
+
+  @override
+  String get cartSelectDeliveryAddress => 'Выбрать адрес доставки';
+
+  @override
+  String get cartMinimumRecommendations => 'Дополните заказ до минимума';
+
+  @override
+  String get cartAllProducts => 'Все товары';
+
+  @override
+  String get cartUpdating => 'Обновляем расчёт…';
+
+  @override
+  String get cartDeliveryUnknown =>
+      'Стоимость доставки рассчитаем после выбора адреса';
+
+  @override
+  String get cartEdit => 'Редактировать корзину';
+
+  @override
+  String get cartChoosePickup => 'Выберите филиал для самовывоза';
+
+  @override
+  String get cartOrderChanged =>
+      'Условия заказа изменились. Проверьте корзину.';
+
+  @override
+  String get cartProductsTitle => 'Товары';
+
+  @override
+  String get cartDeliveryNotAvailable => 'Доставка по этому адресу недоступна';
+
+  @override
+  String get cartRefreshError =>
+      'Не удалось обновить корзину. Попробуйте ещё раз.';
+
+  @override
+  String get checkoutReviewTitle => 'Проверьте заказ';
+
+  @override
+  String checkoutProductsSummary(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count товара',
+      many: '$count товаров',
+      few: '$count товара',
+      one: '1 товар',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get checkoutEditCart => 'Редактировать корзину';
+
+  @override
+  String get checkoutCartChanged =>
+      'Корзина или условия доставки изменились. Проверьте их перед продолжением.';
+
+  @override
+  String get checkoutReceiptOpen => 'Посмотреть товары';
+
+  @override
+  String get deliveryAddressTitle => 'Адрес доставки';
+
+  @override
+  String get deliveryAddressSubtitle => 'Куда доставить заказ?';
+
+  @override
+  String get deliveryAddressSavedHint =>
+      'Выберите сохранённый адрес для заказа.';
+
+  @override
+  String get deliveryAddressConfirm => 'Доставить по выбранному адресу';
+
+  @override
+  String get deliveryAddressAdd => 'Добавить новый адрес';
+
+  @override
+  String get deliveryAddressAddOnMap => 'Добавить адрес на карте';
+
+  @override
+  String get deliveryAddressEmpty =>
+      'Добавьте адрес доставки для этого заказа.';
+
+  @override
+  String get deliveryAddressSave => 'Сохранить адрес';
+
+  @override
+  String get deliveryAddressChange => 'Выбрать другой адрес';
+
+  @override
+  String get deliveryAddressCalculating => 'Рассчитываем стоимость доставки…';
+
+  @override
+  String get deliveryAddressGpsHint =>
+      'Вы можете выбрать сохранённый адрес даже без GPS.';
+
+  @override
+  String get checkoutMinimumIncludesDelivery =>
+      'Учитывается сумма товаров и стоимость доставки.';
+
+  @override
+  String get checkoutMinimumNeedsAddress =>
+      'Выберите адрес, чтобы рассчитать доставку.';
+
+  @override
+  String get addressCoverageLoading => 'Загружаем зону доставки…';
+
+  @override
+  String get addressRadiusLimit =>
+      'Выберите точку внутри зелёного круга. Адрес за пределами зоны подтвердить нельзя.';
+
+  @override
+  String get addressAddTitle => 'Добавить новый адрес';
+
+  @override
+  String get addressEditTitle => 'Изменить адрес';
+
+  @override
+  String get addressSelectPoint => 'Укажите точку доставки';
+
+  @override
+  String get addressMapHelp => 'Как выбрать адрес?';
+
+  @override
+  String get addressMapHelpBody =>
+      'Нажмите GPS или передвиньте карту, чтобы указать точку. Выберите дом или работу и оставьте курьеру ориентир или код домофона. Адрес сохранится только после подтверждения. Радиус показывает зону филиала; возможность и стоимость доставки проверяются при оформлении.';
+
+  @override
+  String get addressTypeHome => 'Дом';
+
+  @override
+  String get addressTypeWork => 'Работа';
+
+  @override
+  String get addressTypeOther => 'Другое';
+
+  @override
+  String get addressTypeLabel => 'ТИП АДРЕСА';
+
+  @override
+  String get addressCourierNote =>
+      'Ориентир или комментарий курьеру (необязательно)';
+
+  @override
+  String get addressCourierNoteHint =>
+      'Например: ворота за магазином, код домофона 124';
+
+  @override
+  String get addressConfirmPoint => 'Подтвердить этот адрес';
+
+  @override
+  String get addressMapRetry => 'Карта не загрузилась. Повторить';
+
+  @override
   String get categoryAdDetails => 'Подробнее';
 
   @override
@@ -43,8 +201,7 @@ class AppLocalizationsRu extends AppLocalizations {
       'Не удалось открыть Google Play. Попробуйте ещё раз или обновите приложение позже.';
 
   @override
-  String get checkoutAddressActionHint =>
-      'Укажите место на карте или выберите сохранённый адрес';
+  String get checkoutAddressActionHint => 'Выберите, куда доставить заказ';
 
   @override
   String get checkoutReceiptTitle => 'Состав заказа';
@@ -406,6 +563,31 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get cartEmpty => 'Корзина пуста';
+
+  @override
+  String get cartEmptyNow => 'Ваша корзина пока пуста';
+
+  @override
+  String get cartRecommendationsTitle => 'Может пригодиться';
+
+  @override
+  String get mapAttributionTitle => 'Источники карты';
+
+  @override
+  String checkoutDeliveryMinimum(String amount) {
+    return 'Минимальная сумма для доставки: $amount';
+  }
+
+  @override
+  String checkoutMinimumRemaining(String amount) {
+    return 'До минимального заказа ещё $amount';
+  }
+
+  @override
+  String get checkoutMinimumReached => 'Минимальная сумма заказа набрана';
+
+  @override
+  String get checkoutAddProducts => 'Добавить товары';
 
   @override
   String get cartEmptyStore => 'корзина пуста';
@@ -825,6 +1007,12 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get cartAddons => 'Дополнения';
+
+  @override
+  String get cartIncreaseQuantity => 'Увеличить количество';
+
+  @override
+  String get cartDecreaseQuantity => 'Уменьшить количество';
 
   @override
   String get checkoutTitle => 'Оформление заказа';

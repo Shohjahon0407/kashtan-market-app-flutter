@@ -127,12 +127,20 @@ try {
       await context.close();
     } else if (mode === 'customer') {
       const startSeconds = performance.now();
-      const count = page.getByText(/^[123] \/ 3$/);
-      const before = await count.innerText();
+      const firstBanner = page.getByText('Ta’mirni ishonch bilan boshlang', { exact: true });
+      await firstBanner.waitFor();
       await page.screenshot({ path: join(output, 'customer_category_banner_recommendations.png') });
-      await page.waitForTimeout(5700);
-      assert.notEqual(await count.innerText(), before, 'Five-second automatic slide must move to another real banner');
-      await page.getByRole('button', { name: 'Avvalgi sahifa', exact: true }).click();
+      await page.waitForTimeout(3200);
+      await page.getByText('Har bir ishga mos yechim', { exact: true }).waitFor();
+      const touch = await context.newCDPSession(page);
+      await touch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 80, y: 180 }] });
+      for (let step = 1; step <= 8; step++) {
+        await touch.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 80 + step * 28, y: 180 }] });
+        await page.waitForTimeout(20);
+      }
+      await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+      await touch.detach();
+      await firstBanner.waitFor();
       await page.waitForTimeout(650);
       const search = page.getByRole('textbox', { name: 'Shu kategoriyadan mahsulot qidirish…' });
       const scopedSearch = page.waitForResponse((response) => response.url().includes('q=ustachilik') && response.url().includes(`category=${seed.categories[0].id}`));

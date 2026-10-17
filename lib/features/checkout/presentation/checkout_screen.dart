@@ -3,9 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show MaxLengthEnforcement;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
-import 'package:latlong2/latlong.dart';
 
 import '../../../core/localization/failure_l10n.dart';
 import '../../../core/network/api_failure.dart';
@@ -26,15 +24,13 @@ import '../data/checkout_models.dart';
 import '../domain/addresses_controller.dart';
 import '../domain/checkout_controller.dart';
 import '../domain/checkout_rules.dart';
-import '../domain/device_location.dart';
+import '../domain/order_draft_controller.dart';
 import 'address_display.dart';
-import 'address_form_screen.dart' show addressLocationResolverProvider;
-import 'widgets/checkout_delivery_map.dart';
 import 'widgets/checkout_receipt_paper.dart';
 
+/// Final review only: fulfillment, location and minimum are prepared in cart.
 class CheckoutScreen extends ConsumerStatefulWidget {
   const CheckoutScreen({required this.storeType, super.key});
-
   final StoreType storeType;
 
   @override
@@ -43,43 +39,19 @@ class CheckoutScreen extends ConsumerStatefulWidget {
 
 class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
     with WidgetsBindingObserver {
-  /// Izoh chegarasi — backend `customer_note` TextField (chegarasiz), shuning
-  /// uchun mijoz tomonda 500 belgi bilan cheklanadi.
   static const _noteMaxLength = 500;
-
   final _noteController = TextEditingController();
-  // State'ning context'i ichki ScaffoldMessenger'dan YUQORIDA turadi —
-  // snackbar'lar shu kalit orqali ichki messenger'ga yuboriladi.
   final _messengerKey = GlobalKey<ScaffoldMessengerState>();
-  FulfillmentType _fulfillment = FulfillmentType.delivery;
-  PaymentMethod _paymentMethod = PaymentMethod.cash;
-  String? _selectedAddressId;
-  String? _selectedBranchId;
-  String? _estimatedAddressId;
-  DeliveryEstimate? _estimate;
-  ApiFailure? _estimateFailure;
-  bool _estimating = false;
-  int _estimateRevision = 0;
-  bool _preparing = true;
-  ApiFailure? _prepareFailure;
-  bool _addressChoicePrompted = false;
-  bool _addressChoiceVisible = false;
-  final _gps = ValueNotifier<LatLng?>(null);
-  bool _gpsAttempted = false;
-  bool _locating = false;
-  Position? _gpsFix;
-  Timer? _gpsExpiry;
-  DeviceLocationFailure? _gpsFailure;
-  Future<bool>? _locationAccess;
-  bool _accessAttempted = false;
-  bool _accessAllowed = false;
-  bool _waitingForLocationSettings = false;
-  bool _checkingLocationOnReturn = false;
+  bool _entryCheckComplete = false;
+  bool _redirectScheduled = false;
+  bool _preparing = false;
+  bool _submittingPreflight = false;
 
   @override
   void initState() {
     super.initState();
-    if (ref.read(paymeEnabledProvider)) _paymentMethod = PaymentMethod.payme;
+    _noteController.text = ref.read(orderDraftProvider(widget.storeType)).note;
+    _noteController.addListener(_saveNote);
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) => _prepareCheckout());
   }
@@ -87,375 +59,432 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _gpsExpiry?.cancel();
-    _gps.dispose();
+    _noteController.removeListener(_saveNote);
     _noteController.dispose();
     super.dispose();
   }
+
+  void _saveNote() => ref
+      .read(orderDraftProvider(widget.storeType).notifier)
+      .setNote(_noteController.text);
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed &&
         mounted &&
-        _waitingForLocationSettings) {
-      _waitingForLocationSettings = false;
-      unawaited(_locate(retry: true));
-    }
-    if (state == AppLifecycleState.resumed &&
-        mounted &&
-        !_preparing &&
-        !_locating &&
-        !_addressChoiceVisible &&
-        ModalRoute.of(context)?.isCurrent == true) {
-      unawaited(_refreshLocationOnReturn());
-      ref.invalidate(deliveryCoverageProvider(widget.storeType.wire));
-      final address = _addressById(
-        ref.read(addressesControllerProvider).value ?? [],
-        _selectedAddressId,
-      );
-      if (_fulfillment == FulfillmentType.delivery &&
-          address != null &&
-          !_addressChoiceVisible) {
-        _estimatedAddressId = null;
-        unawaited(_estimateFor(address));
-      }
+        ModalRoute.of(context)?.isCurrent == true &&
+        !ref.read(checkoutControllerProvider(widget.storeType)).isSubmitting) {
+      unawaited(_prepareCheckout());
     }
   }
 
-  Future<void> _locate({bool retry = false}) async {
-    if (!mounted ||
-        _locating ||
-        _addressChoiceVisible ||
-        _fulfillment != FulfillmentType.delivery ||
-        (_gpsAttempted && !retry)) {
-      return;
-    }
-    _gpsAttempted = true;
-    setState(() {
-      _locating = true;
-    });
-    try {
-      if (!await _ensureLocationAccess(retry: retry) || !mounted) return;
-      setState(() => _gpsFailure = null);
-      final point = await ref
-          .read(addressLocationResolverProvider)()
-          .timeout(const Duration(seconds: 15));
-      validateFreshLocation(point);
-      if (mounted) {
-        _gpsFix = point;
-        _gps.value = LatLng(point.latitude, point.longitude);
-        _gpsExpiry?.cancel();
-        final age = DateTime.now().difference(point.timestamp);
-        final remaining =
-            const Duration(seconds: 60) -
-            (age.isNegative ? Duration.zero : age);
-        _gpsExpiry = Timer(remaining, () {
-          if (!mounted || _gpsFix != point) return;
-          setState(() {
-            _gpsFailure = DeviceLocationFailure.stale;
-            _gpsFix = null;
-            _gps.value = null;
-          });
-        });
-      }
-    } on Object catch (error) {
-      if (mounted) {
-        _gps.value = null;
-        _gpsFix = null;
-        setState(() {
-          _gpsFailure = locationFailureOf(error);
-        });
-      }
-    } finally {
-      if (mounted) setState(() => _locating = false);
-    }
-  }
-
-  Future<void> _refreshLocationOnReturn() async {
-    if (!mounted ||
-        _preparing ||
-        _locating ||
-        _locationAccess != null ||
-        _checkingLocationOnReturn ||
-        _addressChoiceVisible ||
-        _fulfillment != FulfillmentType.delivery ||
-        ModalRoute.of(context)?.isCurrent != true ||
-        (_gpsFix != null && _gpsFailure == null)) {
-      return;
-    }
-    _checkingLocationOnReturn = true;
-    try {
-      // Quick Settings and Android's app settings can change GPS/permission
-      // without using our settings button. Do not retain a cached denial.
-      await ref.read(addressLocationStatusProvider)();
-      if (mounted &&
-          !_addressChoiceVisible &&
-          ModalRoute.of(context)?.isCurrent == true) {
-        await _locate(retry: true);
-      }
-    } on Object {
-      // Passive checks never prompt or interrupt manual address selection.
-    } finally {
-      _checkingLocationOnReturn = false;
-    }
-  }
-
-  Future<bool> _ensureLocationAccess({bool retry = false}) {
-    if (_locationAccess != null) return _locationAccess!;
-    if (_accessAttempted && !retry) return Future.value(_accessAllowed);
-    _accessAttempted = true;
-    return _locationAccess = _requestLocationAccess().whenComplete(() {
-      _locationAccess = null;
-    });
-  }
-
-  Future<bool> _requestLocationAccess() async {
-    try {
-      await ref.read(addressLocationAccessProvider)();
-      _accessAllowed = true;
-    } on Object catch (error) {
-      _accessAllowed = false;
-      if (mounted) {
-        setState(() {
-          _gpsFailure = locationFailureOf(error);
-          _gpsFix = null;
-          _gps.value = null;
-        });
-      }
-    }
-    return _accessAllowed;
-  }
-
-  Future<void> _openLocationSettings() async {
-    _waitingForLocationSettings = true;
-    try {
-      final opened = await ref.read(locationSettingsOpenerProvider)(
-        gps: _gpsFailure == DeviceLocationFailure.serviceDisabled,
-      );
-      if (!opened) _waitingForLocationSettings = false;
-    } on Object {
-      _waitingForLocationSettings = false;
-      if (mounted) {
-        _messenger.showSnackBar(
-          SnackBar(
-            content: Text(
-              AppLocalizations.of(context).checkoutMapGpsUnavailable,
-            ),
-          ),
-        );
-      }
-    }
-  }
-
-  /// Ichki messenger (asosiy Scaffold chizilgan bo'lsa), aks holda tashqisi.
   ScaffoldMessengerState get _messenger =>
       _messengerKey.currentState ?? ScaffoldMessenger.of(context);
+
+  Future<void> _prepareCheckout() async {
+    if (!mounted || _preparing) return;
+    setState(() {
+      _preparing = true;
+      _entryCheckComplete = false;
+    });
+    try {
+      await ref
+          .read(orderDraftProvider(widget.storeType).notifier)
+          .prepare(revalidateQuote: true);
+      if (!mounted) return;
+      final draft = ref.read(orderDraftProvider(widget.storeType));
+      final cart = ref
+          .read(cartControllerProvider(widget.storeType))
+          .value
+          ?.cart;
+      if (draft.fulfillment == FulfillmentType.pickup && cart != null) {
+        final stores = CheckoutRules.physicalStoreIds(cart);
+        if (stores.length == 1) {
+          ref.invalidate(storeBranchesProvider(stores.single));
+          try {
+            await ref.read(storeBranchesProvider(stores.single).future);
+          } on Object {
+            // The branch provider retains the error for the inline retry UI.
+          }
+        }
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _preparing = false;
+          _entryCheckComplete = true;
+        });
+      }
+    }
+  }
+
+  /// A legacy nested address URL can sit above checkout. Wait until checkout
+  /// itself is visible before redirecting an incomplete direct-link entry.
+  void _scheduleCart(String notice, String focus) {
+    if (_redirectScheduled ||
+        !_entryCheckComplete ||
+        ModalRoute.of(context)?.isCurrent != true ||
+        GoRouter.maybeOf(context) == null) {
+      return;
+    }
+    _redirectScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || ModalRoute.of(context)?.isCurrent != true) {
+        _redirectScheduled = false;
+        return;
+      }
+      _returnToCart(focus, notice: notice);
+    });
+  }
+
+  void _returnToCart(String focus, {String? notice}) {
+    final controller = ref.read(orderDraftProvider(widget.storeType).notifier);
+    if (notice != null) controller.setNotice(notice);
+    final router = GoRouter.maybeOf(context);
+    if (router != null) {
+      AppBackCoordinator.of(
+        router,
+      ).go(Routes.storeCartFor(widget.storeType.wire, focus: focus));
+    } else {
+      Navigator.of(context).maybePop();
+    }
+  }
+
+  bool _canSubmit(
+    CartState cartState,
+    List<UserAddress> addresses,
+    String? pickupBranchId, {
+    bool branchesReady = true,
+  }) {
+    final draft = ref.read(orderDraftProvider(widget.storeType));
+    final cart = cartState.cart;
+    if (!_entryCheckComplete ||
+        _preparing ||
+        draft.preparing ||
+        draft.estimating ||
+        draft.failure != null ||
+        cart.items.isEmpty ||
+        cartState.hasPendingMutation ||
+        cartState.unconfirmedKeys.isNotEmpty ||
+        cartState.mutationFailure != null ||
+        !branchesReady) {
+      return false;
+    }
+    return CheckoutRules.canSubmit(
+      fulfillmentType: draft.fulfillment,
+      addressId: draft.addressId,
+      estimate: draft.quoteFor(cart, addresses),
+      isEstimating: draft.estimating,
+      pickupBranchId: pickupBranchId,
+      pickupAllowed: CheckoutRules.pickupAllowed(cart),
+      cart: cart,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    // Provider'ga bog'liq holat (majburiy yetkazish, manzil tanlash oynasi)
-    // build ichida emas — listener'larda yangilanadi.
-    ref.listen(
-      cartControllerProvider(widget.storeType),
-      (_, _) => _syncWithProviders(),
-    );
-    ref.listen(addressesControllerProvider, (_, _) => _syncWithProviders());
     final cartAsync = ref.watch(cartControllerProvider(widget.storeType));
-    final addresses = ref.watch(addressesControllerProvider);
+    final addressesAsync = ref.watch(addressesControllerProvider);
+    final draft = ref.watch(orderDraftProvider(widget.storeType));
     final checkout = ref.watch(checkoutControllerProvider(widget.storeType));
-    final cart = cartAsync.value?.cart;
-
-    if (_preparing) {
-      return Scaffold(
-        appBar: _checkoutAppBar(l10n),
-        body: const Center(child: CircularProgressIndicator()),
-      );
-    }
-
-    if (_prepareFailure != null || (cartAsync.hasError && cart == null)) {
-      final error = _prepareFailure ?? cartAsync.error;
-      return Scaffold(
-        appBar: _checkoutAppBar(l10n),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.screenH),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  error is ApiFailure
-                      ? error.localize(l10n)
-                      : l10n.errorUnknown,
-                ),
-                const SizedBox(height: AppSpacing.md),
-                FilledButton(
-                  onPressed: _prepareCheckout,
-                  child: Text(l10n.commonRetry),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-
-    if (cartAsync.isLoading) {
-      return Scaffold(
-        appBar: _checkoutAppBar(l10n),
-        body: const Center(child: CircularProgressIndicator()),
-      );
-    }
-    if (cart == null || cart.items.isEmpty) {
-      return Scaffold(
-        appBar: _checkoutAppBar(l10n),
-        body: Center(child: Text(l10n.checkoutEmptyCart)),
-      );
-    }
-
-    final storeIds = CheckoutRules.physicalStoreIds(cart);
-    final pickupAllowed = CheckoutRules.pickupAllowed(cart);
-    final branches = pickupAllowed
+    final cartState = cartAsync.value;
+    final cart = cartState?.cart;
+    final addresses = addressesAsync.value ?? const <UserAddress>[];
+    final quote = cart == null ? null : draft.quoteFor(cart, addresses);
+    final storeIds = cart == null
+        ? const <String>{}
+        : CheckoutRules.physicalStoreIds(cart);
+    final pickup = draft.fulfillment == FulfillmentType.pickup;
+    final branches = pickup && storeIds.length == 1
         ? ref.watch(storeBranchesProvider(storeIds.single))
-        : const AsyncValue<List<StoreBranch>>.data([]);
-    final pickupBranchId = _effectiveBranchId(branches.value ?? const []);
-    final total = CheckoutRules.displayTotal(
-      subtotal: cart.subtotal,
-      fulfillment: _fulfillment,
-      estimate: _estimate,
-      estimating: _estimating,
-    );
+        : const AsyncData<List<StoreBranch>>([]);
+    final eligible = (branches.value ?? const <StoreBranch>[])
+        .where((branch) => branch.isActive && branch.isPickupAvailable)
+        .toList();
+    final branch =
+        eligible
+            .where((branch) => branch.id == draft.pickupBranchId)
+            .firstOrNull ??
+        (eligible.length == 1 ? eligible.single : null);
+    if (pickup && branch != null && branch.id != draft.pickupBranchId) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          ref
+              .read(orderDraftProvider(widget.storeType).notifier)
+              .setPickupBranch(branch.id);
+        }
+      });
+    }
+    final selected = addresses
+        .where((address) => address.id == draft.addressId)
+        .firstOrNull;
+    final total = cart == null
+        ? null
+        : CheckoutRules.displayTotal(
+            subtotal: cart.subtotal,
+            fulfillment: draft.fulfillment,
+            estimate: quote,
+            estimating: draft.estimating,
+          );
+    final pending =
+        !_entryCheckComplete ||
+        _preparing ||
+        draft.preparing ||
+        draft.estimating ||
+        cartAsync.isLoading;
+    final failure =
+        draft.failure ??
+        cartState?.mutationFailure ??
+        (cartAsync.error is ApiFailure ? cartAsync.error as ApiFailure : null);
 
-    // Snackbar'lar SHU ekranning Scaffold'i bo'yicha joylashsin: floating
-    // snackbar o'z Scaffold'ining bottomNavigationBar'idan YUQORIDA chiziladi.
-    // Busiz u tashqi shell (StoreShell) Scaffold'iga tegishli bo'lib, pastdagi
-    // "Buyurtmani tasdiqlash" tugmasini to'sib qo'yardi.
+    if (!pending &&
+        failure == null &&
+        !checkout.isSubmitting &&
+        cartState?.hasPendingMutation != true &&
+        cartState?.unconfirmedKeys.isNotEmpty != true) {
+      if (cart == null || cart.items.isEmpty) {
+        _scheduleCart('cart_empty', 'products');
+      } else if (pickup) {
+        if (!CheckoutRules.pickupAllowed(cart) ||
+            (!branches.isLoading && !branches.hasError && branch == null)) {
+          _scheduleCart('pickup_branch_missing', 'fulfillment');
+        }
+      } else if (!addressesAsync.isLoading && !addressesAsync.hasError) {
+        if (selected == null) {
+          _scheduleCart('address_missing', 'location');
+        } else if (quote == null) {
+          _scheduleCart(draft.notice ?? 'delivery_unavailable', 'location');
+        } else if (!cart.meetsDeliveryMinimumIncluding(quote.deliveryPrice)) {
+          _scheduleCart('minimum_not_met', 'products');
+        }
+      }
+    }
+
+    final ready =
+        cartState != null &&
+        !pending &&
+        (pickup || (!addressesAsync.hasError && !addressesAsync.isLoading)) &&
+        _canSubmit(
+          cartState,
+          addresses,
+          branch?.id,
+          branchesReady: !pickup || (!branches.isLoading && !branches.hasError),
+        );
+
     return ScaffoldMessenger(
       key: _messengerKey,
       child: Scaffold(
         appBar: _checkoutAppBar(l10n, cart: cart),
-        body: ListView(
-          key: const ValueKey('checkout-content'),
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-          children: [
-            _CheckoutPanel(
-              padding: const EdgeInsets.all(6),
-              child: Semantics(
-                label: l10n.checkoutFulfillment,
-                child: SegmentedButton<FulfillmentType>(
-                  expandedInsets: EdgeInsets.zero,
-                  showSelectedIcon: false,
-                  style: ButtonStyle(
-                    minimumSize: const WidgetStatePropertyAll(Size(0, 48)),
-                    padding: const WidgetStatePropertyAll(
-                      EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+        body: pending && cart == null
+            ? const Center(child: CircularProgressIndicator())
+            : ListView(
+                key: const ValueKey('checkout-content'),
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                children: [
+                  if (pending) ...[
+                    const LinearProgressIndicator(
+                      key: ValueKey('checkout-revalidating'),
                     ),
-                    side: const WidgetStatePropertyAll(BorderSide.none),
-                    shape: WidgetStatePropertyAll(
-                      RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                    const SizedBox(height: 14),
+                  ],
+                  if (failure != null ||
+                      addressesAsync.hasError ||
+                      (pickup && branches.hasError)) ...[
+                    _CheckoutPanel(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(failure?.localize(l10n) ?? l10n.errorUnknown),
+                          const SizedBox(height: 8),
+                          TextButton.icon(
+                            key: const ValueKey('checkout-retry'),
+                            onPressed: pending
+                                ? null
+                                : () {
+                                    if (pickup && storeIds.length == 1) {
+                                      ref.invalidate(
+                                        storeBranchesProvider(storeIds.single),
+                                      );
+                                    }
+                                    unawaited(_prepareCheckout());
+                                  },
+                            icon: const Icon(Icons.refresh),
+                            label: Text(l10n.commonRetry),
+                          ),
+                        ],
                       ),
                     ),
-                    backgroundColor: WidgetStateProperty.resolveWith(
-                      (states) => states.contains(WidgetState.selected)
-                          ? AppColors.primary
-                          : Colors.transparent,
-                    ),
-                    foregroundColor: WidgetStateProperty.resolveWith(
-                      (states) => states.contains(WidgetState.selected)
-                          ? Colors.white
-                          : Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                    textStyle: const WidgetStatePropertyAll(
-                      TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                    const SizedBox(height: 14),
+                  ],
+                  _CheckoutPanel(
+                    key: const ValueKey('checkout-address-panel'),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              pickup
+                                  ? Icons.store_mall_directory_outlined
+                                  : Icons.location_on_outlined,
+                              color: AppColors.primary,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: _SectionTitle(
+                                text: pickup
+                                    ? l10n.checkoutPickup
+                                    : l10n.checkoutAddress,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          pickup
+                              ? branch?.name ?? l10n.checkoutSelectBranch
+                              : selected?.displayTitle(l10n) ??
+                                    l10n.checkoutSelectAddress,
+                          key: const ValueKey('checkout-location-summary'),
+                          style: Theme.of(context).textTheme.titleSmall
+                              ?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                        if ((pickup
+                                    ? branch?.address
+                                    : selected?.formattedAddress)
+                                ?.trim()
+                                .isNotEmpty ==
+                            true)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Text(
+                              pickup
+                                  ? branch!.address
+                                  : selected!.formattedAddress,
+                            ),
+                          ),
+                        if (!pickup && quote?.deliveryPrice != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Text(
+                              '${l10n.cartDeliveryFee}: ${Uzs.format(quote!.deliveryPrice)}',
+                              style: const TextStyle(
+                                color: AppColors.primary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        TextButton.icon(
+                          key: const ValueKey('checkout-edit-location'),
+                          onPressed: checkout.isSubmitting
+                              ? null
+                              : () => _returnToCart(
+                                  pickup ? 'fulfillment' : 'location',
+                                ),
+                          icon: const Icon(
+                            Icons.edit_location_alt_outlined,
+                            size: 18,
+                          ),
+                          label: Text(l10n.commonEdit),
+                        ),
+                      ],
                     ),
                   ),
-                  segments: [
-                    ButtonSegment(
-                      value: FulfillmentType.delivery,
-                      icon: const Icon(Icons.delivery_dining),
-                      label: Text(l10n.checkoutDelivery),
+                  const SizedBox(height: 14),
+                  if (cart != null && cart.items.isNotEmpty) ...[
+                    _CheckoutPanel(
+                      key: const ValueKey('checkout-products-panel'),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          InkWell(
+                            key: const ValueKey('checkout-open-receipt'),
+                            borderRadius: BorderRadius.circular(12),
+                            onTap: () => _showReceipt(cart),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.receipt_long_outlined,
+                                    color: AppColors.primary,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          l10n.checkoutProductsSummary(
+                                            cart.items.length,
+                                          ),
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(Uzs.format(cart.subtotal)),
+                                      ],
+                                    ),
+                                  ),
+                                  const Icon(Icons.chevron_right),
+                                ],
+                              ),
+                            ),
+                          ),
+                          TextButton(
+                            key: const ValueKey('checkout-edit-cart'),
+                            onPressed: checkout.isSubmitting
+                                ? null
+                                : () => _returnToCart('products'),
+                            child: Text(l10n.checkoutEditCart),
+                          ),
+                        ],
+                      ),
                     ),
-                    ButtonSegment(
-                      value: FulfillmentType.pickup,
-                      icon: const Icon(Icons.store_mall_directory_outlined),
-                      label: Text(l10n.checkoutPickup),
-                      enabled: pickupAllowed,
+                    const SizedBox(height: 14),
+                  ],
+                  _CheckoutPanel(
+                    key: const ValueKey('checkout-payment-panel'),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _PanelHeading(
+                          title: l10n.checkoutPaymentMethod,
+                          caption: l10n.checkoutPaymentHint,
+                        ),
+                        const SizedBox(height: 12),
+                        _PaymentMethodSelector(
+                          selected: draft.paymentMethod,
+                          fulfillment: draft.fulfillment,
+                          onChanged: (method) => ref
+                              .read(
+                                orderDraftProvider(widget.storeType).notifier,
+                              )
+                              .setPaymentMethod(method),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  _CheckoutNoteCard(
+                    controller: _noteController,
+                    maxLength: _noteMaxLength,
+                    storeType: widget.storeType,
+                  ),
+                  if (cart != null) ...[
+                    const SizedBox(height: 14),
+                    _SummaryCard(
+                      cart: cart,
+                      estimate: quote,
+                      fulfillment: draft.fulfillment,
+                      total: total,
                     ),
                   ],
-                  selected: {_fulfillment},
-                  onSelectionChanged: (selection) {
-                    final next = selection.single;
-                    setState(() {
-                      _fulfillment = next;
-                      if (next == FulfillmentType.pickup) {
-                        _estimateRevision++;
-                        _estimating = false;
-                        _selectedAddressId = null;
-                        _estimatedAddressId = null;
-                        _estimate = null;
-                        _estimateFailure = null;
-                      } else {
-                        _addressChoicePrompted = false;
-                      }
-                    });
-                    // Yetkazishga qaytilganda manzil tanlovi qayta ochiladi.
-                    if (next == FulfillmentType.delivery) _syncWithProviders();
-                  },
-                ),
-              ),
-            ),
-            if (!pickupAllowed) ...[
-              const SizedBox(height: AppSpacing.sm),
-              _InfoCard(
-                icon: Icons.info_outline,
-                message: l10n.checkoutMixedStorePickup,
-              ),
-            ],
-            const SizedBox(height: 14),
-            _CheckoutPanel(
-              key: const ValueKey('checkout-address-panel'),
-              child: _fulfillment == FulfillmentType.delivery
-                  ? _deliverySection(context, addresses)
-                  : _pickupSection(context, branches, pickupBranchId),
-            ),
-            const SizedBox(height: 14),
-            _CheckoutPanel(
-              key: const ValueKey('checkout-payment-panel'),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _PanelHeading(
-                    title: l10n.checkoutPaymentMethod,
-                    caption: l10n.checkoutPaymentHint,
-                  ),
-                  const SizedBox(height: 12),
-                  _PaymentMethodSelector(
-                    selected: _paymentMethod,
-                    fulfillment: _fulfillment,
-                    onChanged: (method) =>
-                        setState(() => _paymentMethod = method),
-                  ),
                 ],
               ),
-            ),
-            const SizedBox(height: 14),
-            _CheckoutNoteCard(
-              controller: _noteController,
-              maxLength: _noteMaxLength,
-              storeType: widget.storeType,
-            ),
-            const SizedBox(height: 14),
-            _SummaryCard(
-              cart: cart,
-              estimate: _estimate,
-              fulfillment: _fulfillment,
-              total: total,
-            ),
-            const SizedBox(height: 14),
-            _CheckoutReceipt(cart: cart),
-          ],
-        ),
         bottomNavigationBar: DecoratedBox(
           decoration: BoxDecoration(
             color: Theme.of(context).colorScheme.surface,
@@ -470,81 +499,96 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
           child: SafeArea(
             top: false,
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.screenH,
-                AppSpacing.sm,
-                AppSpacing.screenH,
-                AppSpacing.md,
-              ),
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
               child: FilledButton(
                 key: const ValueKey('checkout-submit'),
                 style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
+                  minimumSize: const Size(double.infinity, 56),
                   padding: const EdgeInsets.symmetric(
                     horizontal: 14,
                     vertical: 14,
                   ),
-                  minimumSize: const Size(double.infinity, 56),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
                   ),
                 ),
-                onPressed: checkout.isSubmitting || !_canSubmit(pickupBranchId)
-                    ? null
-                    : () => _submit(pickupBranchId),
+                onPressed: ready && !checkout.isSubmitting
+                    ? () => _submit(branch?.id)
+                    : null,
                 child: checkout.isSubmitting
                     ? const SizedBox.square(
                         dimension: 20,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : Row(
-                        children: [
-                          Expanded(
-                            flex: 4,
-                            child: Text(
-                              l10n.checkoutSubmit,
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                          const Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 8),
-                            child: Icon(Icons.arrow_forward, size: 18),
-                          ),
-                          if (total != null)
-                            Flexible(
-                              flex: 3,
-                              child: DecoratedBox(
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: .14),
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 8,
+                    : LayoutBuilder(
+                        builder: (context, constraints) {
+                          final label = Text(
+                            l10n.checkoutSubmit,
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          );
+                          final price = total == null
+                              ? null
+                              : Text(
+                                  Uzs.format(total),
+                                  key: const ValueKey('checkout-submit-total'),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w800,
                                   ),
-                                  child: Text(
-                                    Uzs.format(total),
-                                    key: const ValueKey(
-                                      'checkout-submit-total',
-                                    ),
-                                    textAlign: TextAlign.center,
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                        ],
+                                );
+                          if (constraints.maxWidth < 350 &&
+                              MediaQuery.textScalerOf(context).scale(14) > 20) {
+                            return Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                label,
+                                if (price != null) ...[
+                                  const SizedBox(height: 4),
+                                  price,
+                                ],
+                              ],
+                            );
+                          }
+                          return Row(
+                            children: [
+                              Expanded(child: label),
+                              if (price != null) ...[
+                                const SizedBox(width: 10),
+                                Flexible(child: price),
+                              ],
+                            ],
+                          );
+                        },
                       ),
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showReceipt(CartData cart) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      useSafeArea: true,
+      builder: (context) => FractionallySizedBox(
+        heightFactor: .85,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+          child: Column(
+            children: [
+              Align(
+                alignment: Alignment.centerRight,
+                child: IconButton(
+                  tooltip: AppLocalizations.of(context).commonClose,
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close),
+                ),
+              ),
+              CheckoutReceipt(cart: cart),
+            ],
           ),
         ),
       ),
@@ -559,7 +603,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
     );
     final painter =
         TextPainter(
-          text: TextSpan(text: l10n.checkoutTitle, style: titleStyle),
+          text: TextSpan(text: l10n.checkoutReviewTitle, style: titleStyle),
           textDirection: Directionality.of(context),
           textScaler: MediaQuery.textScalerOf(context),
         )..layout(
@@ -585,7 +629,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            l10n.checkoutTitle,
+            l10n.checkoutReviewTitle,
             softWrap: true,
             overflow: TextOverflow.visible,
             textAlign: TextAlign.center,
@@ -624,509 +668,101 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
     );
   }
 
-  Widget _deliverySection(
-    BuildContext context,
-    AsyncValue<List<UserAddress>> addresses,
-  ) {
-    final l10n = AppLocalizations.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Expanded(child: _SectionTitle(text: l10n.checkoutAddress)),
-            const SizedBox(width: 8),
-            Flexible(
-              child: TextButton.icon(
-                onPressed: _locating
-                    ? null
-                    : () => unawaited(_locate(retry: true)),
-                style: TextButton.styleFrom(
-                  backgroundColor: AppColors.primarySoft,
-                  foregroundColor: AppColors.primary,
-                ),
-                icon: const Icon(Icons.my_location, size: 15),
-                label: Text(
-                  _locating ? l10n.checkoutMapLocating : l10n.checkoutMapYou,
-                  style: const TextStyle(fontSize: 11),
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        _coverageMap(addresses),
-        if (_gpsFailure != null ||
-            (_gpsFix != null &&
-                (!_gpsFix!.accuracy.isFinite ||
-                    _gpsFix!.accuracy <= 0 ||
-                    _gpsFix!.accuracy > 100))) ...[
-          const SizedBox(height: AppSpacing.sm),
-          _locationStatus(),
-        ],
-        const SizedBox(height: AppSpacing.sm),
-        switch (addresses) {
-          AsyncData(:final value) => _SelectedAddress(
-            address: _addressById(value, _selectedAddressId),
-            onChoose: _showAddressChooser,
-          ),
-          AsyncError(:final error) => _InfoCard(
-            icon: Icons.error_outline,
-            message: error is ApiFailure
-                ? error.localize(l10n)
-                : l10n.errorUnknown,
-          ),
-          _ => const Center(child: CircularProgressIndicator()),
-        },
-        if (_estimating) ...[
-          const SizedBox(height: AppSpacing.sm),
-          const LinearProgressIndicator(),
-        ] else if (_estimate != null) ...[
-          const SizedBox(height: AppSpacing.sm),
-          _EstimateCard(estimate: _estimate!),
-        ] else if (_estimateFailure != null) ...[
-          const SizedBox(height: AppSpacing.sm),
-          _InfoCard(
-            icon: Icons.error_outline,
-            message: _estimateFailure!.localize(l10n),
-          ),
-        ],
-      ],
-    );
-  }
-
-  Widget _locationStatus() {
-    final l10n = AppLocalizations.of(context);
-    final message = switch (_gpsFailure) {
-      DeviceLocationFailure.denied => l10n.checkoutGpsDenied,
-      DeviceLocationFailure.deniedForever => l10n.checkoutGpsDeniedForever,
-      DeviceLocationFailure.serviceDisabled => l10n.checkoutGpsDisabled,
-      DeviceLocationFailure.timeout => l10n.checkoutGpsTimeout,
-      DeviceLocationFailure.stale => l10n.checkoutGpsStale,
-      DeviceLocationFailure.unavailable => l10n.checkoutMapGpsUnavailable,
-      null => l10n.checkoutGpsApproximate,
-    };
-    final settings =
-        _gpsFailure == DeviceLocationFailure.deniedForever ||
-        _gpsFailure == DeviceLocationFailure.serviceDisabled;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _InfoCard(icon: Icons.location_searching, message: message),
-        TextButton.icon(
-          key: const ValueKey('checkout-location-retry'),
-          onPressed: _locating
-              ? null
-              : () {
-                  if (settings) {
-                    unawaited(_openLocationSettings());
-                  } else {
-                    unawaited(_locate(retry: true));
-                  }
-                },
-          icon: Icon(settings ? Icons.settings_outlined : Icons.my_location),
-          label: Text(settings ? l10n.checkoutGpsSettings : l10n.commonRetry),
-        ),
-      ],
-    );
-  }
-
-  Widget _coverageMap(AsyncValue<List<UserAddress>> addresses) {
-    final coverage = ref.watch(deliveryCoverageProvider(widget.storeType.wire));
-    final selected = _addressById(addresses.value ?? [], _selectedAddressId);
-    final deliveryPoint =
-        selected?.latitude != null && selected?.longitude != null
-        ? LatLng(selected!.latitude!, selected.longitude!)
-        : null;
-    final l10n = AppLocalizations.of(context);
-    return ValueListenableBuilder<LatLng?>(
-      valueListenable: _gps,
-      builder: (context, gps, _) {
-        final authoritative = _estimate?.branch;
-        final branch = authoritative?.hasCoverage == true
-            ? authoritative
-            : selectCoveragePreview(coverage.value ?? const [], gps);
-        if (branch != null) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              CheckoutDeliveryMap(
-                compact: true,
-                branch: branch,
-                deliveryPoint: deliveryPoint,
-                gps: _gps,
-                gpsAccuracyMeters: _gpsFix?.accuracy,
-                onLocate: () => unawaited(_locate(retry: true)),
-                locating: _locating,
-                locationFailed: false,
-              ),
-              if (authoritative == null)
-                Text(
-                  l10n.checkoutMapPreviewHint,
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-            ],
-          );
-        }
-        if (coverage.isLoading) {
-          return Container(
-            height: 180,
-            decoration: BoxDecoration(
-              color: const Color(0xFFF0F2F4),
-              borderRadius: BorderRadius.circular(20),
-            ),
-          );
-        }
-        return Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                Text(l10n.checkoutMapCoverageUnavailable),
-                TextButton(
-                  onPressed: () => ref.invalidate(
-                    deliveryCoverageProvider(widget.storeType.wire),
-                  ),
-                  child: Text(l10n.commonRetry),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _pickupSection(
-    BuildContext context,
-    AsyncValue<List<StoreBranch>> branches,
-    String? pickupBranchId,
-  ) {
-    final l10n = AppLocalizations.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _SectionTitle(text: l10n.checkoutBranch),
-        const SizedBox(height: AppSpacing.sm),
-        switch (branches) {
-          AsyncData(:final value) when value.isEmpty => _InfoCard(
-            icon: Icons.store_mall_directory_outlined,
-            message: l10n.checkoutSelectBranch,
-          ),
-          AsyncData(:final value) => RadioGroup<String>(
-            groupValue: pickupBranchId,
-            onChanged: (value) => setState(() => _selectedBranchId = value),
-            child: Column(
-              children: [
-                for (final branch in value.where(
-                  (branch) => branch.isActive && branch.isPickupAvailable,
-                ))
-                  RadioListTile<String>(
-                    value: branch.id,
-                    title: Text(branch.name),
-                    subtitle: Text(branch.address),
-                  ),
-              ],
-            ),
-          ),
-          AsyncError(:final error) => _InfoCard(
-            icon: Icons.error_outline,
-            message: error is ApiFailure
-                ? error.localize(l10n)
-                : l10n.errorUnknown,
-          ),
-          _ => const Center(child: CircularProgressIndicator()),
-        },
-      ],
-    );
-  }
-
-  bool _canSubmit(String? pickupBranchId) {
-    final cartState = ref.read(cartControllerProvider(widget.storeType)).value;
-    final cart = cartState?.cart;
-    if (_preparing ||
-        _prepareFailure != null ||
-        cart == null ||
-        cart.items.isEmpty ||
-        cartState!.hasPendingMutation ||
-        cartState.mutationFailure != null) {
-      return false;
-    }
-    if (_fulfillment == FulfillmentType.delivery &&
-        _addressById(
-              ref.read(addressesControllerProvider).value ?? [],
-              _selectedAddressId,
-            ) ==
-            null) {
-      return false;
-    }
-    return CheckoutRules.canSubmit(
-      fulfillmentType: _fulfillment,
-      addressId: _selectedAddressId,
-      estimate: _estimate,
-      isEstimating: _estimating,
-      pickupBranchId: pickupBranchId,
-      pickupAllowed: CheckoutRules.pickupAllowed(cart),
-    );
-  }
-
-  /// Foydalanuvchi tanlamagan bo'lsa filial faqat AYNAN BITTA mos (faol va
-  /// olib ketish mumkin) filial bo'lgandagina avtomatik olinadi — bir nechta
-  /// bo'lsa birinchisini olish noto'g'ri filialga olib kelardi. Bu hosila
-  /// qiymat: build holatni o'zgartirmaydi.
-  String? _effectiveBranchId(List<StoreBranch> branches) {
-    if (_selectedBranchId != null) return _selectedBranchId;
-    final eligible = branches
-        .where((branch) => branch.isActive && branch.isPickupAvailable)
-        .toList();
-    return eligible.length == 1 ? eligible.single.id : null;
-  }
-
-  /// Provider holati o'zgarganda (build'dan TASHQARIDA) chaqiriladi: aralash
-  /// savatda majburan yetkazishga o'tadi va manzil tanlash oynasini bir marta
-  /// rejalashtiradi. Shartlar build'dagi ekran holati bilan bir xil.
-  void _syncWithProviders() {
-    if (!mounted || _preparing || _prepareFailure != null) return;
-    final cartAsync = ref.read(cartControllerProvider(widget.storeType));
-    final cart = cartAsync.value?.cart;
-    if (cartAsync.isLoading || cart == null || cart.items.isEmpty) return;
-    // Location belongs to checkout entry, not to successfully loading or
-    // choosing a saved address. The chooser shares this permission request.
-    if (_fulfillment == FulfillmentType.delivery && !_gpsAttempted) {
-      unawaited(_locate());
-    }
-    if (!CheckoutRules.pickupAllowed(cart) &&
-        _fulfillment == FulfillmentType.pickup) {
-      setState(() {
-        _fulfillment = FulfillmentType.delivery;
-        _selectedBranchId = null;
-        // Majburan yetkazishga o'tganda manzil tanlovi qayta so'raladi —
-        // aks holda tasdiqlash tugmasi sababsiz o'chiq qolardi.
-        _addressChoicePrompted = false;
-      });
-    }
-    _scheduleAddressChoice(ref.read(addressesControllerProvider));
-  }
-
-  void _selectAddress(UserAddress address) {
-    setState(() {
-      _selectedAddressId = address.id;
-      _estimatedAddressId = null;
-      _estimate = null;
-      _estimateFailure = null;
-    });
-    unawaited(_estimateFor(address));
-  }
-
-  UserAddress? _addressById(List<UserAddress> addresses, String? id) {
-    if (id == null) return null;
-    return addresses.where((address) => address.id == id).firstOrNull;
-  }
-
-  void _scheduleAddressChoice(AsyncValue<List<UserAddress>> addresses) {
-    if (_fulfillment != FulfillmentType.delivery ||
-        _selectedAddressId != null ||
-        _addressChoicePrompted ||
-        _addressChoiceVisible ||
-        !addresses.hasValue) {
-      return;
-    }
-    _addressChoicePrompted = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) unawaited(_showAddressChooser());
-    });
-  }
-
-  Future<void> _showAddressChooser() async {
-    if (_addressChoiceVisible || !mounted) return;
-    // Permission is settled BEFORE opening the app modal. The slower GPS fix
-    // then runs in parallel without selecting a delivery address.
-    await _ensureLocationAccess();
-    if (!mounted ||
-        _addressChoiceVisible ||
-        _fulfillment != FulfillmentType.delivery ||
-        ModalRoute.of(context)?.isCurrent == false) {
-      return;
-    }
-    unawaited(_locate());
-    final addresses = ref.read(addressesControllerProvider).value ?? const [];
-    _addressChoiceVisible = true;
-    final result = await showModalBottomSheet<String>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      isDismissible: false,
-      enableDrag: false,
-      builder: (context) => _AddressChoiceSheet(addresses: addresses),
-    );
-    _addressChoiceVisible = false;
-    if (!mounted) return;
-    if (result == null) {
-      unawaited(_refreshLocationOnReturn());
-      return;
-    }
-    if (result == _AddressChoiceSheet.newAddressValue) {
-      await _addAddress();
-      return;
-    }
-    final address = _addressById(
-      ref.read(addressesControllerProvider).value ?? addresses,
-      result,
-    );
-    if (address != null) _selectAddress(address);
-    unawaited(_refreshLocationOnReturn());
-  }
-
-  Future<void> _estimateFor(UserAddress address) async {
-    final revision = ++_estimateRevision;
-    if (_estimatedAddressId == address.id && _estimate != null) return;
-    if (address.latitude == null || address.longitude == null) {
-      if (mounted) {
-        setState(() {
-          _estimate = const DeliveryEstimate(available: false, detail: '');
-          _estimatedAddressId = address.id;
-          _estimating = false;
-        });
-      }
-      return;
-    }
-    setState(() {
-      _estimating = true;
-      _estimateFailure = null;
-      _estimate = null;
-    });
-    ref.invalidate(deliveryCoverageProvider(widget.storeType.wire));
-    try {
-      final estimate = await ref
-          .read(checkoutApiProvider)
-          .estimate(
-            storeType: widget.storeType.wire,
-            latitude: address.latitude!,
-            longitude: address.longitude!,
-          );
-      if (!mounted ||
-          revision != _estimateRevision ||
-          _selectedAddressId != address.id) {
-        return;
-      }
-      setState(() {
-        _estimate = estimate;
-        _estimatedAddressId = address.id;
-      });
-    } on ApiFailure catch (failure) {
-      if (!mounted ||
-          revision != _estimateRevision ||
-          _selectedAddressId != address.id) {
-        return;
-      }
-      setState(() => _estimateFailure = failure);
-    } finally {
-      if (mounted &&
-          revision == _estimateRevision &&
-          _selectedAddressId == address.id) {
-        setState(() => _estimating = false);
-      }
-    }
-  }
-
-  Future<void> _addAddress() async {
-    final id = await context.push<String>(
-      Routes.checkoutAddressNew(widget.storeType.wire),
-    );
-    if (!mounted) return;
-    unawaited(_locate());
-    if (id == null) return;
-    await ref.read(addressesControllerProvider.notifier).refresh();
-    final address = ref
-        .read(addressesControllerProvider)
-        .value
-        ?.where((item) => item.id == id)
-        .firstOrNull;
-    if (address != null) _selectAddress(address);
-    unawaited(_locate());
-  }
-
-  Future<void> _prepareCheckout() async {
-    if (!mounted) return;
-    setState(() {
-      _preparing = true;
-      _prepareFailure = null;
-    });
-    try {
-      await ref.read(guestCartCoordinatorProvider).mergeIfNeeded();
-      await Future.wait([
-        ref.read(cartControllerProvider(widget.storeType).notifier).refresh(),
-        ref.read(addressesControllerProvider.notifier).refresh(),
-      ]);
-      ref.invalidate(deliveryCoverageProvider(widget.storeType.wire));
-      if (!mounted) return;
-      final cart = ref.read(cartControllerProvider(widget.storeType));
-      final failure = cart.value?.mutationFailure ?? cart.error;
-      if (failure is ApiFailure) throw failure;
-    } on ApiFailure catch (failure) {
-      if (mounted) {
-        _prepareFailure = failure;
-        _messenger.showSnackBar(
-          SnackBar(
-            content: Text(failure.localize(AppLocalizations.of(context))),
-          ),
-        );
-      }
-    } on Object {
-      if (mounted) _prepareFailure = const UnknownFailure();
-    } finally {
-      if (mounted) setState(() => _preparing = false);
-    }
-    // Tayyor bo'lgach provider'lar allaqachon ma'lumot bergan bo'lishi mumkin
-    // (listener endi otmaydi) — bir marta qo'lda sinxronlaymiz.
-    _syncWithProviders();
-  }
-
   Future<void> _submit(String? pickupBranchId) async {
-    // Buyurtma berish internet talab qiladi — offline'da belgi silkinadi,
-    // so'rov yuborilmaydi (ma'lumot yo'qolmaydi, savat joyida qoladi).
+    if (_preparing || _submittingPreflight) return;
     if (!OfflineGate.check(ref)) return;
+    _submittingPreflight = true;
     try {
+      await _prepareCheckout();
+      if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
+      final draft = ref.read(orderDraftProvider(widget.storeType));
+      final cart = ref.read(cartControllerProvider(widget.storeType)).value;
+      final addresses = ref.read(addressesControllerProvider).value;
+      if (draft.fulfillment == FulfillmentType.pickup && cart != null) {
+        final stores = CheckoutRules.physicalStoreIds(cart.cart);
+        final eligible = stores.length == 1
+            ? (ref.read(storeBranchesProvider(stores.single)).value ??
+                      const <StoreBranch>[])
+                  .where(
+                    (branch) => branch.isActive && branch.isPickupAvailable,
+                  )
+                  .toList()
+            : const <StoreBranch>[];
+        pickupBranchId =
+            eligible
+                .where((branch) => branch.id == draft.pickupBranchId)
+                .firstOrNull
+                ?.id ??
+            (eligible.length == 1 ? eligible.single.id : null);
+      }
+      if (cart == null ||
+          (draft.fulfillment == FulfillmentType.delivery &&
+              addresses == null) ||
+          !_canSubmit(cart, addresses ?? const [], pickupBranchId)) {
+        return;
+      }
       final order = await ref
           .read(checkoutControllerProvider(widget.storeType).notifier)
           .submit(
-            fulfillmentType: _fulfillment,
-            paymentMethod: _paymentMethod,
-            addressId: _selectedAddressId,
+            fulfillmentType: draft.fulfillment,
+            paymentMethod: draft.paymentMethod,
+            addressId: draft.addressId,
             pickupBranchId: pickupBranchId,
             note: _noteController.text,
           );
       if (!mounted || order == null) return;
-      AppBackCoordinator.of(GoRouter.of(context)).discardCheckout();
-      context.go(
-        Routes.orderDetail(
-          widget.storeType.wire,
-          order.id,
-          // Payme tanlangan bo'lsa buyurtma sahifasi to'lovni o'zi boshlaydi.
-          autoPay:
-              ref.read(paymeEnabledProvider) &&
-              _paymentMethod == PaymentMethod.payme,
-        ),
-      );
+      ref.read(orderDraftProvider(widget.storeType).notifier).clear();
+      final router = GoRouter.maybeOf(context);
+      if (router != null) {
+        AppBackCoordinator.of(router).discardCheckout();
+        context.go(
+          Routes.orderDetail(
+            widget.storeType.wire,
+            order.id,
+            autoPay:
+                ref.read(paymeEnabledProvider) &&
+                draft.paymentMethod == PaymentMethod.payme,
+          ),
+        );
+      }
     } on ApiFailure catch (failure) {
       if (!mounted) return;
-      ref.invalidate(deliveryCoverageProvider(widget.storeType.wire));
-      final address = _addressById(
-        ref.read(addressesControllerProvider).value ?? [],
-        _selectedAddressId,
-      );
-      if (address != null && _fulfillment == FulfillmentType.delivery) {
-        _estimatedAddressId = null;
-        unawaited(_estimateFor(address));
+      if (failure is ValidationFailure) {
+        final reason = failure.forField('reason_code') ?? '';
+        final structural =
+            reason == 'minimum_delivery_order_not_met' ||
+            reason.contains('delivery') ||
+            reason.contains('radius') ||
+            failure.forField('address') != null ||
+            failure.forField('address_id') != null ||
+            failure.forField('pickup_branch') != null;
+        if (structural) {
+          await ref
+              .read(orderDraftProvider(widget.storeType).notifier)
+              .prepare(revalidateQuote: true);
+          if (!mounted) return;
+          _returnToCart(
+            reason == 'minimum_delivery_order_not_met'
+                ? 'products'
+                : 'location',
+            notice: reason == 'minimum_delivery_order_not_met'
+                ? 'minimum_not_met'
+                : 'cart_changed',
+          );
+          return;
+        }
       }
-      if (!mounted) return;
+      // Unknown/network failures keep the draft and controller idempotency key.
       _messenger
         ..hideCurrentSnackBar()
         ..showSnackBar(
           SnackBar(
+            behavior: SnackBarBehavior.floating,
             content: Text(failure.localize(AppLocalizations.of(context))),
           ),
         );
+    } finally {
+      _submittingPreflight = false;
     }
   }
 }
@@ -1301,352 +937,6 @@ class _SectionTitle extends StatelessWidget {
   );
 }
 
-class _SelectedAddress extends StatelessWidget {
-  const _SelectedAddress({required this.address, required this.onChoose});
-
-  final UserAddress? address;
-  final VoidCallback onChoose;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final selected = address;
-    if (selected == null) {
-      return SizedBox(
-        width: double.infinity,
-        child: FilledButton(
-          key: const ValueKey('checkout-choose-address'),
-          onPressed: onChoose,
-          style: FilledButton.styleFrom(
-            backgroundColor: AppColors.primary,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.all(16),
-            minimumSize: const Size(0, 76),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-          ),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: .16),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(Icons.add_location_alt_outlined, size: 26),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      l10n.checkoutSelectAddress,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      l10n.checkoutAddressActionHint,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.white.withValues(alpha: .92),
-                        fontWeight: FontWeight.w400,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              const Icon(Icons.arrow_forward, size: 20),
-            ],
-          ),
-        ),
-      );
-    }
-    return Semantics(
-      button: true,
-      label: l10n.checkoutChooseOrChangeAddress,
-      child: Material(
-        key: const ValueKey('checkout-choose-address'),
-        color: AppColors.primarySoft,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: AppColors.primary, width: 1.5),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onChoose,
-          child: Padding(
-            key: ValueKey('checkout-selected-address-${selected.id}'),
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Icon(
-                  Icons.location_on,
-                  color: AppColors.primary,
-                  size: 24,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 4,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          Text(
-                            selected.displayTitle(l10n),
-                            style: const TextStyle(fontWeight: FontWeight.w700),
-                          ),
-                          Text(
-                            l10n.checkoutSelectedAddress,
-                            style: const TextStyle(
-                              fontSize: 10,
-                              color: AppColors.primary,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                      if (selected.latitude != null &&
-                          selected.longitude != null)
-                        Text(
-                          '${selected.latitude!.toStringAsFixed(5)}, ${selected.longitude!.toStringAsFixed(5)}',
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                      if ([
-                        selected.district,
-                        selected.neighborhood,
-                        selected.street,
-                        selected.house,
-                        selected.apartment,
-                      ].any((part) => part.trim().isNotEmpty))
-                        Text(
-                          selected.formattedAddress,
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                      const SizedBox(height: 10),
-                      Row(
-                        children: [
-                          const Icon(
-                            Icons.edit_location_alt_outlined,
-                            size: 16,
-                            color: AppColors.primary,
-                          ),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              l10n.commonEdit,
-                              style: const TextStyle(
-                                color: AppColors.primary,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                const Icon(
-                  Icons.chevron_right,
-                  color: AppColors.primary,
-                  size: 22,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _AddressChoiceSheet extends StatelessWidget {
-  const _AddressChoiceSheet({required this.addresses});
-
-  static const newAddressValue = '__new_address__';
-
-  final List<UserAddress> addresses;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
-    return ConstrainedBox(
-      constraints: BoxConstraints(
-        maxHeight: MediaQuery.sizeOf(context).height * 0.82,
-      ),
-      child: SingleChildScrollView(
-        padding: EdgeInsets.fromLTRB(
-          AppSpacing.screenH,
-          AppSpacing.md,
-          AppSpacing.screenH,
-          AppSpacing.md + MediaQuery.viewPaddingOf(context).bottom,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    l10n.checkoutLocationPromptTitle,
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-                IconButton(
-                  tooltip: l10n.commonClose,
-                  onPressed: () => Navigator.pop(context),
-                  icon: const Icon(Icons.close),
-                ),
-              ],
-            ),
-            Text(
-              l10n.checkoutLocationPromptHint,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                key: const ValueKey('checkout-add-new-location'),
-                onPressed: () => Navigator.pop(context, newAddressValue),
-                icon: const Icon(Icons.add_location_alt_outlined),
-                label: Text(l10n.checkoutAddNewLocation),
-              ),
-            ),
-            if (addresses.isNotEmpty) ...[
-              const SizedBox(height: AppSpacing.lg),
-              Text(
-                l10n.checkoutSavedLocations,
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              for (final address in addresses) ...[
-                ListTile(
-                  key: ValueKey('checkout-address-option-${address.id}'),
-                  contentPadding: EdgeInsets.zero,
-                  onTap: () => Navigator.pop(context, address.id),
-                  leading: const Icon(Icons.location_on_outlined),
-                  title: Text(
-                    address.displayTitle(AppLocalizations.of(context)),
-                  ),
-                  subtitle: Text(address.formattedAddress),
-                  trailing: const Icon(Icons.chevron_right),
-                ),
-                const Divider(height: 1),
-              ],
-            ] else ...[
-              const SizedBox(height: AppSpacing.lg),
-              _InfoCard(
-                icon: Icons.location_off_outlined,
-                message: l10n.addressesEmpty,
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _EstimateCard extends StatelessWidget {
-  const _EstimateCard({required this.estimate});
-
-  final DeliveryEstimate estimate;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final message = estimate.available
-        ? [
-            if (estimate.distanceKm != null)
-              '${l10n.checkoutDistance}: ${estimate.distanceKm} km',
-            if (estimate.deliveryPrice != null)
-              '${l10n.cartDeliveryFee}: ${Uzs.format(estimate.deliveryPrice)}',
-          ].join(' · ')
-        : estimate.reasonCode == 'outside_delivery_radius'
-        ? l10n.checkoutOutsideRadius(
-            deliveryRadiusLabel(
-              estimate.coverageRadiusKm ?? estimate.branch?.radiusKm ?? 8,
-            ),
-          )
-        : estimate.reasonCode == 'delivery_tariff_unavailable'
-        ? l10n.checkoutTariffUnavailable
-        : estimate.detail.isNotEmpty
-        ? estimate.detail
-        : l10n.checkoutEstimateUnavailable;
-    return Container(
-      key: const ValueKey('checkout-delivery-estimate'),
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: estimate.available
-            ? AppColors.primarySoft
-            : Theme.of(
-                context,
-              ).colorScheme.errorContainer.withValues(alpha: .4),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            estimate.available
-                ? Icons.check_circle_outline
-                : Icons.location_off,
-            size: 18,
-            color: estimate.available
-                ? AppColors.primary
-                : Theme.of(context).colorScheme.error,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(message, style: Theme.of(context).textTheme.bodySmall),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _InfoCard extends StatelessWidget {
-  const _InfoCard({required this.icon, required this.message});
-
-  final IconData icon;
-  final String message;
-
-  @override
-  Widget build(BuildContext context) => Card(
-    margin: EdgeInsets.zero,
-    child: Padding(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      child: Row(
-        children: [
-          Icon(icon),
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(child: Text(message)),
-        ],
-      ),
-    ),
-  );
-}
-
 class _SummaryCard extends StatelessWidget {
   const _SummaryCard({
     required this.cart,
@@ -1762,8 +1052,8 @@ class _SummaryRow extends StatelessWidget {
 
 /// Read-only order contents: use server line subtotals (including chosen
 /// variants/addons), not product.price * quantity.
-class _CheckoutReceipt extends StatelessWidget {
-  const _CheckoutReceipt({required this.cart});
+class CheckoutReceipt extends StatelessWidget {
+  const CheckoutReceipt({required this.cart, super.key});
   final CartData cart;
 
   String _quantity(AppLocalizations l10n, CartItem item) {
@@ -1944,16 +1234,11 @@ class _ReceiptQuantityPrice extends StatelessWidget {
 }
 
 class _CheckoutPanel extends StatelessWidget {
-  const _CheckoutPanel({
-    required this.child,
-    this.padding = const EdgeInsets.all(14),
-    super.key,
-  });
+  const _CheckoutPanel({required this.child, super.key});
   final Widget child;
-  final EdgeInsetsGeometry padding;
   @override
   Widget build(BuildContext context) => Container(
-    padding: padding,
+    padding: const EdgeInsets.all(14),
     decoration: BoxDecoration(
       color: Theme.of(context).colorScheme.surface,
       borderRadius: BorderRadius.circular(20),

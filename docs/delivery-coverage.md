@@ -13,7 +13,7 @@ Edit each branch's radius (0.10–100.00 km) in Admin → Branches. The form war
 The phone GPS point is transient, foreground-only and independent of the user's explicitly selected delivery address. A denied permission or unavailable GPS does not prevent manual selection. Map tile failure does not disable address selection or server estimates.
 
 Delivery checkout requests location permission before opening the address
-chooser. The fresh high-accuracy GPS request then runs alongside the chooser,
+selection route (not a bottom sheet). The fresh high-accuracy GPS request then runs alongside it,
 with a 15-second limit; it never selects an address or sends an estimate by
 itself. Coordinates retain their timestamp and accuracy. Fixes older than
 60 seconds are rejected/expired; accuracy above 100 m or unknown accuracy is
@@ -26,7 +26,19 @@ automatically if existing permission and GPS are enabled. Passive resume
 checks never re-open an OS permission dialog. Android does not show the
 permission dialog again when this app already has location permission.
 
+The selection route prioritizes saved addresses and keeps selection as a draft
+until its sticky confirmation button is pressed. Only that draft is estimated;
+late results are guarded by address coordinates and physical cart-store scope.
+Confirmed quotes are reused by checkout only while those inputs still match.
+Its map uses the current cart/store coverage, never the larger shared boundary
+used by the add/edit form. See `address-picker.md` for routing and UI behavior.
+
 Checkout shows original-color map tiles with a blue coverage boundary and no gray mask. The mini-map supports touch pan/pinch and manual recentering; moving the camera does not change the selected delivery address or radius decision. Scroll outside the map to move through checkout; Web mouse-wheel scrolling remains with the page. The final read-only product receipt shows cart line names, quantities, variants/addons and server-calculated subtotals. It is an order preview, not a fiscal receipt.
+
+Only the delivery coverage boundary is drawn. The GPS accuracy circle is omitted
+in both mini/fullscreen checkout maps to avoid looking like a second delivery
+radius. All three store/address/GPS pins remain; GPS accuracy still informs the
+approximate-location warning and never determines delivery eligibility.
 
 Checks:
 

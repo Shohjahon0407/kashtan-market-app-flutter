@@ -113,7 +113,11 @@ void main() {
       isNull,
     );
   });
-  const available = DeliveryEstimate(available: true, detail: '');
+  const available = DeliveryEstimate(
+    available: true,
+    detail: '',
+    deliveryPrice: '5000',
+  );
   const unavailable = DeliveryEstimate(available: false, detail: 'uzoq');
 
   test('delivery address va available estimate bo‘lmasa submit bloklanadi', () {

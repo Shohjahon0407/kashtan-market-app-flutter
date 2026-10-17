@@ -158,10 +158,12 @@ void main() {
           find.byKey(const ValueKey('checkout-map-gps-pin')),
           findsOneWidget,
         );
-        final accuracy = tester.widget<CircleLayer>(find.byType(CircleLayer));
-        expect(accuracy.circles.single.radius, 45);
-        expect(accuracy.circles.single.useRadiusInMeter, isTrue);
-        expect(accuracy.circles.single.point, gps.value);
+        // GPS accuracy must not look like a second delivery radius.
+        expect(find.byType(CircleLayer), findsNothing);
+        expect(
+          find.byKey(const ValueKey('checkout-map-gps-accuracy')),
+          findsNothing,
+        );
         final l10n = AppLocalizations.of(
           tester.element(find.byType(CheckoutDeliveryMap)),
         );
@@ -212,7 +214,13 @@ void main() {
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 300));
         expect(find.byType(Dialog), findsOneWidget);
-        expect(find.byType(CircleLayer), findsNWidgets(2));
+        expect(find.byType(CircleLayer), findsNothing);
+        expect(
+          tester
+              .widgetList<CustomPaint>(find.byType(CustomPaint))
+              .where((widget) => widget.painter is DeliveryCoveragePainter),
+          hasLength(2),
+        );
         final expanded = tester.widget<FlutterMap>(
           find.byType(FlutterMap).last,
         );

@@ -85,6 +85,19 @@ abstract final class Routes {
   static String storeFavorites(String storeType) =>
       '${storeRoot(storeType)}/favorites';
   static String storeCart(String storeType) => '${storeRoot(storeType)}/cart';
+  static String storeCartFor(String storeType, {String? focus}) =>
+      focus == null || focus.isEmpty
+      ? storeCart(storeType)
+      : Uri(
+          path: storeCart(storeType),
+          queryParameters: {'focus': focus},
+        ).toString();
+  static String cartDeliveryAddressSelect(String storeType) =>
+      '${storeCart(storeType)}/address/select';
+  static String cartDeliveryAddressNew(String storeType) =>
+      '${cartDeliveryAddressSelect(storeType)}/new';
+  static String cartDeliveryAddressEdit(String storeType, String addressId) =>
+      '${cartDeliveryAddressSelect(storeType)}/${Uri.encodeComponent(addressId)}/edit';
   static String storeOrders(String storeType) =>
       '${storeRoot(storeType)}/orders';
   static String productDetail(String storeType, String productId) =>
@@ -95,6 +108,12 @@ abstract final class Routes {
       '${storeCart(storeType)}/checkout';
   static String checkoutAddressNew(String storeType) =>
       '${checkout(storeType)}/address/new';
+  static String deliveryAddressSelect(String storeType) =>
+      '${checkout(storeType)}/address/select';
+  static String deliveryAddressNew(String storeType) =>
+      '${deliveryAddressSelect(storeType)}/new';
+  static String deliveryAddressEdit(String storeType, String addressId) =>
+      '${deliveryAddressSelect(storeType)}/${Uri.encodeComponent(addressId)}/edit';
   static String checkoutAddressEdit(String storeType, String addressId) =>
       '${checkout(storeType)}/address/$addressId/edit';
 

@@ -41,7 +41,7 @@ written under the selected build directory.
   photography; they are not real customer/order data or production ads.
 - Admin verifies login, category/product selection, live image/price preview,
   create (201), and edit (200).
-- Customer verifies current-category banners/recommendations/grid, five-second
+- Customer verifies current-category banners/recommendations/grid, 2.5-second
   autoplay, manual carousel controls, category-first search, empty-result
   Xozmak fallback, opening the matching category, back, and clearing search.
 - Product detail is deliberately excluded: an existing PostgreSQL-only SQL

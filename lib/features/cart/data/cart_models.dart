@@ -101,6 +101,7 @@ class CartData {
     required this.totalItems,
     required this.totalQuantity,
     required this.subtotal,
+    this.minimumDeliveryOrderAmount,
   });
 
   factory CartData.fromJson(Map<String, dynamic> json) => CartData(
@@ -110,6 +111,9 @@ class CartData {
     totalItems: JsonRead.integer(json['total_items']),
     totalQuantity: JsonRead.integer(json['total_quantity']),
     subtotal: JsonRead.string(json['subtotal'], '0'),
+    minimumDeliveryOrderAmount: JsonRead.nullableString(
+      json['minimum_delivery_order_amount'],
+    ),
   );
 
   factory CartData.empty(String storeTypeWire) => CartData(
@@ -127,6 +131,29 @@ class CartData {
   final int totalItems;
   final int totalQuantity;
   final String subtotal;
+
+  /// Null for older servers: do not invent a store-specific policy.
+  final String? minimumDeliveryOrderAmount;
+
+  bool get hasDeliveryMinimum =>
+      _parseMoneyMinor(minimumDeliveryOrderAmount ?? '0') > 0;
+
+  String get remainingForDelivery => deliveryMinimumRemaining();
+
+  /// Only a confirmed server quote should be passed as deliveryFee. Without
+  /// one, this is the conservative products-only remainder, not a guessed fee.
+  String deliveryMinimumRemaining({String? deliveryFee}) {
+    final remaining =
+        _parseMoneyMinor(minimumDeliveryOrderAmount ?? '0') -
+        _parseMoneyMinor(subtotal) -
+        _parseMoneyMinor(deliveryFee ?? '0');
+    return _formatMoneyMinor(remaining > 0 ? remaining : 0);
+  }
+
+  bool get meetsDeliveryMinimum => _parseMoneyMinor(remainingForDelivery) == 0;
+
+  bool meetsDeliveryMinimumIncluding(String? deliveryFee) =>
+      _parseMoneyMinor(deliveryMinimumRemaining(deliveryFee: deliveryFee)) == 0;
 
   int quantityForProduct(String productId) => items
       .where((item) => item.product.id == productId)
@@ -179,6 +206,7 @@ class CartData {
     totalItems: totalItems ?? this.totalItems,
     totalQuantity: totalQuantity ?? this.totalQuantity,
     subtotal: subtotal ?? this.subtotal,
+    minimumDeliveryOrderAmount: minimumDeliveryOrderAmount,
   );
 }
 

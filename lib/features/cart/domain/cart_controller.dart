@@ -550,10 +550,17 @@ class CartController extends AsyncNotifier<CartState> {
         _settleQuantityIntent(intent, success: true);
         return;
       }
-    } on NetworkFailure {
+    } on NetworkFailure catch (failure) {
       if (!ref.mounted || generation != _generation) return;
       await _queueOfflineIntent(intent);
-      _settleQuantityIntent(intent, success: true);
+      if (!ref.mounted || generation != _generation) return;
+      final held = state.value;
+      if (held != null) {
+        state = AsyncData(held.copyWith(mutationFailure: () => failure));
+      }
+      // Keep the optimistic offline intention, but do not present it as a
+      // server-confirmed cart that is ready to place an order.
+      _settleQuantityIntent(intent, success: true, preserveFailure: true);
     } on ApiFailure catch (failure) {
       if (!ref.mounted || generation != _generation) return;
       _rollbackIntent(intent, failure);

@@ -34,8 +34,9 @@ cache’ni yangilaydi; tavsiya cache’i kategoriya va rasm filtriga ajratilgan.
 
 ## App oqimi
 
-Bannerlar 5 soniyada almashadi; offscreen/background/boshqa route va reduced
-motion’da auto-slide to‘xtaydi. Qo‘lda swipe va keyingi/oldingi amallari bor.
+Bannerlar 2,5 soniyada almashadi; offscreen/background/boshqa route va reduced
+motion’da auto-slide to‘xtaydi. Qo‘lda swipe ishlaydi; indikatorlarda faol
+banner uzunchoq, qolganlari kichik nuqta bilan ko‘rsatiladi (ko‘pi bilan 7 ta).
 Banner/detaildan back eski carousel va katalog scrollini saqlaydi.
 
 Qidiruv 350 ms’dan keyin avval joriy kategoriyaga yuboriladi. Faqat nol natijali

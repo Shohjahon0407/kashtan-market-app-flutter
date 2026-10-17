@@ -2,753 +2,629 @@ import 'dart:async';
 
 import 'package:beshkashtan_customer/core/localization/locale_controller.dart';
 import 'package:beshkashtan_customer/core/network/api_failure.dart';
+import 'package:beshkashtan_customer/core/network/connectivity_controller.dart';
+import 'package:beshkashtan_customer/core/routing/routes.dart';
 import 'package:beshkashtan_customer/core/storage/account_scope.dart';
 import 'package:beshkashtan_customer/core/store_scope/store_type.dart';
+import 'package:beshkashtan_customer/core/ui/theme/app_theme.dart';
 import 'package:beshkashtan_customer/features/cart/data/cart_api.dart';
 import 'package:beshkashtan_customer/features/cart/data/cart_models.dart';
 import 'package:beshkashtan_customer/features/cart/domain/cart_controller.dart';
+import 'package:beshkashtan_customer/features/cart/domain/offline_cart_queue.dart';
 import 'package:beshkashtan_customer/features/catalog/data/product_models.dart';
 import 'package:beshkashtan_customer/features/checkout/data/checkout_api.dart';
 import 'package:beshkashtan_customer/features/checkout/data/checkout_models.dart';
 import 'package:beshkashtan_customer/features/checkout/domain/addresses_controller.dart';
+import 'package:beshkashtan_customer/features/checkout/domain/checkout_controller.dart';
+import 'package:beshkashtan_customer/features/checkout/domain/delivery_address_selection.dart';
 import 'package:beshkashtan_customer/features/checkout/domain/device_location.dart';
-import 'package:beshkashtan_customer/features/checkout/presentation/address_form_screen.dart'
-    show
-        addressLocationResolverProvider,
-        AddressLocationResolver,
-        addressLocationAccessProvider;
+import 'package:beshkashtan_customer/features/checkout/domain/order_draft_controller.dart';
 import 'package:beshkashtan_customer/features/checkout/presentation/checkout_screen.dart';
+import 'package:beshkashtan_customer/features/orders/data/order_models.dart';
+import 'package:beshkashtan_customer/features/payments/data/payment_models.dart';
 import 'package:beshkashtan_customer/generated/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:geolocator/geolocator.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 
-const _coverageBranch = DeliveryCoverageBranch(
-  id: 'branch',
-  name: 'Filial',
-  latitude: 41.31,
-  longitude: 69.24,
-  radiusKm: 8,
+const _type = StoreType.household;
+const _address = UserAddress(
+  id: 'home',
+  title: 'Uy',
+  isDefault: true,
+  latitude: 41.3,
+  longitude: 69.2,
+);
+const _quote = DeliveryEstimate(
+  available: true,
+  detail: '',
+  deliveryPrice: '5000',
 );
 
-Future<void> _pumpCoverageCheckout(
-  WidgetTester tester,
-  _MockCheckoutApi api,
-  AddressLocationResolver resolver, {
-  LocationAccessResolver? access,
-  LocationAccessResolver? passiveAccess,
-  LocationSettingsOpener? settingsOpener,
-  AddressesController Function()? addressesFactory,
+class _CartApi extends Mock implements CartApi {}
+
+class _Api extends Mock implements CheckoutApi {}
+
+class _Queue extends Mock implements OfflineCartQueue {}
+
+class _Submission extends CheckoutController {
+  _Submission(super.type, this.onSubmit);
+  final Future<OrderData?> Function() onSubmit;
+  int calls = 0;
+  @override
+  Future<OrderData?> submit({
+    required FulfillmentType fulfillmentType,
+    required PaymentMethod paymentMethod,
+    String? addressId,
+    String? pickupBranchId,
+    String note = '',
+  }) async {
+    calls++;
+    return onSubmit();
+  }
+}
+
+class _Cart extends CartController {
+  _Cart(super.type, this.initial, {this.afterRefresh, this.refreshFailure});
+  final CartData initial;
+  final CartData? afterRefresh;
+  final ApiFailure? refreshFailure;
+  @override
+  Future<CartState> build() async => CartState(cart: initial);
+  @override
+  Future<void> refresh() async {
+    if (refreshFailure != null) throw refreshFailure!;
+    if (afterRefresh != null) state = AsyncData(CartState(cart: afterRefresh!));
+  }
+}
+
+class _Addresses extends AddressesController {
+  _Addresses(this.items);
+  final List<UserAddress> items;
+  @override
+  Future<List<UserAddress>> build() async => items;
+  @override
+  Future<void> refresh() async {}
+}
+
+CartData _cart({
+  String amount = '17000',
+  String store = 'store',
+  String minimum = '20000',
+  bool empty = false,
+}) => CartData(
+  id: 'cart',
+  storeTypeWire: _type.wire,
+  subtotal: amount,
+  minimumDeliveryOrderAmount: minimum,
+  totalItems: empty ? 0 : 1,
+  totalQuantity: empty ? 0 : 1,
+  items: empty
+      ? const []
+      : [
+          CartItem(
+            id: 'item',
+            quantity: 1,
+            subtotal: amount,
+            selectedAddons: const [],
+            note: '',
+            product: ProductSummary.fromJson({
+              'id': 'product',
+              'name': 'Mahsulot',
+              'price': amount,
+              'unit': 'dona',
+              'store': {
+                'id': store,
+                'name': 'Xozmak',
+                'store_type': _type.wire,
+              },
+            }),
+          ),
+        ],
+);
+
+class _Fixture {
+  _Fixture(this.container, this.router, this.api);
+  final ProviderContainer container;
+  final GoRouter router;
+  final _Api api;
+  OrderDraftController get draft =>
+      container.read(orderDraftProvider(_type).notifier);
+}
+
+Future<_Fixture> _mount(
+  WidgetTester tester, {
+  CartData? cart,
+  CartData? afterRefresh,
+  DeliveryEstimate quote = _quote,
+  Future<DeliveryEstimate> Function()? estimate,
+  ApiFailure? refreshFailure,
+  bool confirmed = true,
+  bool pickup = false,
+  List<StoreBranch> branches = const [],
+  List<UserAddress> addresses = const [_address],
+  String? initialLocation,
   bool settle = true,
+  _Submission? submission,
 }) async {
-  final cartApi = _MockCartApi();
+  final fixture = cart ?? _cart();
+  final api = _Api();
+  final cartApi = _CartApi();
+  final queue = _Queue();
+  when(() => queue.flush()).thenAnswer((_) async {});
+  when(() => queue.isEmpty).thenReturn(true);
   when(() => cartApi.mergeGuestCart()).thenAnswer((_) async => false);
-  when(() => api.fetchBranches('store-1')).thenAnswer((_) async => []);
   when(
-    () => api.fetchCoverage('household'),
-  ).thenAnswer((_) async => [_coverageBranch]);
+    () => api.estimate(
+      storeType: any(named: 'storeType'),
+      latitude: any(named: 'latitude'),
+      longitude: any(named: 'longitude'),
+    ),
+  ).thenAnswer((_) => estimate?.call() ?? Future.value(quote));
+  when(() => api.fetchBranches(any())).thenAnswer((_) async => branches);
+  final container = ProviderContainer(
+    overrides: [
+      isOfflineProvider.overrideWithValue(false),
+      offlineCartQueueProvider.overrideWithValue(queue),
+      if (submission != null)
+        checkoutControllerProvider(_type).overrideWith(() => submission),
+      accountScopeProvider.overrideWithValue('user_review'),
+      apiLangProvider.overrideWithValue('uz'),
+      cartApiProvider.overrideWithValue(cartApi),
+      checkoutApiProvider.overrideWithValue(api),
+      cartControllerProvider.overrideWith2(
+        (type) => _Cart(
+          type,
+          fixture,
+          afterRefresh: afterRefresh,
+          refreshFailure: refreshFailure,
+        ),
+      ),
+      addressesControllerProvider.overrideWith(() => _Addresses(addresses)),
+      addressLocationAccessProvider.overrideWithValue(() async {
+        throw StateError('Final review must not request GPS permission');
+      }),
+    ],
+  );
+  final draft = container.read(orderDraftProvider(_type).notifier);
+  await container.read(cartControllerProvider(_type).future);
+  await container.read(addressesControllerProvider.future);
+  if (confirmed) {
+    await draft.acceptAddress(
+      DeliveryAddressSelection(
+        address: _address,
+        estimate: _quote,
+        storeScope: deliveryStoreScope(fixture),
+      ),
+    );
+  }
+  if (pickup) draft.setFulfillment(FulfillmentType.pickup);
+  final router = GoRouter(
+    initialLocation: initialLocation ?? Routes.checkout(_type.wire),
+    routes: [
+      GoRoute(
+        path: Routes.storeCart(_type.wire),
+        builder: (context, state) => Scaffold(
+          body: Column(
+            children: [
+              Text(
+                'CART:${state.uri.queryParameters['focus'] ?? ''}',
+                key: const ValueKey('cart-root'),
+              ),
+              TextButton(
+                onPressed: () => context.push(Routes.checkout(_type.wire)),
+                child: const Text('Open review'),
+              ),
+            ],
+          ),
+        ),
+        routes: [
+          GoRoute(
+            path: 'checkout',
+            builder: (context, state) => const CheckoutScreen(storeType: _type),
+            routes: [
+              GoRoute(
+                path: 'address/select',
+                builder: (context, state) =>
+                    const Scaffold(body: Text('LEGACY ADDRESS')),
+              ),
+              GoRoute(
+                path: 'address/new',
+                builder: (context, state) =>
+                    const Scaffold(body: Text('LEGACY NEW')),
+              ),
+            ],
+          ),
+        ],
+      ),
+    ],
+  );
+  addTearDown(router.dispose);
+  addTearDown(container.dispose);
   await tester.pumpWidget(
-    ProviderScope(
-      overrides: [
-        accountScopeProvider.overrideWithValue('user_test'),
-        apiLangProvider.overrideWithValue('uz'),
-        cartApiProvider.overrideWithValue(cartApi),
-        checkoutApiProvider.overrideWithValue(api),
-        cartControllerProvider.overrideWith2(_TestCartController.new),
-        addressesControllerProvider.overrideWith(
-          addressesFactory ?? _SingleAddressController.new,
-        ),
-        addressLocationResolverProvider.overrideWithValue(resolver),
-        addressLocationAccessProvider.overrideWithValue(access ?? () async {}),
-        addressLocationStatusProvider.overrideWithValue(
-          passiveAccess ?? access ?? () async {},
-        ),
-        if (settingsOpener != null)
-          locationSettingsOpenerProvider.overrideWithValue(settingsOpener),
-      ],
-      child: const MaterialApp(
-        locale: Locale('uz'),
+    UncontrolledProviderScope(
+      container: container,
+      child: MaterialApp.router(
+        routerConfig: router,
+        theme: AppTheme.light(),
+        locale: const Locale('uz'),
         supportedLocales: AppLocalizations.supportedLocales,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
-        home: CheckoutScreen(storeType: StoreType.household),
       ),
     ),
   );
   if (settle) {
     await tester.pumpAndSettle();
   } else {
-    await tester.pump(const Duration(milliseconds: 100));
-    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
   }
+  return _Fixture(container, router, api);
 }
-
-class _MockCartApi extends Mock implements CartApi {}
-
-class _MockCheckoutApi extends Mock implements CheckoutApi {}
-
-class _TestCartController extends CartController {
-  _TestCartController(super.storeType);
-
-  @override
-  Future<CartState> build() async => const CartState(cart: _cart);
-
-  @override
-  Future<void> refresh() async {}
-}
-
-class _TestAddressesController extends AddressesController {
-  @override
-  Future<List<UserAddress>> build() async => const [
-    _defaultAddress,
-    _officeAddress,
-  ];
-
-  @override
-  Future<void> refresh() async {}
-}
-
-class _SingleAddressController extends AddressesController {
-  @override
-  Future<List<UserAddress>> build() async => const [_defaultAddress];
-
-  @override
-  Future<void> refresh() async {}
-}
-
-class _WaitingAddresses extends AddressesController {
-  _WaitingAddresses(this.result);
-  final Completer<List<UserAddress>> result;
-  @override
-  Future<List<UserAddress>> build() => result.future;
-  @override
-  Future<void> refresh() async {}
-}
-
-const _defaultAddress = UserAddress(
-  id: 'address-default',
-  title: 'Uy',
-  latitude: 41.311081,
-  longitude: 69.240562,
-  isDefault: true,
-);
-
-const _officeAddress = UserAddress(
-  id: 'address-office',
-  title: 'Ofis',
-  latitude: 41.320000,
-  longitude: 69.250000,
-  isDefault: false,
-);
-
-const _product = ProductSummary(
-  id: 'product-1',
-  name: 'Sovun',
-  description: '',
-  price: '12000',
-  imageUrl: null,
-  unit: 'dona',
-  isPurchasable: true,
-  storeTypeWire: 'household',
-  store: ProductStore(
-    id: 'store-1',
-    name: 'Xozmak',
-    storeTypeWire: 'household',
-  ),
-  variants: [],
-);
-
-const _cart = CartData(
-  id: 'cart-1',
-  storeTypeWire: 'household',
-  items: [
-    CartItem(
-      id: 'item-1',
-      product: _product,
-      quantity: 1,
-      selectedAddons: [],
-      note: '',
-      subtotal: '12000',
-    ),
-  ],
-  totalItems: 1,
-  totalQuantity: 1,
-  subtotal: '12000',
-);
 
 void main() {
-  testWidgets('GPS starts on checkout entry even while addresses are loading', (
+  testWidgets('submit revalidates fee and stops when radius changed', (
     tester,
   ) async {
-    final addresses = Completer<List<UserAddress>>();
-    var requests = 0;
-    await _pumpCoverageCheckout(
-      tester,
-      _MockCheckoutApi(),
-      () async {
-        requests++;
-        return _position();
-      },
-      addressesFactory: () => _WaitingAddresses(addresses),
-      settle: false,
+    final submission = _Submission(_type, () async => null);
+    var quote = _quote;
+    await _mount(tester, submission: submission, estimate: () async => quote);
+    quote = const DeliveryEstimate(
+      available: false,
+      detail: '',
+      reasonCode: 'outside_delivery_radius',
     );
-    expect(requests, 1);
-    expect(find.byKey(const ValueKey('checkout-map-gps-pin')), findsOneWidget);
-    expect(find.text('Yetkazish joylashuvini tanlang'), findsNothing);
-    addresses.complete([_defaultAddress]);
+    await tester.tap(find.byKey(const ValueKey('checkout-submit')));
     await tester.pumpAndSettle();
-    expect(find.text('Yetkazish joylashuvini tanlang'), findsOneWidget);
-    expect(requests, 1);
+    expect(find.text('CART:location'), findsOneWidget);
+    expect(submission.calls, 0);
   });
 
-  testWidgets('Quick Settings enabling GPS refreshes automatically on resume', (
+  testWidgets('two taps during submit preflight create only one intent', (
     tester,
   ) async {
-    var enabled = false;
-    var requests = 0;
-    Future<void> access() async {
-      if (!enabled) {
-        throw const DeviceLocationException(
-          DeviceLocationFailure.serviceDisabled,
-        );
-      }
-    }
-
-    await _pumpCoverageCheckout(tester, _MockCheckoutApi(), () async {
-      requests++;
-      return _position();
-    }, access: access);
-    await tester.tap(find.byTooltip('Yopish'));
+    final submission = _Submission(_type, () async => null);
+    final f = await _mount(tester, submission: submission);
+    final pending = Completer<DeliveryEstimate>();
+    when(
+      () => f.api.estimate(
+        storeType: any(named: 'storeType'),
+        latitude: any(named: 'latitude'),
+        longitude: any(named: 'longitude'),
+      ),
+    ).thenAnswer((_) => pending.future);
+    final button = find.byKey(const ValueKey('checkout-submit'));
+    await tester.tap(button);
+    await tester.tap(button);
+    await tester.pump();
+    expect(submission.calls, 0);
+    pending.complete(_quote);
     await tester.pumpAndSettle();
-    expect(requests, 0);
-    expect(find.textContaining('GPS o‘chiq'), findsOneWidget);
-    enabled = true;
-    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
-    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
-    await tester.pumpAndSettle();
-    expect(requests, 1);
-    expect(find.byKey(const ValueKey('checkout-map-gps-pin')), findsOneWidget);
-    expect(find.textContaining('GPS o‘chiq'), findsNothing);
-    expect(find.text('Manzilni tanlang'), findsOneWidget);
+    expect(submission.calls, 1);
   });
 
-  testWidgets('resume with denied access never prompts again', (tester) async {
-    var prompts = 0;
-    var reads = 0;
-    await _pumpCoverageCheckout(
-      tester,
-      _MockCheckoutApi(),
-      () async => _position(),
-      access: () async {
-        prompts++;
-        throw const DeviceLocationException(DeviceLocationFailure.denied);
-      },
-      passiveAccess: () async {
-        reads++;
-        throw const DeviceLocationException(DeviceLocationFailure.denied);
-      },
+  testWidgets('order network failure retains review draft for retry', (
+    tester,
+  ) async {
+    final submission = _Submission(
+      _type,
+      () async => throw const NetworkFailure(),
     );
-    await tester.tap(find.byTooltip('Yopish'));
+    final f = await _mount(tester, submission: submission);
+    f.draft.setNote('Saqlansin');
+    await tester.tap(find.byKey(const ValueKey('checkout-submit')));
     await tester.pumpAndSettle();
-    for (var i = 0; i < 2; i++) {
-      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
-      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
-      await tester.pumpAndSettle();
-    }
-    expect(prompts, 1);
-    expect(reads, greaterThanOrEqualTo(2));
-    expect(find.text('Manzilni tanlang'), findsOneWidget);
+    expect(find.byType(CheckoutScreen), findsOneWidget);
+    expect(f.container.read(orderDraftProvider(_type)).addressId, 'home');
+    expect(f.container.read(orderDraftProvider(_type)).note, 'Saqlansin');
+    expect(submission.calls, 1);
+    expect(find.byType(SnackBar), findsOneWidget);
   });
+
   testWidgets(
-    'returning from settings retries once without selecting an address',
+    'unprepared direct link returns to cart instead of prompting GPS/address',
     (tester) async {
-      var allowed = false;
-      var requests = 0;
-      var settings = 0;
-      final api = _MockCheckoutApi();
-      await _pumpCoverageCheckout(
-        tester,
-        api,
-        () async {
-          requests++;
-          return _position();
-        },
-        access: () async {
-          if (!allowed) {
-            throw const DeviceLocationException(
-              DeviceLocationFailure.deniedForever,
-            );
-          }
-        },
-        settingsOpener: ({required bool gps}) async {
-          expect(gps, isFalse);
-          settings++;
-          allowed = true;
-          return true;
-        },
-      );
-      await tester.tap(find.byTooltip('Yopish'));
-      await tester.pumpAndSettle();
-      await Scrollable.ensureVisible(
-        tester.element(find.byKey(const ValueKey('checkout-location-retry'))),
-        alignment: .3,
-      );
-      await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const ValueKey('checkout-location-retry')));
-      await tester.pumpAndSettle();
-      for (final state in [
-        AppLifecycleState.inactive,
-        AppLifecycleState.hidden,
-        AppLifecycleState.paused,
-        AppLifecycleState.hidden,
-        AppLifecycleState.inactive,
-        AppLifecycleState.resumed,
-      ]) {
-        tester.binding.handleAppLifecycleStateChanged(state);
-      }
-      await tester.pumpAndSettle();
-      expect(settings, 1);
-      expect(requests, 1);
-      expect(
-        find.byKey(const ValueKey('checkout-map-gps-pin')),
-        findsOneWidget,
-      );
-      expect(
-        find.byKey(const ValueKey('checkout-location-retry')),
-        findsNothing,
-      );
-      expect(find.text('Manzilni tanlang'), findsOneWidget);
+      final f = await _mount(tester, confirmed: false);
+      expect(find.text('CART:location'), findsOneWidget);
+      expect(f.container.read(orderDraftProvider(_type)).selection, isNull);
       verifyNever(
-        () => api.estimate(
+        () => f.api.estimate(
           storeType: any(named: 'storeType'),
           latitude: any(named: 'latitude'),
           longitude: any(named: 'longitude'),
         ),
       );
+      expect(
+        find.byKey(const ValueKey('delivery-address-confirm')),
+        findsNothing,
+      );
+      expect(tester.takeException(), isNull);
     },
   );
 
-  testWidgets(
-    'a GPS point expires without background tracking or automatic refetch',
-    (tester) async {
-      var requests = 0;
-      await _pumpCoverageCheckout(tester, _MockCheckoutApi(), () async {
-        requests++;
-        return _position();
-      });
-      await tester.tap(find.byTooltip('Yopish'));
-      await tester.pumpAndSettle();
-      expect(
-        find.byKey(const ValueKey('checkout-map-gps-pin')),
-        findsOneWidget,
-      );
-      await tester.pump(const Duration(seconds: 61));
-      await tester.pumpAndSettle();
-      expect(requests, 1);
-      expect(find.byKey(const ValueKey('checkout-map-gps-pin')), findsNothing);
-      expect(find.textContaining('GPS nuqtasi eskirgan'), findsOneWidget);
-    },
-  );
-  testWidgets('permission finishes before chooser; GPS does not block it', (
+  testWidgets('entry revalidates a confirmed quote before enabling order', (
     tester,
   ) async {
-    final permission = Completer<void>();
-    final fix = Completer<Position>();
-    var requests = 0;
-    final api = _MockCheckoutApi();
-    await _pumpCoverageCheckout(tester, api, () {
-      requests++;
-      return fix.future;
-    }, access: () => permission.future);
-    expect(find.text('Yetkazish joylashuvini tanlang'), findsNothing);
-    expect(requests, 0);
-    permission.complete();
-    await tester.pumpAndSettle();
-    expect(find.text('Yetkazish joylashuvini tanlang'), findsOneWidget);
-    expect(requests, 1);
-    fix.complete(_position());
-    await tester.pumpAndSettle();
-    verifyNever(
-      () => api.estimate(
-        storeType: any(named: 'storeType'),
-        latitude: any(named: 'latitude'),
-        longitude: any(named: 'longitude'),
-      ),
+    final pending = Completer<DeliveryEstimate>();
+    final f = await _mount(
+      tester,
+      estimate: () => pending.future,
+      settle: false,
     );
-    await tester.tap(find.byTooltip('Yopish'));
-    await tester.pumpAndSettle();
-    expect(find.text('Manzilni tanlang'), findsOneWidget);
     expect(
-      find.byKey(const ValueKey('checkout-selected-address-address-default')),
-      findsNothing,
+      tester
+          .widget<FilledButton>(find.byKey(const ValueKey('checkout-submit')))
+          .onPressed,
+      isNull,
     );
+    expect(find.byKey(const ValueKey('checkout-submit-total')), findsNothing);
+    pending.complete(_quote);
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<FilledButton>(find.byKey(const ValueKey('checkout-submit')))
+          .onPressed,
+      isNotNull,
+    );
+    verify(
+      () => f.api.estimate(
+        storeType: _type.wire,
+        latitude: _address.latitude!,
+        longitude: _address.longitude!,
+      ),
+    ).called(1);
+    expect(find.byKey(const ValueKey('cart-root')), findsNothing);
   });
 
-  for (final reason in [
-    DeviceLocationFailure.denied,
-    DeviceLocationFailure.deniedForever,
-    DeviceLocationFailure.serviceDisabled,
-  ]) {
-    testWidgets(
-      '$reason still opens the manual chooser without requesting GPS',
-      (tester) async {
-        var requests = 0;
-        await _pumpCoverageCheckout(
-          tester,
-          _MockCheckoutApi(),
-          () async {
-            requests++;
-            return _position();
-          },
-          access: () async => throw DeviceLocationException(reason),
-        );
-        expect(requests, 0);
-        expect(find.text('Yetkazish joylashuvini tanlang'), findsOneWidget);
-        await tester.tap(find.byTooltip('Yopish'));
-        await tester.pumpAndSettle();
+  for (final amount in ['8000', '15000', '17000', '20000']) {
+    testWidgets('fresh quote minimum routes correctly at $amount', (
+      tester,
+    ) async {
+      final f = await _mount(tester, cart: _cart(amount: amount));
+      if (amount == '8000') {
+        expect(find.text('CART:products'), findsOneWidget);
         expect(
-          find.byKey(const ValueKey('checkout-location-retry')),
-          findsOneWidget,
+          f.container.read(orderDraftProvider(_type)).notice,
+          'minimum_not_met',
         );
-      },
-    );
-  }
-
-  for (final reason in [
-    DeviceLocationFailure.timeout,
-    DeviceLocationFailure.stale,
-  ]) {
-    testWidgets('$reason keeps manual address available', (tester) async {
-      await _pumpCoverageCheckout(
-        tester,
-        _MockCheckoutApi(),
-        () async => throw DeviceLocationException(reason),
-      );
-      await tester.tap(find.byTooltip('Yopish'));
-      await tester.pumpAndSettle();
-      expect(
-        find.byKey(const ValueKey('checkout-location-retry')),
-        findsOneWidget,
-      );
-      expect(find.text('Manzilni tanlang'), findsOneWidget);
+        expect(
+          f.container
+              .read(cartControllerProvider(_type))
+              .value!
+              .cart
+              .deliveryMinimumRemaining(deliveryFee: '5000'),
+          '7000.00',
+        );
+      } else {
+        expect(find.byType(CheckoutScreen), findsOneWidget);
+        expect(
+          tester
+              .widget<FilledButton>(
+                find.byKey(const ValueKey('checkout-submit')),
+              )
+              .onPressed,
+          isNotNull,
+        );
+      }
     });
   }
 
-  testWidgets(
-    'low accuracy is labelled approximate without selecting delivery',
-    (tester) async {
-      await _pumpCoverageCheckout(
-        tester,
-        _MockCheckoutApi(),
-        () async => _position(accuracy: 1000),
-      );
-      await tester.tap(find.byTooltip('Yopish'));
-      await tester.pumpAndSettle();
-      expect(find.textContaining('Joylashuv taxminiy'), findsOneWidget);
-      expect(find.text('Manzilni tanlang'), findsOneWidget);
-    },
-  );
-  testWidgets(
-    'GPS starts before chooser; permission failure keeps manual checkout',
-    (tester) async {
-      final api = _MockCheckoutApi();
-      var requests = 0;
-      await _pumpCoverageCheckout(
-        tester,
-        api,
-        () async {
-          requests++;
-          throw StateError('location_permission_denied');
-        },
-        passiveAccess: () async {
-          throw const DeviceLocationException(DeviceLocationFailure.denied);
-        },
-      );
-      expect(requests, 1);
-      await tester.tap(find.byTooltip('Yopish'));
-      await tester.pumpAndSettle();
-      expect(requests, 1);
-      expect(
-        find.textContaining('Lokatsiya ruxsati berilmadi'),
-        findsOneWidget,
-      );
-      expect(
-        find.byKey(const ValueKey('checkout-choose-address')),
-        findsOneWidget,
-      );
-      verifyNever(
-        () => api.estimate(
-          storeType: any(named: 'storeType'),
-          latitude: any(named: 'latitude'),
-          longitude: any(named: 'longitude'),
-        ),
-      );
-    },
-  );
-
-  testWidgets(
-    'GPS does not choose address; authoritative radius blocks outside order',
-    (tester) async {
-      final api = _MockCheckoutApi();
-      when(
-        () => api.estimate(
-          storeType: 'household',
-          latitude: _defaultAddress.latitude!,
-          longitude: _defaultAddress.longitude!,
-        ),
-      ).thenAnswer(
-        (_) async => const DeliveryEstimate(
-          available: false,
-          detail: '',
-          reasonCode: 'outside_delivery_radius',
-          coverageRadiusKm: 9.55,
-          branch: DeliveryCoverageBranch(
-            id: 'server',
-            name: 'Server filial',
-            latitude: 41.1,
-            longitude: 69.1,
-            radiusKm: 9.55,
-          ),
-        ),
-      );
-      await _pumpCoverageCheckout(
-        tester,
-        api,
-        () async => Position(
-          latitude: 42,
-          longitude: 70,
-          timestamp: DateTime.now(),
-          accuracy: 5,
-          altitude: 0,
-          altitudeAccuracy: 0,
-          heading: 0,
-          headingAccuracy: 0,
-          speed: 0,
-          speedAccuracy: 0,
-        ),
-      );
-      await tester.tap(
-        find.byKey(const ValueKey('checkout-address-option-address-default')),
-      );
-      await tester.pumpAndSettle();
-      expect(find.text('Yetkazish radiusi: 9.55 km'), findsOneWidget);
-      expect(
-        find.textContaining('9.55 km yetkazish radiusidan tashqarida'),
-        findsOneWidget,
-      );
-      expect(
-        find.byKey(const ValueKey('checkout-selected-address-address-default')),
-        findsOneWidget,
-      );
-      final submit = tester.widget<FilledButton>(
-        find.widgetWithText(FilledButton, 'Buyurtmani tasdiqlash'),
-      );
-      expect(submit.onPressed, isNull);
-      await tester.pumpWidget(const SizedBox.shrink());
-    },
-  );
-
-  testWidgets(
-    'failed checkout preparation shows retry, never empty-cart or submit',
-    (tester) async {
-      final cartApi = _MockCartApi();
-      var fail = true;
-      when(() => cartApi.mergeGuestCart()).thenAnswer((_) async {
-        if (fail) throw const NetworkFailure('offline');
-        return false;
-      });
-      final checkoutApi = _MockCheckoutApi();
-      when(
-        () => checkoutApi.fetchBranches('store-1'),
-      ).thenAnswer((_) async => []);
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            cartApiProvider.overrideWithValue(cartApi),
-            checkoutApiProvider.overrideWithValue(checkoutApi),
-            addressLocationAccessProvider.overrideWithValue(() async {
-              throw const DeviceLocationException(DeviceLocationFailure.denied);
-            }),
-            cartControllerProvider.overrideWith2(_TestCartController.new),
-            addressesControllerProvider.overrideWith(
-              _TestAddressesController.new,
-            ),
-          ],
-          child: const MaterialApp(
-            locale: Locale('uz'),
-            supportedLocales: AppLocalizations.supportedLocales,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
-            home: CheckoutScreen(storeType: StoreType.household),
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-      final l10n = AppLocalizations.of(
-        tester.element(find.byType(CheckoutScreen)),
-      );
-      expect(find.text(l10n.checkoutEmptyCart), findsNothing);
-      expect(find.text(l10n.checkoutSubmit), findsNothing);
-      expect(find.text(l10n.commonRetry), findsOneWidget);
-      fail = false;
-      await tester.tap(find.text(l10n.commonRetry));
-      await tester.pumpAndSettle();
-      expect(find.text('Yetkazish joylashuvini tanlang'), findsOneWidget);
-    },
-  );
-
-  testWidgets(
-    'checkout eski defaultni avtomatik tanlamaydi va user tanlovini kutadi',
-    (tester) async {
-      final cartApi = _MockCartApi();
-      final checkoutApi = _MockCheckoutApi();
-      when(() => cartApi.mergeGuestCart()).thenAnswer((_) async => false);
-      when(
-        () => checkoutApi.fetchBranches('store-1'),
-      ).thenAnswer((_) async => const []);
-      when(
-        () => checkoutApi.estimate(
-          storeType: 'household',
-          latitude: _officeAddress.latitude!,
-          longitude: _officeAddress.longitude!,
-        ),
-      ).thenAnswer(
-        (_) async => const DeliveryEstimate(
-          available: true,
-          detail: '',
-          deliveryPrice: '5000',
-        ),
-      );
-
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            cartApiProvider.overrideWithValue(cartApi),
-            checkoutApiProvider.overrideWithValue(checkoutApi),
-            addressLocationAccessProvider.overrideWithValue(() async {
-              throw const DeviceLocationException(DeviceLocationFailure.denied);
-            }),
-            cartControllerProvider.overrideWith2(_TestCartController.new),
-            addressesControllerProvider.overrideWith(
-              _TestAddressesController.new,
-            ),
-          ],
-          child: const MaterialApp(
-            locale: Locale('uz'),
-            supportedLocales: AppLocalizations.supportedLocales,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
-            home: CheckoutScreen(storeType: StoreType.household),
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.text('Yetkazish joylashuvini tanlang'), findsOneWidget);
-      expect(
-        find.byKey(const ValueKey('checkout-add-new-location')),
-        findsOneWidget,
-      );
-      expect(
-        find.byKey(const ValueKey('checkout-address-option-address-default')),
-        findsOneWidget,
-      );
-      verifyNever(
-        () => checkoutApi.estimate(
-          storeType: any(named: 'storeType'),
-          latitude: any(named: 'latitude'),
-          longitude: any(named: 'longitude'),
-        ),
-      );
-
-      await tester.tap(
-        find.byKey(const ValueKey('checkout-address-option-address-office')),
-      );
-      await tester.pumpAndSettle();
-
-      expect(
-        find.byKey(const ValueKey('checkout-selected-address-address-office')),
-        findsOneWidget,
-      );
-      verify(
-        () => checkoutApi.estimate(
-          storeType: 'household',
-          latitude: _officeAddress.latitude!,
-          longitude: _officeAddress.longitude!,
-        ),
-      ).called(1);
-
-      await tester.tap(find.text('Olib ketish'));
-      await tester.pumpAndSettle();
-      expect(
-        find.byKey(const ValueKey('checkout-selected-address-address-office')),
-        findsNothing,
-      );
-
-      await tester.tap(find.text('Yetkazib berish'));
-      await tester.pumpAndSettle();
-      expect(find.text('Yetkazish joylashuvini tanlang'), findsOneWidget);
-    },
-  );
-
-  testWidgets('tanlov oynasi yopilsa checkout manzilsiz qoladi', (
+  testWidgets('minimum increased on refresh returns to products with notice', (
     tester,
   ) async {
-    final cartApi = _MockCartApi();
-    final checkoutApi = _MockCheckoutApi();
-    when(() => cartApi.mergeGuestCart()).thenAnswer((_) async => false);
-    when(
-      () => checkoutApi.fetchBranches('store-1'),
-    ).thenAnswer((_) async => const []);
-
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          cartApiProvider.overrideWithValue(cartApi),
-          checkoutApiProvider.overrideWithValue(checkoutApi),
-          addressLocationAccessProvider.overrideWithValue(() async {
-            throw const DeviceLocationException(DeviceLocationFailure.denied);
-          }),
-          cartControllerProvider.overrideWith2(_TestCartController.new),
-          addressesControllerProvider.overrideWith(
-            _SingleAddressController.new,
-          ),
-        ],
-        child: const MaterialApp(
-          locale: Locale('uz'),
-          supportedLocales: AppLocalizations.supportedLocales,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          home: CheckoutScreen(storeType: StoreType.household),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Yopish'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Manzilni tanlang'), findsOneWidget);
+    final f = await _mount(tester, afterRefresh: _cart(minimum: '30000'));
+    expect(find.text('CART:products'), findsOneWidget);
     expect(
-      find.byKey(const ValueKey('checkout-choose-address')),
-      findsOneWidget,
-    );
-    verifyNever(
-      () => checkoutApi.estimate(
-        storeType: any(named: 'storeType'),
-        latitude: any(named: 'latitude'),
-        longitude: any(named: 'longitude'),
-      ),
+      f.container.read(orderDraftProvider(_type)).notice,
+      'minimum_not_met',
     );
   });
-}
 
-Position _position({double accuracy = 5}) => Position(
-  latitude: 41.311,
-  longitude: 69.24,
-  timestamp: DateTime.now(),
-  accuracy: accuracy,
-  altitude: 0,
-  altitudeAccuracy: 0,
-  heading: 0,
-  headingAccuracy: 0,
-  speed: 0,
-  speedAccuracy: 0,
-);
+  for (final invalidQuote in [
+    const DeliveryEstimate(
+      available: false,
+      detail: 'Outside radius',
+      reasonCode: 'outside_delivery_radius',
+    ),
+    const DeliveryEstimate(available: true, detail: '', deliveryPrice: null),
+    const DeliveryEstimate(available: true, detail: '', deliveryPrice: 'bad'),
+  ]) {
+    testWidgets('unavailable or invalid delivery price returns to address', (
+      tester,
+    ) async {
+      final f = await _mount(tester, quote: invalidQuote);
+      expect(find.text('CART:location'), findsOneWidget);
+      expect(
+        f.container.read(orderDraftProvider(_type)).quoteFor(
+          f.container.read(cartControllerProvider(_type)).value!.cart,
+          const [_address],
+        ),
+        isNull,
+      );
+      expect(find.byKey(const ValueKey('checkout-submit-total')), findsNothing);
+    });
+  }
+
+  testWidgets('deleted/coordinate-less selected address cannot enter review', (
+    tester,
+  ) async {
+    final f = await _mount(
+      tester,
+      addresses: const [UserAddress(id: 'home', title: '', isDefault: true)],
+    );
+    expect(find.text('CART:location'), findsOneWidget);
+    expect(f.container.read(orderDraftProvider(_type)).selection, isNull);
+  });
+
+  testWidgets(
+    'changed physical store re-estimates instead of adopting stale quote',
+    (tester) async {
+      final f = await _mount(
+        tester,
+        afterRefresh: _cart(store: 'another-store'),
+        quote: const DeliveryEstimate(
+          available: true,
+          detail: '',
+          deliveryPrice: '9000',
+        ),
+      );
+      final state = f.container.read(orderDraftProvider(_type));
+      expect(state.selection!.storeScope, 'another-store');
+      expect(state.estimate!.deliveryPrice, '9000');
+      expect(find.byType(CheckoutScreen), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'estimate network error stays in review, retry keeps selected address',
+    (tester) async {
+      var fail = true;
+      final f = await _mount(
+        tester,
+        estimate: () async {
+          if (fail) throw const NetworkFailure();
+          return _quote;
+        },
+      );
+      expect(find.byType(CheckoutScreen), findsOneWidget);
+      expect(find.byKey(const ValueKey('checkout-retry')), findsOneWidget);
+      expect(f.container.read(orderDraftProvider(_type)).addressId, 'home');
+      expect(
+        tester
+            .widget<FilledButton>(find.byKey(const ValueKey('checkout-submit')))
+            .onPressed,
+        isNull,
+      );
+      fail = false;
+      await tester.tap(find.byKey(const ValueKey('checkout-retry')));
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<FilledButton>(find.byKey(const ValueKey('checkout-submit')))
+            .onPressed,
+        isNotNull,
+      );
+    },
+  );
+
+  testWidgets(
+    'cart refresh network error stays retryable instead of redirecting',
+    (tester) async {
+      await _mount(tester, refreshFailure: const NetworkFailure());
+      expect(find.byType(CheckoutScreen), findsOneWidget);
+      expect(find.byKey(const ValueKey('checkout-retry')), findsOneWidget);
+      expect(find.byKey(const ValueKey('cart-root')), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'edit location returns cart focus, preserves note and default address',
+    (tester) async {
+      final f = await _mount(tester);
+      f.draft.setNote('Eshik kodi 124');
+      await tester.tap(find.byKey(const ValueKey('checkout-edit-location')));
+      await tester.pumpAndSettle();
+      expect(find.text('CART:location'), findsOneWidget);
+      expect(
+        f.container.read(orderDraftProvider(_type)).note,
+        'Eshik kodi 124',
+      );
+      expect(
+        f.container.read(addressesControllerProvider).value!.single.isDefault,
+        isTrue,
+      );
+    },
+  );
+
+  testWidgets('edit products returns products focus without losing draft', (
+    tester,
+  ) async {
+    final f = await _mount(tester);
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('checkout-edit-cart')),
+    );
+    await tester.tap(find.byKey(const ValueKey('checkout-edit-cart')));
+    await tester.pumpAndSettle();
+    expect(find.text('CART:products'), findsOneWidget);
+    expect(f.container.read(orderDraftProvider(_type)).addressId, 'home');
+  });
+
+  testWidgets('legacy address URL is not covered by checkout redirect', (
+    tester,
+  ) async {
+    final f = await _mount(
+      tester,
+      confirmed: false,
+      initialLocation: Routes.deliveryAddressSelect(_type.wire),
+    );
+    expect(find.text('LEGACY ADDRESS'), findsOneWidget);
+    expect(
+      f.router.routeInformationProvider.value.uri.path,
+      Routes.deliveryAddressSelect(_type.wire),
+    );
+    f.router.pop();
+    await tester.pumpAndSettle();
+    expect(find.text('CART:location'), findsOneWidget);
+  });
+
+  testWidgets(
+    'single pickup branch skips minimum and does not estimate delivery',
+    (tester) async {
+      final f = await _mount(
+        tester,
+        cart: _cart(amount: '8000'),
+        confirmed: false,
+        pickup: true,
+        branches: [
+          StoreBranch.fromJson({
+            'id': 'branch',
+            'name': 'Pickup filial',
+            'address': 'Real address',
+            'is_active': true,
+            'is_pickup_available': true,
+            'store': {'id': 'store', 'store_type': 'household'},
+          }),
+        ],
+      );
+      expect(find.text('Pickup filial'), findsOneWidget);
+      expect(
+        tester
+            .widget<FilledButton>(find.byKey(const ValueKey('checkout-submit')))
+            .onPressed,
+        isNotNull,
+      );
+      verifyNever(
+        () => f.api.estimate(
+          storeType: any(named: 'storeType'),
+          latitude: any(named: 'latitude'),
+          longitude: any(named: 'longitude'),
+        ),
+      );
+    },
+  );
+
+  testWidgets(
+    'multiple pickup branches without selection return to fulfillment',
+    (tester) async {
+      await _mount(
+        tester,
+        confirmed: false,
+        pickup: true,
+        branches: [
+          for (final id in ['a', 'b'])
+            StoreBranch.fromJson({
+              'id': id,
+              'name': id,
+              'address': 'Real address',
+              'is_active': true,
+              'is_pickup_available': true,
+              'store': {'id': 'store', 'store_type': 'household'},
+            }),
+        ],
+      );
+      expect(find.text('CART:fulfillment'), findsOneWidget);
+    },
+  );
+}

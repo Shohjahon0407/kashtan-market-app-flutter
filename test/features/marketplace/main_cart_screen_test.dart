@@ -13,6 +13,7 @@ import 'package:beshkashtan_customer/features/catalog/data/product_models.dart';
 import 'package:beshkashtan_customer/features/home/data/home_api.dart';
 import 'package:beshkashtan_customer/features/home/data/home_models.dart';
 import 'package:beshkashtan_customer/features/home/domain/home_controller.dart';
+import 'package:beshkashtan_customer/features/recommendations/domain/interaction_tracker.dart';
 import 'package:beshkashtan_customer/generated/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -21,6 +22,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../helpers/fake_recommendations_api.dart';
 
 class _MockCartApi extends Mock implements CartApi {}
 
@@ -144,13 +147,13 @@ const _home = HomeData(
 
 void main() {
   testWidgets(
-    'global savat 4 store, stepper va store-specific checkoutni ko‘rsatadi',
+    'global savat alohida do‘kon kartalari va summalarini ko‘rsatadi',
     (tester) async {
       SharedPreferences.setMockInitialValues({});
       final prefs = await PrefsStore.load();
       final cartApi = _MockCartApi();
       final homeApi = _MockHomeApi();
-      var quantity = 2;
+      const quantity = 2;
       when(() => homeApi.fetch()).thenAnswer((_) async => _home);
       for (final type in StoreType.values) {
         when(() => cartApi.fetch(type.wire)).thenAnswer(
@@ -159,20 +162,15 @@ void main() {
               : CartData.empty(type.wire),
         );
       }
-      when(() => cartApi.updateQuantity('osh-line', any())).thenAnswer((
-        call,
-      ) async {
-        quantity = call.positionalArguments[1] as int;
-      });
 
       final router = GoRouter(
         initialLocation: Routes.cart,
         routes: [
           GoRoute(path: Routes.cart, builder: (_, _) => const MainCartScreen()),
           GoRoute(
-            path: '/store/:storeType/cart/checkout',
+            path: '/store/:storeType/cart',
             builder: (_, state) =>
-                Text('checkout-${state.pathParameters['storeType']}'),
+                Text('cart-${state.pathParameters['storeType']}'),
           ),
           GoRoute(path: '/', builder: (_, _) => const SizedBox()),
         ],
@@ -188,6 +186,9 @@ void main() {
             ),
             cartApiProvider.overrideWithValue(cartApi),
             homeApiProvider.overrideWithValue(homeApi),
+            recommendationsApiProvider.overrideWithValue(
+              FakeRecommendationsApi(),
+            ),
           ],
           child: MaterialApp.router(
             routerConfig: router,
@@ -210,28 +211,20 @@ void main() {
           findsOneWidget,
         );
       }
-      expect(find.text('Toshkent oshi'), findsOneWidget);
-      expect(find.text("38\u00a0000 so'm"), findsOneWidget);
+      expect(find.text('Toshkent oshi'), findsNothing);
+      expect(find.text("76\u00a0000 so'm"), findsOneWidget);
       // Bitta savatda mahsulot bor — qolgan barcha turlar bo'sh.
       expect(
         find.textContaining('savat bo\'sh'),
         findsNWidgets(StoreType.values.length - 1),
       );
 
-      final stepper = find.byType(CartQuantityStepper);
+      expect(find.byType(CartQuantityStepper), findsNothing);
       await tester.tap(
-        find.descendant(of: stepper, matching: find.byIcon(Icons.add)),
+        find.byKey(const ValueKey('open-store-cart-restaurant')),
       );
       await tester.pumpAndSettle();
-      expect(
-        find.descendant(of: stepper, matching: find.text('3')),
-        findsOneWidget,
-      );
-      verify(() => cartApi.updateQuantity('osh-line', 3)).called(1);
-
-      await tester.tap(find.byKey(const ValueKey('cart-checkout-restaurant')));
-      await tester.pumpAndSettle();
-      expect(find.text('checkout-restaurant'), findsOneWidget);
+      expect(find.text('cart-restaurant'), findsOneWidget);
     },
   );
 
@@ -254,6 +247,9 @@ void main() {
           authControllerProvider.overrideWith(_AuthenticatedAuthController.new),
           cartApiProvider.overrideWithValue(cartApi),
           homeApiProvider.overrideWithValue(homeApi),
+          recommendationsApiProvider.overrideWithValue(
+            FakeRecommendationsApi(),
+          ),
         ],
         child: const MaterialApp(
           locale: Locale('uz'),

@@ -452,7 +452,9 @@ void main() {
 
     router.go(Routes.checkout(StoreType.household.wire));
     await tester.pumpAndSettle();
-    expect(find.byType(CheckoutScreen), findsOneWidget);
+    // An empty/incomplete direct link now returns to the cart preparation step.
+    expect(find.byType(CartScreen), findsOneWidget);
+    expect(find.byType(CheckoutScreen), findsNothing);
     expect(
       tester.widget<NavigationBar>(find.byType(NavigationBar)).selectedIndex,
       2,

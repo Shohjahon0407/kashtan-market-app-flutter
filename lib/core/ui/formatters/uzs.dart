@@ -24,6 +24,17 @@ abstract final class Uzs {
     return grouped.isEmpty ? '' : '$grouped $suffix';
   }
 
+  /// Keep fractional amounts where truncation would misstate a threshold.
+  static String formatWithFraction(String? raw) {
+    final grouped = groupDigits(raw);
+    if (grouped.isEmpty) return '';
+    final parts = raw!.trim().split('.');
+    final cents = (parts.length > 1 ? parts[1] : '')
+        .padRight(2, '0')
+        .substring(0, 2);
+    return '$grouped${cents == '00' ? '' : '.$cents'} $suffix';
+  }
+
   /// Valyutasiz: `"15000.00"` → `15 000`.
   static String groupDigits(String? raw) {
     final value = raw?.trim();
