@@ -16,6 +16,15 @@ class PaymentsApi {
 
   final ApiClient _client;
 
+  Future<Map<String, bool>> availability() async {
+    final raw = JsonRead.map(await _client.get('/payments/availability/'));
+    final values = JsonRead.map(raw?['payme']);
+    return {
+      for (final entry in (values ?? <String, dynamic>{}).entries)
+        entry.key: entry.value == true,
+    };
+  }
+
   /// Backend'da Payme to'lovini yaratadi va checkout URL qaytaradi.
   /// App faqat order_id yuboradi — summa va merchant logikasi backendda.
   Future<PaymePaymentCreateResult> createPaymePayment(String orderId) async {

@@ -23,6 +23,36 @@ const _ordersChannel = AndroidNotificationChannel(
   importance: Importance.high,
 );
 
+/// Muhim buyurtma hodisalari (`importance=high`) uchun alohida kanal. Backend
+/// FCM `android.notification.channel_id` sifatida aynan shu ID'ni yuboradi.
+/// Android kanal ovozi/vibratsiyasini yaratilgandan keyin o'zgartirib
+/// bo'lmaydi — o'zgartirish kerak bo'lsa yangi `_v2` ID ochiladi.
+const _importantOrdersChannelId = 'orders_important_v1';
+const _importantOrdersChannelName = 'Muhim buyurtma holatlari';
+const _importantOrdersChannelDescription =
+    'Kuryer yo\'lda, buyurtma yetkazildi yoki bekor qilindi';
+const _importantOrdersSound = RawResourceAndroidNotificationSound(
+  'order_important',
+);
+final _importantOrdersVibration = Int64List.fromList([
+  0,
+  500,
+  200,
+  500,
+  200,
+  900,
+]);
+
+final _importantOrdersChannel = AndroidNotificationChannel(
+  _importantOrdersChannelId,
+  _importantOrdersChannelName,
+  description: _importantOrdersChannelDescription,
+  importance: Importance.max,
+  sound: _importantOrdersSound,
+  enableVibration: true,
+  vibrationPattern: _importantOrdersVibration,
+);
+
 /// Registers the data-only FCM background callback.
 ///
 /// Call once after `WidgetsFlutterBinding.ensureInitialized()` and before
@@ -137,7 +167,8 @@ class CustomerPushService {
         alert: true,
         badge: true,
         sound: true,
-        provisional: defaultTargetPlatform == TargetPlatform.iOS,
+        // Buyurtma holati ovozli kelishi kerak — iOS "jim" provisional emas.
+        provisional: false,
       );
       _foregroundSubscription = FirebaseMessaging.onMessage.listen(
         _handleForeground,
@@ -167,6 +198,13 @@ class CustomerPushService {
     try {
       final vapidKey = kIsWeb ? _CustomerFirebaseConfig.vapidKey : null;
       if (kIsWeb && (vapidKey == null || vapidKey.isEmpty)) return;
+      // iOS: FCM token APNs tokenidan keyin paydo bo'ladi. Undan oldin
+      // getToken() xato beradi — qisqa kutamiz, kelmasa keyingi resume'da.
+      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
+        if (!await waitForApnsToken(FirebaseMessaging.instance.getAPNSToken)) {
+          return;
+        }
+      }
       final token = await FirebaseMessaging.instance.getToken(
         vapidKey: vapidKey,
       );
@@ -341,6 +379,12 @@ class CustomerPushService {
       title: message.notification?.title,
       body: message.notification?.body,
     );
+    // Ilova ochiq bo'lsa Android FCM notification'ni o'zi ko'rsatmaydi. Muhim
+    // holatlarda foydalanuvchi baribir heads-up + maxsus ovozni eshitishi
+    // kerak; oddiy pushlar avvalgidek faqat ilova ichida (SnackBar) chiqadi.
+    if (push.isImportant && (push.title.isNotEmpty || push.body.isNotEmpty)) {
+      unawaited(localNotifications.show(push));
+    }
     _foregroundController.add(push);
   }
 
@@ -411,7 +455,13 @@ class CustomerLocalNotifications {
     try {
       const settings = InitializationSettings(
         android: AndroidInitializationSettings('@mipmap/ic_launcher'),
-        iOS: DarwinInitializationSettings(),
+        // Ruxsatni bu yerda emas, FirebaseMessaging.requestPermission so'raydi
+        // (bitta dialog, to'g'ri paytda).
+        iOS: DarwinInitializationSettings(
+          requestAlertPermission: false,
+          requestBadgePermission: false,
+          requestSoundPermission: false,
+        ),
       );
       await _plugin.initialize(
         settings: settings,
@@ -422,11 +472,12 @@ class CustomerLocalNotifications {
           }
         },
       );
-      await _plugin
+      final android = _plugin
           .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin
-          >()
-          ?.createNotificationChannel(_ordersChannel);
+          >();
+      await android?.createNotificationChannel(_ordersChannel);
+      await android?.createNotificationChannel(_importantOrdersChannel);
       _initialized = true;
     } on Object {
       debugPrint('Local notifications are unavailable on this platform.');
@@ -435,16 +486,33 @@ class CustomerLocalNotifications {
 
   Future<void> show(CustomerPushMessage message) async {
     if (!_initialized || _disposed || !_supportsLocalNotifications) return;
-    const details = NotificationDetails(
-      android: AndroidNotificationDetails(
-        'orders',
-        'Buyurtmalar',
-        channelDescription: 'Buyurtma va kuryer holati bildirishnomalari',
-        importance: Importance.high,
-        priority: Priority.high,
-      ),
-      iOS: DarwinNotificationDetails(),
-    );
+    // iOS uchun maxsus ovoz bundle'ga (.caf) qo'shilmagan — default ovoz.
+    final details = message.isImportant
+        ? NotificationDetails(
+            android: AndroidNotificationDetails(
+              _importantOrdersChannelId,
+              _importantOrdersChannelName,
+              channelDescription: _importantOrdersChannelDescription,
+              importance: Importance.max,
+              priority: Priority.max,
+              // Android 8.0 dan oldingi qurilmalarda kanal yo'q — ovoz va
+              // vibratsiya bevosita notification'ga beriladi.
+              sound: _importantOrdersSound,
+              enableVibration: true,
+              vibrationPattern: _importantOrdersVibration,
+            ),
+            iOS: const DarwinNotificationDetails(),
+          )
+        : const NotificationDetails(
+            android: AndroidNotificationDetails(
+              'orders',
+              'Buyurtmalar',
+              channelDescription: 'Buyurtma va kuryer holati bildirishnomalari',
+              importance: Importance.high,
+              priority: Priority.high,
+            ),
+            iOS: DarwinNotificationDetails(),
+          );
     await _plugin.show(
       id: DateTime.now().millisecondsSinceEpoch.remainder(1 << 31),
       title: message.title,
@@ -514,4 +582,23 @@ abstract final class _CustomerFirebaseConfig {
       storageBucket: storageBucket.isEmpty ? null : storageBucket,
     );
   }
+}
+
+/// iOS APNs tokenini [attempts] marta × [delay] kutadi. Token kelsa `true`.
+@visibleForTesting
+Future<bool> waitForApnsToken(
+  Future<String?> Function() read, {
+  int attempts = 10,
+  Duration delay = const Duration(milliseconds: 500),
+}) async {
+  for (var i = 0; i < attempts; i++) {
+    try {
+      final token = await read();
+      if (token != null && token.isNotEmpty) return true;
+    } on Object {
+      // Plagin hali tayyor emas — keyingi urinish.
+    }
+    if (i < attempts - 1) await Future<void>.delayed(delay);
+  }
+  return false;
 }

@@ -114,9 +114,23 @@ void main() {
     final favoritesApi = _MockFavoritesApi();
     final ordersApi = _MockOrdersApi();
     when(() => authApi.me()).thenAnswer((_) async => _user);
-    when(
-      () => homeApi.fetch(),
-    ).thenAnswer((_) async => const HomeData(banners: [], storeHub: []));
+    when(() => homeApi.fetch()).thenAnswer(
+      (_) async => HomeData(
+        banners: const [],
+        storeHub: [
+          for (final type in StoreType.values)
+            StoreHubItem(
+              storeType: type,
+              storeTypeWire: type.wire,
+              label: type.wire,
+              subtitle: '',
+              imageUrl: null,
+              accentColor: null,
+              sortOrder: type.index,
+            ),
+        ],
+      ),
+    );
     when(() => favoritesApi.fetch()).thenAnswer((_) async => <FavoriteEntry>[]);
     when(() => checkoutApi.fetchAddresses()).thenAnswer((_) async => []);
     when(() => cartApi.mergeGuestCart()).thenAnswer((_) async => false);
@@ -186,10 +200,45 @@ void main() {
       await tester.pumpAndSettle();
       unawaited(router.push<void>(Routes.storeCatalog(type.wire)));
       await tester.pumpAndSettle();
+      if (type == StoreType.household) {
+        await tester.tap(
+          find.byKey(const ValueKey('household-categories-button')),
+        );
+        await tester.pumpAndSettle();
+        expect(
+          AppBackCoordinator.of(router).location,
+          Routes.householdCategories,
+        );
+        expect(find.byKey(const ValueKey('store-nav-catalog')), findsOneWidget);
+        await tester.tap(
+          find.byKey(const ValueKey('household-categories-close')),
+        );
+        await tester.pumpAndSettle();
+        expect(
+          AppBackCoordinator.of(router).location,
+          Routes.storeCatalog('household'),
+        );
+        await tester.tap(find.byKey(const ValueKey('household-search-entry')));
+        await tester.pumpAndSettle();
+        expect(
+          AppBackCoordinator.of(router).location,
+          Routes.storeCatalogSearch('household'),
+        );
+        await tester.binding.handlePopRoute();
+        await tester.pumpAndSettle();
+        expect(
+          find.byKey(const ValueKey('household-categories-button')),
+          findsOneWidget,
+        );
+      }
       await tester.tap(find.byKey(const ValueKey('store-nav-favorites')));
       await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('app-back-button')), findsOneWidget);
+      expect(find.byKey(const ValueKey('store-switch-button')), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('store-nav-orders')));
       await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('app-back-button')), findsOneWidget);
+      expect(find.byKey(const ValueKey('store-switch-button')), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('store-nav-cart')));
       await tester.pumpAndSettle();
       for (final expected in [
@@ -274,6 +323,38 @@ void main() {
       await tester.pumpAndSettle();
       expect(AppBackCoordinator.of(router).location, Routes.home);
     }
+
+    // Cross-store switching uses real shells; the global Stores action must
+    // not push another instance of the already-mounted HomeShell.
+    unawaited(router.push<void>(Routes.storeCatalog('household')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('store-switch-button')));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const ValueKey('switch-store-meat')));
+    await tester.tap(find.byKey(const ValueKey('switch-store-meat')));
+    await tester.pumpAndSettle();
+    expect(AppBackCoordinator.of(router).location, Routes.storeCatalog('meat'));
+    unawaited(
+      router.push<void>(Routes.storeCategoryProducts('meat', 'test-category')),
+    );
+    await tester.pumpAndSettle();
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(AppBackCoordinator.of(router).location, Routes.storeCatalog('meat'));
+    await tester.tap(find.byKey(const ValueKey('store-switch-button')));
+    await tester.pumpAndSettle();
+    final storesAction = find.text("Do'konlar");
+    await tester.ensureVisible(storesAction);
+    await tester.tap(storesAction);
+    await tester.pumpAndSettle();
+    expect(AppBackCoordinator.of(router).location, Routes.stores);
+    expect(tester.takeException(), isNull);
+    await tester.tap(find.byKey(const ValueKey('app-back-button')));
+    await tester.pumpAndSettle();
+    expect(AppBackCoordinator.of(router).location, Routes.storeCatalog('meat'));
+    router.go(Routes.home);
+    AppBackCoordinator.of(router).clear();
+    await tester.pumpAndSettle();
 
     // Opening detail/back must preserve disclosure in the existing catalog.
     final imageless = ProductSummary.fromJson({

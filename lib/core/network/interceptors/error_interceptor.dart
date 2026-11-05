@@ -44,10 +44,11 @@ class ErrorInterceptor extends Interceptor {
 
     // 2. Transport darajasidagi xatolar.
     switch (err.type) {
-      case DioExceptionType.connectionError:
       case DioExceptionType.connectionTimeout:
       case DioExceptionType.receiveTimeout:
       case DioExceptionType.sendTimeout:
+        return NetworkFailure.timeout(_describe(err));
+      case DioExceptionType.connectionError:
       case DioExceptionType.badCertificate:
         return NetworkFailure(_describe(err));
       case DioExceptionType.badResponse:
@@ -79,13 +80,16 @@ class ErrorInterceptor extends Interceptor {
       // HAR QANDAY lokal xatoni ham o'raydi (masalan xavfsiz ombor
       // ishlamasa). Ilgari bularning hammasi "Internet aloqasi yo'q" deb
       // ko'rsatilar edi va haqiqiy sababni yashirar edi.
+      if (err.error is TimeoutException) {
+        return NetworkFailure.timeout(_describe(err));
+      }
       return _isTransportCause(err.error)
           ? NetworkFailure(_describe(err))
           : UnknownFailure(_describe(err));
     }
 
     // 4. Status bo'yicha.
-    if (status == 400) {
+    if (status == 400 || status == 409) {
       final fields = _extractFieldErrors(body);
       return ValidationFailure(_firstMessage(fields, body), fields);
     }
@@ -175,8 +179,7 @@ class ErrorInterceptor extends Interceptor {
 
   /// Diagnostika uchun texnik tavsif.
   ///
-  /// UI buni to'g'ridan-to'g'ri ko'rsatmaydi — `failure_l10n` faqat debug
-  /// build'da qo'shimcha qatorda chiqaradi.
+  /// UI buni hech qaysi build'da ko'rsatmaydi; diagnostika uchun saqlanadi.
   static String _describe(DioException err) {
     final parts = <String>[err.type.name];
     final cause = err.error;

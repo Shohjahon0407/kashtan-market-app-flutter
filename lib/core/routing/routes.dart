@@ -70,6 +70,9 @@ abstract final class Routes {
   static String storeCatalogSearch(String storeType) =>
       '${storeCatalog(storeType)}/search';
 
+  static String get householdCategories =>
+      '${storeCatalog('household')}/categories';
+
   static String storeCategoryProducts(
     String storeType,
     String categoryId, {
@@ -102,8 +105,9 @@ abstract final class Routes {
       '${storeRoot(storeType)}/orders';
   static String productDetail(String storeType, String productId) =>
       '${storeCatalog(storeType)}/product/$productId';
-  static String shashlikFamily(String familyKey) =>
-      '${storeCatalog('shashlik')}/family/${Uri.encodeComponent(familyKey)}';
+  static String shashlikFamily(String familyKey, {String? productId}) =>
+      '${storeCatalog('shashlik')}/family/${Uri.encodeComponent(familyKey)}'
+      '${productId == null ? '' : '?product=${Uri.encodeComponent(productId)}'}';
   static String checkout(String storeType) =>
       '${storeCart(storeType)}/checkout';
   static String checkoutAddressNew(String storeType) =>

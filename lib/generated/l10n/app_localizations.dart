@@ -99,6 +99,240 @@ abstract class AppLocalizations {
     Locale('ru'),
   ];
 
+  /// No description provided for @shashlikCartUpdated.
+  ///
+  /// In uz, this message translates to:
+  /// **'Savat yangilandi'**
+  String get shashlikCartUpdated;
+
+  /// No description provided for @shashlikSaveQuantity.
+  ///
+  /// In uz, this message translates to:
+  /// **'Miqdorni saqlash'**
+  String get shashlikSaveQuantity;
+
+  /// No description provided for @shashlikChooseQuantity.
+  ///
+  /// In uz, this message translates to:
+  /// **'Miqdorni tanlash'**
+  String get shashlikChooseQuantity;
+
+  /// No description provided for @shashlikPieceUnit.
+  ///
+  /// In uz, this message translates to:
+  /// **'dona'**
+  String get shashlikPieceUnit;
+
+  /// No description provided for @shashlikKilogramUnit.
+  ///
+  /// In uz, this message translates to:
+  /// **'kilogram'**
+  String get shashlikKilogramUnit;
+
+  /// No description provided for @cartItemsInCartTitle.
+  ///
+  /// In uz, this message translates to:
+  /// **'{count} ta tovar savatda'**
+  String cartItemsInCartTitle(int count);
+
+  /// No description provided for @cartCheckoutAction.
+  ///
+  /// In uz, this message translates to:
+  /// **'Rasmiylashtirish'**
+  String get cartCheckoutAction;
+
+  /// No description provided for @cartOrderSummaryTitle.
+  ///
+  /// In uz, this message translates to:
+  /// **'Buyurtmangiz'**
+  String get cartOrderSummaryTitle;
+
+  /// No description provided for @cartItemsLine.
+  ///
+  /// In uz, this message translates to:
+  /// **'{count} ta tovar'**
+  String cartItemsLine(int count);
+
+  /// No description provided for @cartDiscount.
+  ///
+  /// In uz, this message translates to:
+  /// **'Chegirma'**
+  String get cartDiscount;
+
+  /// No description provided for @cartPerUnit.
+  ///
+  /// In uz, this message translates to:
+  /// **'{price}/dona'**
+  String cartPerUnit(String price);
+
+  /// No description provided for @deliveryEstimateTitle.
+  ///
+  /// In uz, this message translates to:
+  /// **'Taxminiy yetkazish vaqti'**
+  String get deliveryEstimateTitle;
+
+  /// No description provided for @deliveryEstimateAvailabilityHint.
+  ///
+  /// In uz, this message translates to:
+  /// **'Mahsulot mavjudligiga qarab aniqlashtiriladi'**
+  String get deliveryEstimateAvailabilityHint;
+
+  /// No description provided for @cartMinimumHint.
+  ///
+  /// In uz, this message translates to:
+  /// **'Yetkazish uchun minimal buyurtma — yana {amount}'**
+  String cartMinimumHint(String amount);
+
+  /// No description provided for @checkoutReceiveMethod.
+  ///
+  /// In uz, this message translates to:
+  /// **'Olish usuli'**
+  String get checkoutReceiveMethod;
+
+  /// No description provided for @checkoutCourier.
+  ///
+  /// In uz, this message translates to:
+  /// **'Kuryer'**
+  String get checkoutCourier;
+
+  /// No description provided for @checkoutPickupFree.
+  ///
+  /// In uz, this message translates to:
+  /// **'bepul'**
+  String get checkoutPickupFree;
+
+  /// No description provided for @checkoutChooseAddressHint.
+  ///
+  /// In uz, this message translates to:
+  /// **'manzil tanlang'**
+  String get checkoutChooseAddressHint;
+
+  /// No description provided for @checkoutChangeOther.
+  ///
+  /// In uz, this message translates to:
+  /// **'Boshqasini tanlash'**
+  String get checkoutChangeOther;
+
+  /// No description provided for @checkoutChooseAddressAction.
+  ///
+  /// In uz, this message translates to:
+  /// **'Manzil tanlash'**
+  String get checkoutChooseAddressAction;
+
+  /// No description provided for @checkoutDeliveryAddressLabel.
+  ///
+  /// In uz, this message translates to:
+  /// **'Yetkazib berish manzili'**
+  String get checkoutDeliveryAddressLabel;
+
+  /// No description provided for @checkoutPickupStoreLabel.
+  ///
+  /// In uz, this message translates to:
+  /// **'Do\'kondan olib ketish'**
+  String get checkoutPickupStoreLabel;
+
+  /// No description provided for @checkoutQuoteCalculating.
+  ///
+  /// In uz, this message translates to:
+  /// **'Yetkazish narxi hisoblanmoqda…'**
+  String get checkoutQuoteCalculating;
+
+  /// No description provided for @checkoutRecipient.
+  ///
+  /// In uz, this message translates to:
+  /// **'Oluvchi'**
+  String get checkoutRecipient;
+
+  /// No description provided for @checkoutRecipientName.
+  ///
+  /// In uz, this message translates to:
+  /// **'Ism'**
+  String get checkoutRecipientName;
+
+  /// No description provided for @checkoutRecipientPhone.
+  ///
+  /// In uz, this message translates to:
+  /// **'Telefon raqami'**
+  String get checkoutRecipientPhone;
+
+  /// No description provided for @checkoutRecipientSave.
+  ///
+  /// In uz, this message translates to:
+  /// **'Saqlash'**
+  String get checkoutRecipientSave;
+
+  /// No description provided for @checkoutRecipientReset.
+  ///
+  /// In uz, this message translates to:
+  /// **'O\'zimga'**
+  String get checkoutRecipientReset;
+
+  /// No description provided for @checkoutRecipientPhoneInvalid.
+  ///
+  /// In uz, this message translates to:
+  /// **'Telefon raqamini to\'g\'ri kiriting'**
+  String get checkoutRecipientPhoneInvalid;
+
+  /// No description provided for @checkoutPickupReadyHint.
+  ///
+  /// In uz, this message translates to:
+  /// **'Tayyor bo\'lgach xabar beramiz'**
+  String get checkoutPickupReadyHint;
+
+  /// No description provided for @checkoutPaymentType.
+  ///
+  /// In uz, this message translates to:
+  /// **'To\'lov turi'**
+  String get checkoutPaymentType;
+
+  /// No description provided for @checkoutOrderSummary.
+  ///
+  /// In uz, this message translates to:
+  /// **'Sizning buyurtmangiz'**
+  String get checkoutOrderSummary;
+
+  /// No description provided for @checkoutPayOnReceive.
+  ///
+  /// In uz, this message translates to:
+  /// **'Olinganda to\'lanadi'**
+  String get checkoutPayOnReceive;
+
+  /// No description provided for @checkoutPayOnReceiveCaption.
+  ///
+  /// In uz, this message translates to:
+  /// **'Kuryerga yoki do\'konda naqd pul bilan'**
+  String get checkoutPayOnReceiveCaption;
+
+  /// No description provided for @checkoutPayOnlineCaption.
+  ///
+  /// In uz, this message translates to:
+  /// **'Payme — UZCARD, HUMO, Visa, Mastercard'**
+  String get checkoutPayOnlineCaption;
+
+  /// No description provided for @checkoutPayWithPayme.
+  ///
+  /// In uz, this message translates to:
+  /// **'Payme orqali to\'lash'**
+  String get checkoutPayWithPayme;
+
+  /// No description provided for @checkoutDeliveryFree.
+  ///
+  /// In uz, this message translates to:
+  /// **'Bepul'**
+  String get checkoutDeliveryFree;
+
+  /// No description provided for @checkoutTotal.
+  ///
+  /// In uz, this message translates to:
+  /// **'Jami'**
+  String get checkoutTotal;
+
+  /// No description provided for @checkoutMinimumTitle.
+  ///
+  /// In uz, this message translates to:
+  /// **'Minimal buyurtma summasiga yetmadi'**
+  String get checkoutMinimumTitle;
+
   /// No description provided for @cartContinueOrder.
   ///
   /// In uz, this message translates to:
@@ -192,7 +426,7 @@ abstract class AppLocalizations {
   /// No description provided for @checkoutCartChanged.
   ///
   /// In uz, this message translates to:
-  /// **'Savat yoki yetkazish shartlari o‘zgardi. Davom etishdan oldin qayta tekshiring.'**
+  /// **'Savat o‘zgardi. Tarkibi va summasini tekshirib, qayta tasdiqlang.'**
   String get checkoutCartChanged;
 
   /// No description provided for @checkoutReceiptOpen.
@@ -282,7 +516,7 @@ abstract class AppLocalizations {
   /// No description provided for @addressCoverageLoading.
   ///
   /// In uz, this message translates to:
-  /// **'Yetkazish hududi yuklanmoqda…'**
+  /// **'Xarita ma’lumotlari yuklanmoqda…'**
   String get addressCoverageLoading;
 
   /// No description provided for @addressRadiusLimit.
@@ -318,7 +552,7 @@ abstract class AppLocalizations {
   /// No description provided for @addressMapHelpBody.
   ///
   /// In uz, this message translates to:
-  /// **'GPS tugmasini bosing yoki xaritani surib aniq nuqtani belgilang. Uy yoki ishxonani tanlab, kuryer uchun kirish yo‘li va eshik kodini yozishingiz mumkin. Nuqta faqat tasdiqlaganingizdan keyin saqlanadi. Radius filial hududining ko‘rinishi; yetkazish imkoniyati va narxi checkout’da tekshiriladi.'**
+  /// **'GPS tugmasini bosing yoki xaritani surib istalgan joydagi nuqtani belgilang. Uy yoki ishxonani tanlab, kuryer uchun kirish yo‘li va eshik kodini yozishingiz mumkin. Manzil faqat tasdiqlaganingizdan keyin saqlanadi. Yetkazish imkoniyati va narxi buyurtmani rasmiylashtirishda tekshiriladi.'**
   String get addressMapHelpBody;
 
   /// No description provided for @addressTypeHome.
@@ -426,7 +660,7 @@ abstract class AppLocalizations {
   /// No description provided for @appUpdateOpenFailed.
   ///
   /// In uz, this message translates to:
-  /// **'Google Play’ni ochib bo‘lmadi. Qayta urinib ko‘ring yoki keyinroq yangilang.'**
+  /// **'Ilovalar do‘konini ochib bo‘lmadi. Qayta urinib ko‘ring yoki keyinroq yangilang.'**
   String get appUpdateOpenFailed;
 
   /// No description provided for @checkoutAddressActionHint.
@@ -642,43 +876,73 @@ abstract class AppLocalizations {
   /// No description provided for @offlineBanner.
   ///
   /// In uz, this message translates to:
-  /// **'Offline rejim'**
+  /// **'Internet yo‘q'**
   String get offlineBanner;
 
   /// No description provided for @connectionServerUnavailable.
   ///
   /// In uz, this message translates to:
-  /// **'Serverga ulanib bo‘lmadi'**
+  /// **'Hozir ulanib bo‘lmadi'**
   String get connectionServerUnavailable;
 
   /// No description provided for @offlineStaleData.
   ///
   /// In uz, this message translates to:
-  /// **'eski ma\'lumotlar'**
+  /// **'Saqlangan ma’lumotlar'**
   String get offlineStaleData;
+
+  /// No description provided for @offlineMenuSaving.
+  ///
+  /// In uz, this message translates to:
+  /// **'Menyu saqlanmoqda: {done}/{total}'**
+  String offlineMenuSaving(int done, int total);
+
+  /// No description provided for @offlineMenuReady.
+  ///
+  /// In uz, this message translates to:
+  /// **'Menyu telefonga saqlandi · Internetsiz ko‘rish mumkin'**
+  String get offlineMenuReady;
+
+  /// No description provided for @offlineMenuPartial.
+  ///
+  /// In uz, this message translates to:
+  /// **'Menyu hali to‘liq saqlanmagan. Internetga ulanganda davom etadi.'**
+  String get offlineMenuPartial;
+
+  /// No description provided for @offlineMenuWaiting.
+  ///
+  /// In uz, this message translates to:
+  /// **'Menyu internet borida telefonga saqlanadi.'**
+  String get offlineMenuWaiting;
 
   /// Tarmoq xatosi
   ///
   /// In uz, this message translates to:
-  /// **'Internet aloqasi yo\'q. Ulanishni tekshiring.'**
+  /// **'Internetga ulanib bo‘lmadi. Ulanishni tekshirib, qayta urinib ko‘ring.'**
   String get errorNetwork;
+
+  /// No description provided for @errorNetworkSlow.
+  ///
+  /// In uz, this message translates to:
+  /// **'Yuklash cho‘zilib ketdi. Internetni tekshirib, qayta urinib ko‘ring.'**
+  String get errorNetworkSlow;
 
   /// No description provided for @errorServer.
   ///
   /// In uz, this message translates to:
-  /// **'Serverda xatolik yuz berdi. Birozdan so\'ng urinib ko\'ring.'**
+  /// **'Hozircha amalga oshirib bo‘lmadi. Birozdan so‘ng qayta urinib ko‘ring.'**
   String get errorServer;
 
   /// No description provided for @errorUnknown.
   ///
   /// In uz, this message translates to:
-  /// **'Kutilmagan xatolik yuz berdi.'**
+  /// **'Amalni bajarib bo‘lmadi. Qayta urinib ko‘ring.'**
   String get errorUnknown;
 
   /// No description provided for @errorSessionExpired.
   ///
   /// In uz, this message translates to:
-  /// **'Sessiya muddati tugadi. Qaytadan kiring.'**
+  /// **'Davom etish uchun ilovaga qaytadan kiring.'**
   String get errorSessionExpired;
 
   /// No description provided for @errorThrottled.
@@ -1022,6 +1286,18 @@ abstract class AppLocalizations {
   /// In uz, this message translates to:
   /// **'Miqdor'**
   String get shashlikQuantity;
+
+  /// No description provided for @shashlikQuantityHint.
+  ///
+  /// In uz, this message translates to:
+  /// **'Miqdorni surib tanlang yoki raqamni bosib kiriting'**
+  String get shashlikQuantityHint;
+
+  /// No description provided for @shashlikQuantityInvalid.
+  ///
+  /// In uz, this message translates to:
+  /// **'1 dan 999 999 gacha butun son kiriting'**
+  String get shashlikQuantityInvalid;
 
   /// No description provided for @shashlikAddToCart.
   ///
@@ -1545,6 +1821,18 @@ abstract class AppLocalizations {
   /// **'Kategoriyalar'**
   String get catalogCategoryFilter;
 
+  /// No description provided for @householdSearchHint.
+  ///
+  /// In uz, this message translates to:
+  /// **'Xozmakdan qidirish'**
+  String get householdSearchHint;
+
+  /// No description provided for @householdCategorySearchHint.
+  ///
+  /// In uz, this message translates to:
+  /// **'Kategoriya qidirish'**
+  String get householdCategorySearchHint;
+
   /// No description provided for @householdSectionHomeTools.
   ///
   /// In uz, this message translates to:
@@ -1652,6 +1940,24 @@ abstract class AppLocalizations {
   /// In uz, this message translates to:
   /// **'Bu taom hozircha tugagan.'**
   String get productSoldOutDetail;
+
+  /// No description provided for @paymeAwaitingPayment.
+  ///
+  /// In uz, this message translates to:
+  /// **'To‘lov kutilmoqda'**
+  String get paymeAwaitingPayment;
+
+  /// No description provided for @paymePaymentRefundPending.
+  ///
+  /// In uz, this message translates to:
+  /// **'Buyurtma bekor qilindi. Pul qaytarilishi kutilmoqda.'**
+  String get paymePaymentRefundPending;
+
+  /// No description provided for @paymePaymentRefunded.
+  ///
+  /// In uz, this message translates to:
+  /// **'Pul qaytarildi'**
+  String get paymePaymentRefunded;
 
   /// No description provided for @paymePayButton.
   ///
@@ -2228,6 +2534,24 @@ abstract class AppLocalizations {
   /// In uz, this message translates to:
   /// **'Buyurtmani bekor qilmoqchimisiz?'**
   String get orderCancelConfirm;
+
+  /// No description provided for @orderCancelCallCourier.
+  ///
+  /// In uz, this message translates to:
+  /// **'Kuryer buyurtmangizni olib yo‘lga chiqdi. Bekor qilish uchun kuryerga qo‘ng‘iroq qiling.'**
+  String get orderCancelCallCourier;
+
+  /// No description provided for @orderCancelCallAction.
+  ///
+  /// In uz, this message translates to:
+  /// **'Kuryerga qo‘ng‘iroq qilish'**
+  String get orderCancelCallAction;
+
+  /// No description provided for @orderCourierPhoneUnavailable.
+  ///
+  /// In uz, this message translates to:
+  /// **'Kuryer telefon raqami hozircha mavjud emas.'**
+  String get orderCourierPhoneUnavailable;
 
   /// No description provided for @unsupportedStoreTitle.
   ///
@@ -3192,13 +3516,13 @@ abstract class AppLocalizations {
   /// No description provided for @checkoutMapTilesUnavailable.
   ///
   /// In uz, this message translates to:
-  /// **'Xarita rasmlari yuklanmadi. Markerlar va radius ishlaydi.'**
+  /// **'Xarita rasmlari yuklanmadi. Manzil belgilari ishlaydi.'**
   String get checkoutMapTilesUnavailable;
 
   /// No description provided for @checkoutMapCoverageUnavailable.
   ///
   /// In uz, this message translates to:
-  /// **'Yetkazish hududini yuklab bo‘lmadi.'**
+  /// **'Filialni xaritada ko‘rsatib bo‘lmadi. Saqlangan manzilni tanlashingiz mumkin.'**
   String get checkoutMapCoverageUnavailable;
 
   /// No description provided for @checkoutCoverageRadius.
@@ -3216,7 +3540,7 @@ abstract class AppLocalizations {
   /// No description provided for @checkoutTariffUnavailable.
   ///
   /// In uz, this message translates to:
-  /// **'Bu masofa uchun yetkazish tarifi sozlanmagan.'**
+  /// **'Bu manzil uchun yetkazish narxi hozircha aniqlanmadi.'**
   String get checkoutTariffUnavailable;
 
   /// No description provided for @checkoutMapPreviewHint.
@@ -3224,6 +3548,60 @@ abstract class AppLocalizations {
   /// In uz, this message translates to:
   /// **'Bu filial hududi ko‘rinishi. Buyurtma uchun yetkazish manzilini tanlang.'**
   String get checkoutMapPreviewHint;
+
+  /// No description provided for @cartUnavailable.
+  ///
+  /// In uz, this message translates to:
+  /// **'Bu mahsulot hozir buyurtma uchun mavjud emas. Uni savatdan olib tashlang.'**
+  String get cartUnavailable;
+
+  /// No description provided for @cartVariantUnavailable.
+  ///
+  /// In uz, this message translates to:
+  /// **'Tanlangan variant mavjud emas. Mahsulotni qayta tanlang.'**
+  String get cartVariantUnavailable;
+
+  /// No description provided for @cartAddonsUnavailable.
+  ///
+  /// In uz, this message translates to:
+  /// **'Tanlangan qo‘shimchalar mavjud emas. Mahsulotni qayta tanlang.'**
+  String get cartAddonsUnavailable;
+
+  /// No description provided for @orderCancellationUnavailable.
+  ///
+  /// In uz, this message translates to:
+  /// **'Bu buyurtmani endi bekor qilib bo‘lmaydi. Buyurtma holatini yangilang.'**
+  String get orderCancellationUnavailable;
+
+  /// No description provided for @errorValidation.
+  ///
+  /// In uz, this message translates to:
+  /// **'Ma’lumotlarni tekshirib, qayta urinib ko‘ring.'**
+  String get errorValidation;
+
+  /// No description provided for @checkoutResumePending.
+  ///
+  /// In uz, this message translates to:
+  /// **'Oldingi buyurtma natijasini tekshirish kerak. Davom eting.'**
+  String get checkoutResumePending;
+
+  /// No description provided for @catalogSwipeProducts.
+  ///
+  /// In uz, this message translates to:
+  /// **'Yonga suring'**
+  String get catalogSwipeProducts;
+
+  /// No description provided for @storeSwitchTitle.
+  ///
+  /// In uz, this message translates to:
+  /// **'Do‘konni almashtirish'**
+  String get storeSwitchTitle;
+
+  /// No description provided for @storeSwitchKeepsCart.
+  ///
+  /// In uz, this message translates to:
+  /// **'Har bir do‘kondagi savatingiz va tanlovlaringiz saqlanadi.'**
+  String get storeSwitchKeepsCart;
 }
 
 class _AppLocalizationsDelegate

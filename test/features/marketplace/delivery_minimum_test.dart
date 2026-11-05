@@ -1,8 +1,10 @@
+import 'dart:ui' show SemanticsAction;
+
 import 'package:beshkashtan_customer/core/ui/formatters/uzs.dart';
 import 'package:beshkashtan_customer/features/cart/data/cart_models.dart';
 import 'package:beshkashtan_customer/features/checkout/data/checkout_models.dart';
 import 'package:beshkashtan_customer/features/checkout/domain/checkout_rules.dart';
-import 'package:beshkashtan_customer/features/checkout/presentation/widgets/delivery_minimum_card.dart';
+import 'package:beshkashtan_customer/features/checkout/presentation/widgets/delivery_minimum_progress.dart';
 import 'package:beshkashtan_customer/generated/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -31,31 +33,50 @@ bool canSubmit(
   cart: cart,
 );
 
+final _progress = find.byKey(const ValueKey('cart-minimum-progress'));
+
 void main() {
-  testWidgets('unconfirmed changes cannot turn minimum into a success state', (
-    tester,
-  ) async {
-    await tester.pumpWidget(
-      MaterialApp(
-        locale: const Locale('uz'),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        home: Scaffold(
-          body: DeliveryMinimumCard(
-            cart: cart('25000'),
-            deliveryFee: '5000',
-            statusOverride: 'Hisob yangilanmoqda…',
+  Future<void> pump(
+    WidgetTester tester, {
+    String subtotal = '8000',
+    String? fee = '5000',
+    String? minimum = '20000',
+    bool confirmed = true,
+    bool reduce = false,
+    double scale = 1,
+    Locale locale = const Locale('uz'),
+    VoidCallback? onTap,
+  }) => tester.pumpWidget(
+    MaterialApp(
+      locale: locale,
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(
+          textScaler: TextScaler.linear(scale),
+          disableAnimations: reduce,
+        ),
+        child: child!,
+      ),
+      home: Scaffold(
+        body: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: DeliveryMinimumProgress(
+              cart: cart(subtotal, minimum: minimum),
+              deliveryFee: fee,
+              isConfirmed: confirmed,
+              onAddProducts: onTap ?? () {},
+            ),
           ),
         ),
       ),
-    );
-    final l10n = AppLocalizations.of(
-      tester.element(find.byType(DeliveryMinimumCard)),
-    );
-    expect(find.text(l10n.checkoutMinimumReached), findsNothing);
-    expect(find.text('Hisob yangilanmoqda…'), findsOneWidget);
-    expect(find.byIcon(Icons.check_circle_outline), findsNothing);
-  });
+    ),
+  );
+
+  double bar(WidgetTester tester) => tester
+      .widget<LinearProgressIndicator>(find.byType(LinearProgressIndicator))
+      .value!;
 
   test('minimum includes confirmed delivery fee, never an invented quote', () {
     final value = cart('17000');
@@ -103,43 +124,83 @@ void main() {
     expect(canSubmit(cart('17000', minimum: null)), isTrue);
   });
 
+  testWidgets('progress animates up, hides at minimum and returns below it', (
+    tester,
+  ) async {
+    await pump(tester);
+    expect(bar(tester), .65);
+    expect(
+      tester
+          .widget<LinearProgressIndicator>(find.byType(LinearProgressIndicator))
+          .minHeight,
+      4,
+    );
+    await pump(tester, subtotal: '12000');
+    await tester.pump(const Duration(milliseconds: 150));
+    expect(bar(tester), inExclusiveRange(.65, .85));
+    await tester.pumpAndSettle();
+    expect(bar(tester), .85);
+    await pump(tester, subtotal: '15000');
+    expect(_progress, findsNothing);
+    expect(find.text('Minimal buyurtma summasiga yetdingiz'), findsNothing);
+    await pump(tester);
+    expect(bar(tester), .65);
+  });
+
+  testWidgets('unknown fee, unconfirmed state and absent policy stay hidden', (
+    tester,
+  ) async {
+    await pump(tester, fee: null);
+    expect(_progress, findsNothing);
+    await pump(tester, confirmed: false);
+    expect(_progress, findsNothing);
+    for (final minimum in ['0', null]) {
+      await pump(tester, minimum: minimum);
+      expect(_progress, findsNothing);
+    }
+    await pump(tester, subtotal: '40000', fee: null);
+    expect(_progress, findsNothing);
+    await pump(tester, subtotal: '40000');
+    expect(_progress, findsNothing);
+  });
+
+  testWidgets('reduced motion updates progress immediately', (tester) async {
+    await pump(tester, reduce: true);
+    expect(bar(tester), .65);
+    await pump(tester, reduce: true, subtotal: '12000');
+    await tester.pump();
+    expect(bar(tester), .85);
+  });
+
+  testWidgets('screen reader exposes shortfall and actionable progress', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    var taps = 0;
+    await pump(tester, onTap: () => taps++);
+    final data = tester.getSemantics(_progress).getSemanticsData();
+    expect(data.label, contains('7\u00a0000'));
+    expect(data.value, '65%');
+    expect(data.hasAction(SemanticsAction.tap), isTrue);
+    await tester.tap(_progress);
+    expect(taps, 1);
+    await pump(tester, subtotal: '14999.99');
+    final almostMet = tester.getSemantics(_progress).getSemanticsData();
+    expect(almostMet.label, contains('0.01'));
+    expect(almostMet.value, '99%');
+    semantics.dispose();
+  });
+
   for (final locale in AppLocalizations.supportedLocales) {
     for (final width in [320.0, 430.0]) {
-      testWidgets('minimum card fits $locale $width at 2x with add action', (
-        tester,
-      ) async {
+      testWidgets('compact progress fits $locale $width at 2x', (tester) async {
         tester.view.physicalSize = Size(width, 800);
         tester.view.devicePixelRatio = 1;
-        addTearDown(tester.view.resetPhysicalSize);
-        addTearDown(tester.view.resetDevicePixelRatio);
+        addTearDown(tester.view.reset);
         var taps = 0;
-        await tester.pumpWidget(
-          MaterialApp(
-            locale: locale,
-            supportedLocales: AppLocalizations.supportedLocales,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
-            builder: (context, child) => MediaQuery(
-              data: MediaQuery.of(
-                context,
-              ).copyWith(textScaler: const TextScaler.linear(2)),
-              child: child!,
-            ),
-            home: Scaffold(
-              body: SingleChildScrollView(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: DeliveryMinimumCard(
-                    cart: cart('8000'),
-                    deliveryFee: '5000',
-                    onAddProducts: () => taps++,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        );
+        await pump(tester, locale: locale, scale: 2, onTap: () => taps++);
         final l10n = AppLocalizations.of(
-          tester.element(find.byType(DeliveryMinimumCard)),
+          tester.element(find.byType(DeliveryMinimumProgress)),
         );
         expect(
           find.text(
@@ -147,65 +208,12 @@ void main() {
           ),
           findsOneWidget,
         );
-        expect(
-          tester
-              .widget<LinearProgressIndicator>(
-                find.byType(LinearProgressIndicator),
-              )
-              .value,
-          .65,
-        );
-        await tester.tap(find.byType(TextButton));
+        expect(find.text(l10n.checkoutMinimumIncludesDelivery), findsNothing);
+        expect(bar(tester), .65);
+        await tester.tap(_progress);
         expect(taps, 1);
         expect(tester.takeException(), isNull);
       });
     }
   }
-
-  testWidgets('zero or missing minimum does not create a misleading card', (
-    tester,
-  ) async {
-    for (final minimum in ['0', null]) {
-      await tester.pumpWidget(
-        MaterialApp(
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          home: Scaffold(
-            body: DeliveryMinimumCard(cart: cart('17000', minimum: minimum)),
-          ),
-        ),
-      );
-      expect(
-        find.byKey(const ValueKey('checkout-delivery-minimum')),
-        findsNothing,
-      );
-    }
-  });
-
-  testWidgets(
-    'without an estimate card asks for address instead of inventing fee',
-    (tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          locale: const Locale('uz'),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          home: Scaffold(body: DeliveryMinimumCard(cart: cart('8000'))),
-        ),
-      );
-      expect(
-        find.text('Yetkazish narxini hisoblash uchun manzilni tanlang.'),
-        findsOneWidget,
-      );
-      final l10n = AppLocalizations.of(
-        tester.element(find.byType(DeliveryMinimumCard)),
-      );
-      expect(
-        find.text(
-          l10n.checkoutMinimumRemaining(Uzs.formatWithFraction('12000')),
-        ),
-        findsNothing,
-      );
-    },
-  );
 }

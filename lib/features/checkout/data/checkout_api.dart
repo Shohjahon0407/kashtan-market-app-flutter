@@ -149,7 +149,7 @@ class CheckoutApi {
         return PageDecoder.bare(data, (json) => json).items
             .where((json) => json['is_active'] != false)
             .map(DeliveryCoverageBranch.fromJson)
-            .where((branch) => branch.hasCoverage);
+            .where((branch) => branch.hasCoordinates);
       }),
     );
     final unique = <String, DeliveryCoverageBranch>{};
@@ -175,7 +175,7 @@ class CheckoutApi {
     return (data['branches'] as List? ?? const [])
         .whereType<Map<String, dynamic>>()
         .map(DeliveryCoverageBranch.fromJson)
-        .where((branch) => branch.hasCoverage)
+        .where((branch) => branch.hasCoordinates)
         .toList(growable: false);
   }
 

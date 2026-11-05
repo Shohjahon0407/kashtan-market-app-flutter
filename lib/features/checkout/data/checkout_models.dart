@@ -133,15 +133,18 @@ class DeliveryCoverageBranch {
   final double? latitude;
   final double? longitude;
   final double? radiusKm;
-  bool get hasCoverage =>
+  bool get hasCoordinates =>
       latitude != null &&
       longitude != null &&
-      radiusKm != null &&
       latitude!.isFinite &&
       longitude!.isFinite &&
-      radiusKm!.isFinite &&
       latitude!.abs() <= 90 &&
-      longitude!.abs() <= 180 &&
+      longitude!.abs() <= 180;
+  // Legacy radius metadata is still parsed for compatibility, not eligibility.
+  bool get hasCoverage =>
+      hasCoordinates &&
+      radiusKm != null &&
+      radiusKm!.isFinite &&
       radiusKm! >= 0.1 &&
       radiusKm! <= 100;
 }

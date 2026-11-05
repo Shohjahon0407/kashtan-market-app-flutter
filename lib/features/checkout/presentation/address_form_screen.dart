@@ -15,7 +15,6 @@ import '../../../core/ui/maps/neutral_map_widgets.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../../store/presentation/widgets/store_state_views.dart';
 import '../data/checkout_models.dart';
-import '../domain/address_delivery_boundary.dart';
 import '../domain/addresses_controller.dart';
 import '../domain/device_location.dart';
 import 'widgets/checkout_delivery_map.dart';
@@ -45,8 +44,7 @@ class AddressFormScreen extends ConsumerStatefulWidget {
 class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
   static const _green = Color(0xFF006B53);
   final _messengerKey = GlobalKey<ScaffoldMessengerState>();
-  MapController _mapController = MapController();
-  String? _boundarySignature;
+  final _mapController = MapController();
   final _title = TextEditingController();
   final _note = TextEditingController();
   String? _initializedId;
@@ -57,26 +55,53 @@ class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
   bool _saving = false, _locating = false;
   bool _pointChanged = false;
   bool _tileFailed = false;
-  bool _autoFitDone = false;
   int _tileRevision = 0, _locationRevision = 0;
   DeviceLocationFailure? _locationFailure;
   double? _accuracy;
   AsyncValue<List<DeliveryCoverageBranch>> _coverage = const AsyncLoading();
-  AddressDeliveryBoundary? _boundary;
-  bool _radiusNotice = false;
   FutureProvider<List<DeliveryCoverageBranch>> get _coverageSource =>
       widget.storeType == null
       ? addressCoverageProvider
       : deliveryCoverageProvider(widget.storeType!.wire);
-  bool get _canConfirm =>
-      !_coverage.isLoading &&
-      !_coverage.hasError &&
-      _boundary != null &&
-      _point != null &&
-      _boundary!.contains(_point!);
+  bool _validPoint(LatLng point) =>
+      point.latitude.isFinite &&
+      point.longitude.isFinite &&
+      point.latitude.abs() <= 90 &&
+      point.longitude.abs() <= 180;
+
+  bool get _canConfirm => _point != null && _validPoint(_point!);
 
   ScaffoldMessengerState get _messenger =>
       _messengerKey.currentState ?? ScaffoldMessenger.of(context);
+
+  void _showSaveError(String message) {
+    final messenger = _messenger;
+    messenger
+      ..hideCurrentMaterialBanner()
+      ..showMaterialBanner(
+        MaterialBanner(
+          backgroundColor: Colors.white,
+          leading: Icon(
+            Icons.error_outline,
+            color: Theme.of(context).colorScheme.error,
+          ),
+          content: Semantics(
+            liveRegion: true,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 64),
+              child: SingleChildScrollView(child: Text(message)),
+            ),
+          ),
+          actions: [
+            IconButton(
+              tooltip: AppLocalizations.of(context).commonClose,
+              onPressed: messenger.hideCurrentMaterialBanner,
+              icon: const Icon(Icons.close),
+            ),
+          ],
+        ),
+      );
+  }
 
   @override
   void initState() {
@@ -114,7 +139,8 @@ class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
     };
     _note.text = address.landmark;
     if (address.latitude != null && address.longitude != null) {
-      _point = LatLng(address.latitude!, address.longitude!);
+      final point = LatLng(address.latitude!, address.longitude!);
+      if (_validPoint(point)) _point = point;
     }
     if ([
       address.street,
@@ -153,27 +179,7 @@ class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
       );
     }
     _coverage = ref.watch(_coverageSource);
-    final branch = largestAddressCoverage(_coverage.value ?? const []);
-    _boundary = branch == null ? null : AddressDeliveryBoundary(branch);
-    final signature = branch == null
-        ? 'none'
-        : '${branch.id}:${branch.latitude}:${branch.longitude}:${branch.radiusKm}';
-    if (_boundarySignature != null && signature != _boundarySignature) {
-      // flutter_map requires a camera already inside a newly supplied
-      // constraint. Reset only when the actual policy changes, not on drags
-      // or ordinary refreshes. Keep the entered address/note unchanged.
-      final previous = _mapController;
-      _mapController = MapController();
-      _autoFitDone = false;
-      WidgetsBinding.instance.addPostFrameCallback((_) => previous.dispose());
-    }
-    _boundarySignature = signature;
-    if (branch != null && !_autoFitDone) {
-      _autoFitDone = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && signature == _boundarySignature) _fit(branch);
-      });
-    }
+    final branch = selectCoveragePreview(_coverage.value ?? const [], _point);
     return ScaffoldMessenger(
       key: _messengerKey,
       child: Scaffold(
@@ -239,6 +245,8 @@ class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
                         ? l10n.addressAddTitle
                         : l10n.addressEditTitle,
                     textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       fontSize: 16,
                       height: 1.2,
@@ -299,10 +307,8 @@ class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
 
   Widget _mapArea(AppLocalizations l10n, DeliveryCoverageBranch? branch) {
     final center =
-        (_point != null && (_boundary?.contains(_point!) ?? true)
-            ? _point
-            : null) ??
-        _boundary?.center ??
+        _point ??
+        (branch == null ? null : LatLng(branch.latitude!, branch.longitude!)) ??
         const LatLng(AppConfig.defaultLatitude, AppConfig.defaultLongitude);
     return LayoutBuilder(
       builder: (context, bounds) {
@@ -311,15 +317,13 @@ class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
           children: [
             Positioned.fill(
               child: FlutterMap(
-                key: ValueKey(_boundarySignature),
                 mapController: _mapController,
                 options: MapOptions(
                   initialCenter: center,
                   initialZoom: 14,
                   minZoom: 3,
                   maxZoom: 19,
-                  cameraConstraint:
-                      _boundary ?? const CameraConstraint.unconstrained(),
+                  cameraConstraint: const CameraConstraint.unconstrained(),
                   interactionOptions: const InteractionOptions(
                     flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
                   ),
@@ -344,19 +348,6 @@ class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
                       }
                     },
                   ),
-                  if (branch != null)
-                    CircleLayer(
-                      circles: [
-                        CircleMarker(
-                          point: LatLng(branch.latitude!, branch.longitude!),
-                          radius: branch.radiusKm! * 1000,
-                          useRadiusInMeter: true,
-                          color: _green.withValues(alpha: .12),
-                          borderColor: _green,
-                          borderStrokeWidth: 2,
-                        ),
-                      ],
-                    ),
                   if (_point != null || branch != null)
                     MarkerLayer(
                       markers: [
@@ -612,30 +603,20 @@ class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
                             color: _green,
                           ),
                           onPressed: () {
-                            if (_point != null &&
-                                (_boundary?.contains(_point!) ?? false)) {
+                            if (_point != null) {
                               _mapController.move(_point!, 16);
                             } else {
-                              _fit(_boundary?.branch);
+                              _fit(
+                                selectCoveragePreview(
+                                  _coverage.value ?? const [],
+                                  _point,
+                                ),
+                              );
                             }
                           },
                         ),
                       ],
                     ),
-                    if (_boundary != null)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 10),
-                        child: Text(
-                          l10n.checkoutCoverageRadius(
-                            deliveryRadiusLabel(_boundary!.branch.radiusKm!),
-                          ),
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: _green,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
                     if (locationError != null)
                       Padding(
                         padding: const EdgeInsets.only(top: 8),
@@ -680,32 +661,6 @@ class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
                         ),
                       ),
                     const SizedBox(height: 14),
-                    if (_coverage.isLoading) ...[
-                      Text(
-                        l10n.addressCoverageLoading,
-                        style: const TextStyle(fontSize: 12, color: _green),
-                      ),
-                      const SizedBox(height: 8),
-                    ] else if (_coverage.hasError || _boundary == null) ...[
-                      Text(l10n.checkoutMapCoverageUnavailable),
-                      TextButton(
-                        onPressed: () => ref.invalidate(_coverageSource),
-                        child: Text(l10n.commonRetry),
-                      ),
-                    ],
-                    if (_radiusNotice ||
-                        (_point != null &&
-                            _boundary != null &&
-                            !_boundary!.contains(_point!))) ...[
-                      Text(
-                        l10n.addressRadiusLimit,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Theme.of(context).colorScheme.error,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                    ],
                     Text(
                       l10n.addressTypeLabel,
                       style: const TextStyle(
@@ -850,34 +805,30 @@ class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
   }
 
   void _selectPoint(LatLng point, {bool move = true}) {
-    final boundary = _boundary;
-    // Allow drafting while coverage is loading/failed. Only confirmation is
-    // blocked until the real radius is known; the pin must not appear frozen.
-    final outside = boundary != null && !boundary.contains(point);
-    final selected = boundary?.clamp(point) ?? point;
+    if (!_validPoint(point)) return;
     _locationRevision++;
     setState(() {
-      _point = selected;
-      _radiusNotice = outside;
+      _point = point;
       _placeLabel = null;
       _pointChanged = true;
       _locationFailure = null;
       _accuracy = null;
     });
-    if (move || outside) {
-      _mapController.move(selected, _mapController.camera.zoom);
-    }
+    if (move) _mapController.move(point, _mapController.camera.zoom);
   }
 
   void _fit(DeliveryCoverageBranch? branch) {
     final points = <LatLng>[
-      if (_point != null && (_boundary?.contains(_point!) ?? false)) _point!,
-      if (branch != null)
-        ...deliveryRadiusPoints(
-          LatLng(branch.latitude!, branch.longitude!),
-          branch.radiusKm!,
-        ),
+      if (_point != null && _validPoint(_point!)) _point!,
+      if (branch?.hasCoordinates == true)
+        LatLng(branch!.latitude!, branch.longitude!),
     ];
+    if (points.isEmpty) {
+      _mapController.move(
+        const LatLng(AppConfig.defaultLatitude, AppConfig.defaultLongitude),
+        14,
+      );
+    }
     if (points.length == 1) _mapController.move(points.single, 16);
     if (points.length > 1) {
       final padding = (_mapController.camera.nonRotatedSize.shortestSide / 6)
@@ -909,10 +860,12 @@ class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
           .read(addressLocationResolverProvider)()
           .timeout(const Duration(seconds: 15));
       if (!mounted || revision != _locationRevision) return;
+      final point = LatLng(position.latitude, position.longitude);
+      if (!_validPoint(point)) {
+        throw const DeviceLocationException(DeviceLocationFailure.unavailable);
+      }
       setState(() {
-        _point = LatLng(position.latitude, position.longitude);
-        _radiusNotice = _boundary != null && !_boundary!.contains(_point!);
-        _autoFitDone = false;
+        _point = point;
         _placeLabel = null;
         _pointChanged = true;
         _accuracy = position.accuracy;
@@ -930,22 +883,9 @@ class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
     if (_saving || !_canConfirm) return;
     FocusScope.of(context).unfocus();
     final l10n = AppLocalizations.of(context);
+    _messenger.hideCurrentMaterialBanner();
     setState(() => _saving = true);
     try {
-      // Refresh before saving: an admin may have reduced the radius while
-      // this form was open. Do not save against an old preview circle.
-      final latest = largestAddressCoverage(
-        await ref.refresh(_coverageSource.future),
-      );
-      if (!mounted) return;
-      if (latest == null ||
-          !AddressDeliveryBoundary(latest).contains(_point!)) {
-        setState(() => _radiusNotice = true);
-        _messenger.showSnackBar(
-          SnackBar(content: Text(l10n.addressRadiusLimit)),
-        );
-        return;
-      }
       final old = _original;
       final label = _placeLabel ?? '';
       final saved = await ref
@@ -972,15 +912,11 @@ class _AddressFormScreenState extends ConsumerState<AddressFormScreen> {
       }
     } on ApiFailure catch (failure) {
       if (mounted) {
-        _messenger
-          ..hideCurrentSnackBar()
-          ..showSnackBar(SnackBar(content: Text(failure.localize(l10n))));
+        _showSaveError(failure.localize(l10n));
       }
     } on Object {
       if (mounted) {
-        _messenger.showSnackBar(
-          SnackBar(content: Text(l10n.checkoutMapCoverageUnavailable)),
-        );
+        _showSaveError(l10n.errorUnknown);
       }
     } finally {
       if (mounted) setState(() => _saving = false);

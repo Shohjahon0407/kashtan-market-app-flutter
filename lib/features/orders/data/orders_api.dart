@@ -86,27 +86,42 @@ class OrdersApi {
     String? pickupBranchId,
     required String paymentMethod,
     String note = '',
+    String? recipientName,
+    String? recipientPhone,
     String? idempotencyKey,
+    int? expectedCartRevision,
   }) async {
     final data = await _client.post(
       Api.orders,
       body: {
         'store_type': storeType,
+        'expected_cart_revision': ?expectedCartRevision,
         'fulfillment_type': fulfillmentType.wire,
         if (fulfillmentType == FulfillmentType.delivery)
           'address_id': addressId,
         if (fulfillmentType == FulfillmentType.pickup)
           'pickup_branch_id': pickupBranchId,
-        // Backend hozir bu maydonni e'tiborsiz qoldiradi (fulfillment'dan
-        // o'zi hosil qiladi). Qabul qila boshlaganda app yangilanmasdan ishlaydi.
+        // Payme is explicit; absent/legacy cash keeps fulfillment semantics.
         'payment_method': paymentMethod,
         if (note.trim().isNotEmpty) 'customer_note': note.trim(),
+        if (recipientName?.trim().isNotEmpty == true)
+          'recipient_name': recipientName!.trim(),
+        if (recipientPhone?.isNotEmpty == true)
+          'recipient_phone': recipientPhone,
       },
       headers: idempotencyKey == null || idempotencyKey.isEmpty
           ? null
           : {'Idempotency-Key': idempotencyKey},
     );
     return _order(data);
+  }
+
+  Future<OrderData?> byCheckoutKey(String key) async {
+    try {
+      return _order(await _client.get('${Api.orders}by-checkout-key/$key/'));
+    } on NotFoundFailure {
+      return null;
+    }
   }
 
   Future<OrderData> cancel(String id) async {

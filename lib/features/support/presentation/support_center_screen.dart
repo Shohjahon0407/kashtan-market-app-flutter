@@ -546,7 +546,10 @@ class _SupportCenterScreenState extends ConsumerState<SupportCenterScreen> {
     final history = ref.watch(supportTicketsProvider);
 
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.supportCenterTitle)),
+      appBar: AppBar(
+        leading: const AppBackButton(),
+        title: Text(l10n.supportCenterTitle),
+      ),
       body: RefreshIndicator(
         onRefresh: () => ref.refresh(supportTicketsProvider.future),
         child: ListView(

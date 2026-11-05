@@ -142,4 +142,10 @@ class CustomerPushMessage {
       storeTypeWire!.isNotEmpty;
 
   bool get hasOrderTarget => orderId != null && orderId!.isNotEmpty;
+
+  /// Backend muhim buyurtma hodisalarida (kuryer yo'lda, yetkazildi,
+  /// bekor qilindi) `importance=high` yuboradi; qolganlari `normal`.
+  bool get isImportant =>
+      (JsonRead.nullableString(data['importance']) ?? '').toLowerCase() ==
+      'high';
 }

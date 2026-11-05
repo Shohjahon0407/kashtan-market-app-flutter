@@ -102,7 +102,7 @@ void main() {
     },
   );
 
-  test('merge xatosida token qoladi, muvaffaqiyatda tozalanadi', () async {
+  test('merge tokeni navbat ko‘chirilgani tasdiqlangach tozalanadi', () async {
     tokens = InMemoryTokenStore(guestCartToken: 'guest-token');
     api = CartApi(client, tokens, () => true);
     var attempts = 0;
@@ -118,6 +118,8 @@ void main() {
     expect(await tokens.readGuestCartToken(), 'guest-token');
 
     expect(await api.mergeGuestCart(), isTrue);
+    expect(await tokens.readGuestCartToken(), 'guest-token');
+    await api.completeGuestMerge();
     expect(await tokens.readGuestCartToken(), isNull);
     expect(attempts, 2);
   });

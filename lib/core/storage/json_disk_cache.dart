@@ -18,22 +18,38 @@ const _kPayload = 'payload';
 /// Kalitga til va yozuv (lotin/kirill) KIRITILISHI SHART — javob matni
 /// transformer tomonidan transliteratsiya qilingan holda keshlanadi.
 class JsonDiskCache {
+  JsonDiskCache({
+    this.directoryName = 'json_cache',
+    this.retention = const Duration(days: 7),
+    this.directoryOverride,
+  });
+
+  final String directoryName;
+  final Duration? retention;
+  final Directory? directoryOverride;
+  bool get isPersistentAvailable =>
+      !kIsWeb &&
+      (directoryOverride != null ||
+          Platform.environment['FLUTTER_TEST'] != 'true');
   Future<Directory?>? _dirFuture;
 
   Future<Directory?> _dir() => _dirFuture ??= _open();
 
   Future<Directory?> _open() async {
-    if (kIsWeb) return null; // web'da brauzer HTTP keshi yetarli
+    if (!isPersistentAvailable) return null;
     // Widget-testlarda path_provider kanali javob bermay osilib qoladi —
     // test muhitida kesh butunlay o'chiq.
-    if (Platform.environment['FLUTTER_TEST'] == 'true') return null;
     try {
+      if (directoryOverride != null) {
+        await directoryOverride!.create(recursive: true);
+        return directoryOverride;
+      }
       final base = await getApplicationSupportDirectory().timeout(
         const Duration(seconds: 5),
       );
-      final dir = Directory('${base.path}/json_cache');
+      final dir = Directory('${base.path}/$directoryName');
       await dir.create(recursive: true);
-      unawaited(_cleanup(dir));
+      if (retention != null) unawaited(_cleanup(dir));
       return dir;
     } on Object {
       return null; // kesh ishlamasa app keshsiz davom etadi
@@ -43,7 +59,7 @@ class JsonDiskCache {
   /// 7 kundan eski fayllarni sekin-asta tozalab boradi.
   Future<void> _cleanup(Directory dir) async {
     try {
-      final cutoff = DateTime.now().subtract(const Duration(days: 7));
+      final cutoff = DateTime.now().subtract(retention!);
       await for (final entry in dir.list()) {
         if (entry is! File) continue;
         if (entry.statSync().modified.isBefore(cutoff)) {
@@ -165,6 +181,19 @@ class CachedEntry {
 }
 
 final jsonDiskCacheProvider = Provider<JsonDiskCache>((ref) => JsonDiskCache());
+
+/// Explicit offline downloads: app support storage, not a temporary cache.
+/// No age-based cleanup. Other application caches keep their existing policy.
+final restaurantOfflineCacheProvider = Provider<JsonDiskCache>(
+  (ref) =>
+      JsonDiskCache(directoryName: 'restaurant_offline_v1', retention: null),
+);
+
+String restaurantMenuKey(String scope) => 'menu_$scope';
+String restaurantLandingKey(String scope) => 'landing_$scope';
+String restaurantDetailKey(String id, String scope) => 'detail_${id}_$scope';
+String restaurantReviewsKey(String id, String scope) => 'reviews_${id}_$scope';
+String restaurantSyncKey(String scope) => 'sync_$scope';
 
 // Kalitlar YOZUVCHI (API klasslari) va O'QUVCHI (controllerlar) tomonlarda
 // aynan bir xil bo'lishi uchun bitta joyda:

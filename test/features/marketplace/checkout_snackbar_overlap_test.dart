@@ -1,3 +1,5 @@
+import 'package:beshkashtan_customer/core/localization/locale_controller.dart';
+import 'package:beshkashtan_customer/core/storage/prefs_store.dart';
 import 'package:beshkashtan_customer/core/store_scope/store_type.dart';
 import 'package:beshkashtan_customer/core/ui/theme/app_theme.dart';
 import 'package:beshkashtan_customer/features/cart/data/cart_api.dart';
@@ -16,6 +18,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../helpers/review_draft.dart';
 
@@ -87,7 +90,13 @@ const _cart = CartData(
 /// Checkout StoreShell ichida (tashqi Scaffold + NavigationBar) ochiladi.
 /// Xato snackbar'i "Buyurtma berish" tugmasini yopmasligi kerak — snackbar
 /// checkout'ning o'z ScaffoldMessenger'ida, tugma USTIDA chiqadi.
+late PrefsStore _reliabilityPrefs;
+
 void main() {
+  setUp(() async {
+    SharedPreferences.setMockInitialValues({});
+    _reliabilityPrefs = await PrefsStore.load();
+  });
   testWidgets('snackbar submit tugmasi ustida, uni yopmaydi', (tester) async {
     tester.view.physicalSize = const Size(412, 915);
     tester.view.devicePixelRatio = 1.0;
@@ -117,6 +126,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          prefsStoreProvider.overrideWithValue(_reliabilityPrefs),
           cartApiProvider.overrideWithValue(cartApi),
           orderDraftProvider.overrideWith2(
             (type) => ReviewDraft(

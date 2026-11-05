@@ -5,6 +5,7 @@ import 'package:beshkashtan_customer/core/network/api_failure.dart';
 import 'package:beshkashtan_customer/core/network/connectivity_controller.dart';
 import 'package:beshkashtan_customer/core/routing/routes.dart';
 import 'package:beshkashtan_customer/core/storage/account_scope.dart';
+import 'package:beshkashtan_customer/core/storage/prefs_store.dart';
 import 'package:beshkashtan_customer/core/store_scope/store_type.dart';
 import 'package:beshkashtan_customer/core/ui/theme/app_theme.dart';
 import 'package:beshkashtan_customer/features/cart/data/cart_api.dart';
@@ -31,6 +32,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 const _type = StoreType.household;
 const _address = UserAddress(
@@ -64,6 +66,8 @@ class _Submission extends CheckoutController {
     String? addressId,
     String? pickupBranchId,
     String note = '',
+    String? recipientName,
+    String? recipientPhone,
   }) async {
     calls++;
     return onSubmit();
@@ -186,6 +190,7 @@ Future<_Fixture> _mount(
   when(() => api.fetchBranches(any())).thenAnswer((_) async => branches);
   final container = ProviderContainer(
     overrides: [
+      prefsStoreProvider.overrideWithValue(_reliabilityPrefs),
       isOfflineProvider.overrideWithValue(false),
       offlineCartQueueProvider.overrideWithValue(queue),
       if (submission != null)
@@ -299,7 +304,13 @@ Future<_Fixture> _mount(
   return _Fixture(container, router, api);
 }
 
+late PrefsStore _reliabilityPrefs;
+
 void main() {
+  setUp(() async {
+    SharedPreferences.setMockInitialValues({});
+    _reliabilityPrefs = await PrefsStore.load();
+  });
   testWidgets(
     'successful order shows tracking stages despite cart/draft clearing before navigation',
     (tester) async {
@@ -396,7 +407,12 @@ void main() {
     );
     await tester.tap(find.byKey(const ValueKey('checkout-submit')));
     await tester.pumpAndSettle();
-    expect(find.text('CART:location'), findsOneWidget);
+    // Endi savatga qaytmaydi — hudud xatosi shu yerda, manzil kartasida.
+    expect(find.byType(CheckoutScreen), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('checkout-location-error')),
+      findsOneWidget,
+    );
     expect(submission.calls, 0);
   });
 
@@ -442,21 +458,24 @@ void main() {
   });
 
   testWidgets(
-    'unprepared direct link returns to cart instead of prompting GPS/address',
+    'direct link picks saved default address without GPS or selector',
     (tester) async {
       final f = await _mount(tester, confirmed: false);
-      expect(find.text('CART:location'), findsOneWidget);
-      expect(f.container.read(orderDraftProvider(_type)).selection, isNull);
-      verifyNever(
-        () => f.api.estimate(
-          storeType: any(named: 'storeType'),
-          latitude: any(named: 'latitude'),
-          longitude: any(named: 'longitude'),
-        ),
+      expect(find.byType(CheckoutScreen), findsOneWidget);
+      expect(f.container.read(orderDraftProvider(_type)).addressId, 'home');
+      expect(
+        f.container.read(orderDraftProvider(_type)).fulfillment,
+        FulfillmentType.delivery,
       );
       expect(
         find.byKey(const ValueKey('delivery-address-confirm')),
         findsNothing,
+      );
+      expect(
+        tester
+            .widget<FilledButton>(find.byKey(const ValueKey('checkout-submit')))
+            .onPressed,
+        isNotNull,
       );
       expect(tester.takeException(), isNull);
     },
@@ -477,7 +496,12 @@ void main() {
           .onPressed,
       isNull,
     );
-    expect(find.byKey(const ValueKey('checkout-submit-total')), findsNothing);
+    expect(
+      tester
+          .widget<Text>(find.byKey(const ValueKey('checkout-submit-total')))
+          .data,
+      '—',
+    );
     pending.complete(_quote);
     await tester.pumpAndSettle();
     expect(
@@ -502,10 +526,11 @@ void main() {
     ) async {
       final f = await _mount(tester, cart: _cart(amount: amount));
       if (amount == '8000') {
-        expect(find.text('CART:products'), findsOneWidget);
+        // A stale/direct-link checkout returns to the cart's recommendations.
+        expect(find.text('CART:recommendations'), findsOneWidget);
         expect(
-          f.container.read(orderDraftProvider(_type)).notice,
-          'minimum_not_met',
+          find.byKey(const ValueKey('checkout-delivery-minimum')),
+          findsNothing,
         );
         expect(
           f.container
@@ -532,12 +557,12 @@ void main() {
   testWidgets('minimum increased on refresh returns to products with notice', (
     tester,
   ) async {
-    final f = await _mount(tester, afterRefresh: _cart(minimum: '30000'));
-    expect(find.text('CART:products'), findsOneWidget);
+    await _mount(tester, afterRefresh: _cart(minimum: '30000'));
     expect(
-      f.container.read(orderDraftProvider(_type)).notice,
-      'minimum_not_met',
+      find.byKey(const ValueKey('checkout-delivery-minimum')),
+      findsNothing,
     );
+    expect(find.text('CART:recommendations'), findsOneWidget);
   });
 
   for (final invalidQuote in [
@@ -553,7 +578,11 @@ void main() {
       tester,
     ) async {
       final f = await _mount(tester, quote: invalidQuote);
-      expect(find.text('CART:location'), findsOneWidget);
+      expect(find.byType(CheckoutScreen), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('checkout-location-error')),
+        findsOneWidget,
+      );
       expect(
         f.container.read(orderDraftProvider(_type)).quoteFor(
           f.container.read(cartControllerProvider(_type)).value!.cart,
@@ -561,7 +590,12 @@ void main() {
         ),
         isNull,
       );
-      expect(find.byKey(const ValueKey('checkout-submit-total')), findsNothing);
+      expect(
+        tester
+            .widget<Text>(find.byKey(const ValueKey('checkout-submit-total')))
+            .data,
+        '—',
+      );
     });
   }
 
@@ -572,8 +606,15 @@ void main() {
       tester,
       addresses: const [UserAddress(id: 'home', title: '', isDefault: true)],
     );
-    expect(find.text('CART:location'), findsOneWidget);
+    expect(find.byType(CheckoutScreen), findsOneWidget);
     expect(f.container.read(orderDraftProvider(_type)).selection, isNull);
+    expect(find.text('Manzil tanlash'), findsOneWidget);
+    expect(
+      tester
+          .widget<FilledButton>(find.byKey(const ValueKey('checkout-submit')))
+          .onPressed,
+      isNull,
+    );
   });
 
   testWidgets(
@@ -637,36 +678,22 @@ void main() {
     },
   );
 
-  testWidgets(
-    'edit location returns cart focus, preserves note and default address',
-    (tester) async {
-      final f = await _mount(tester);
-      f.draft.setNote('Eshik kodi 124');
-      await tester.tap(find.byKey(const ValueKey('checkout-edit-location')));
-      await tester.pumpAndSettle();
-      expect(find.text('CART:location'), findsOneWidget);
-      expect(
-        f.container.read(orderDraftProvider(_type)).note,
-        'Eshik kodi 124',
-      );
-      expect(
-        f.container.read(addressesControllerProvider).value!.single.isDefault,
-        isTrue,
-      );
-    },
-  );
-
-  testWidgets('edit products returns products focus without losing draft', (
+  testWidgets('kuryer standart: manzil, oluvchi va vaqt bloki ko\'rinadi', (
     tester,
   ) async {
-    final f = await _mount(tester);
-    await tester.ensureVisible(
-      find.byKey(const ValueKey('checkout-edit-cart')),
+    await _mount(tester);
+    expect(find.byKey(const ValueKey('checkout-fulfillment')), findsOneWidget);
+    final segment = tester.widget<SegmentedButton<FulfillmentType>>(
+      find.byType(SegmentedButton<FulfillmentType>),
     );
-    await tester.tap(find.byKey(const ValueKey('checkout-edit-cart')));
-    await tester.pumpAndSettle();
-    expect(find.text('CART:products'), findsOneWidget);
-    expect(f.container.read(orderDraftProvider(_type)).addressId, 'home');
+    expect(segment.selected, {FulfillmentType.delivery});
+    expect(find.text('Boshqasini tanlash'), findsOneWidget);
+    expect(find.byKey(const ValueKey('checkout-recipient')), findsOneWidget);
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('checkout-delivery-time')),
+    );
+    expect(find.text('Taxminiy yetkazish vaqti'), findsOneWidget);
+    expect(find.textContaining('40–60'), findsNothing);
   });
 
   testWidgets('legacy address URL is not covered by checkout redirect', (
@@ -684,7 +711,7 @@ void main() {
     );
     f.router.pop();
     await tester.pumpAndSettle();
-    expect(find.text('CART:location'), findsOneWidget);
+    expect(find.byType(CheckoutScreen), findsOneWidget);
   });
 
   testWidgets(
@@ -726,7 +753,7 @@ void main() {
   testWidgets(
     'multiple pickup branches without selection return to fulfillment',
     (tester) async {
-      await _mount(
+      final f = await _mount(
         tester,
         confirmed: false,
         pickup: true,
@@ -742,7 +769,25 @@ void main() {
             }),
         ],
       );
-      expect(find.text('CART:fulfillment'), findsOneWidget);
+      // Savatga qaytmaydi: filial shu ekranda tanlanadi.
+      expect(find.byType(CheckoutScreen), findsOneWidget);
+      expect(
+        tester
+            .widget<FilledButton>(find.byKey(const ValueKey('checkout-submit')))
+            .onPressed,
+        isNull,
+      );
+      await tester.tap(find.byKey(const ValueKey('checkout-change-location')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('checkout-pickup-option-b')));
+      await tester.pumpAndSettle();
+      expect(f.container.read(orderDraftProvider(_type)).pickupBranchId, 'b');
+      expect(
+        tester
+            .widget<FilledButton>(find.byKey(const ValueKey('checkout-submit')))
+            .onPressed,
+        isNotNull,
+      );
     },
   );
 }

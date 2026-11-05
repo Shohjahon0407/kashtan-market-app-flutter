@@ -1,7 +1,12 @@
 import 'dart:async' show unawaited;
 
 import 'package:flutter/foundation.dart'
-    show defaultTargetPlatform, kIsWeb, TargetPlatform;
+    show
+        defaultTargetPlatform,
+        kIsWeb,
+        TargetPlatform,
+        LicenseRegistry,
+        LicenseEntryWithLineBreaks;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -24,6 +29,11 @@ import 'features/recommendations/domain/interaction_tracker.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  LicenseRegistry.addLicense(() async* {
+    yield LicenseEntryWithLineBreaks([
+      'Roboto Condensed',
+    ], await rootBundle.loadString('assets/fonts/RobotoCondensed-OFL.txt'));
+  });
   registerCustomerPushBackgroundHandler();
   // Firebase/Crashlytics init birinchi kadrni ushlab turmasin: handlerlar
   // bir necha yuz ms keyin o'rnatiladi, bu davrdagi crash yo'qolishi mumkin —

@@ -1,0 +1,21 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Mijoz ilovasi",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart"
+    },
+    {
+      "name": "Payme sinovi — avval server test rejimini tekshiring",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "toolArgs": [
+        "--dart-define=PAYME_ENABLED=true",
+        "--dart-define=BACKEND_ORIGIN=https://api.beshkashtan.uz"
+      ]
+    }
+  ]
+}

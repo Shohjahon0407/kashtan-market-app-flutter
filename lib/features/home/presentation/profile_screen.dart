@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/config/app_config.dart';
 import '../../../core/localization/locale_controller.dart';
+import '../../../core/routing/back_navigation.dart';
 import '../../../core/routing/routes.dart';
 import '../../../core/store_scope/store_type.dart';
 import '../../../core/ui/theme/app_dimens.dart';
@@ -29,7 +30,10 @@ class ProfileScreen extends ConsumerWidget {
     final fullName = user?.fullName.trim() ?? '';
 
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.profileTitle)),
+      appBar: AppBar(
+        leading: const AppBackButton(),
+        title: Text(l10n.profileTitle),
+      ),
       body: Align(
         alignment: Alignment.topCenter,
         child: ConstrainedBox(

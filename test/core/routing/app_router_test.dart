@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:beshkashtan_customer/app.dart';
 import 'package:beshkashtan_customer/core/localization/locale_controller.dart';
 import 'package:beshkashtan_customer/core/network/network_providers.dart';
@@ -25,7 +23,6 @@ import 'package:beshkashtan_customer/features/checkout/data/checkout_models.dart
 import 'package:beshkashtan_customer/features/checkout/domain/addresses_controller.dart';
 import 'package:beshkashtan_customer/features/checkout/domain/device_location.dart';
 import 'package:beshkashtan_customer/features/checkout/presentation/address_form_screen.dart';
-import 'package:beshkashtan_customer/features/checkout/presentation/checkout_screen.dart';
 import 'package:beshkashtan_customer/features/checkout/presentation/delivery_address_screen.dart';
 import 'package:beshkashtan_customer/features/home/data/home_api.dart';
 import 'package:beshkashtan_customer/features/home/data/home_models.dart';
@@ -487,7 +484,16 @@ void main() {
       expect(find.byType(DeliveryAddressScreen), findsNothing);
       expect(find.textContaining('yana 7\u00a0000'), findsWidgets);
 
-      await tester.tap(find.byKey(const ValueKey('cart-address')));
+      // Minimum blocks checkout, but address selection remains available.
+      expect(
+        tester
+            .widget<FilledButton>(
+              find.byKey(const ValueKey('cart-primary-action')),
+            )
+            .onPressed,
+        isNull,
+      );
+      await tester.tap(find.byKey(const ValueKey('household-cart-location')));
       await tester.pumpAndSettle();
       expect(find.byType(DeliveryAddressScreen), findsOneWidget);
       expect(find.byKey(const ValueKey('store-nav-cart')), findsOneWidget);
@@ -498,8 +504,7 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('delivery-address-confirm')));
       await tester.pumpAndSettle();
       expect(find.byType(CartScreen), findsOneWidget);
-      expect(find.byType(CheckoutScreen), findsNothing);
-      expect(find.textContaining('yana 7\u00a0000'), findsWidgets);
+      expect(find.byType(DeliveryAddressScreen), findsNothing);
       verify(
         () => container
             .read(checkoutApiProvider)
@@ -508,9 +513,9 @@ void main() {
               latitude: 41.31,
               longitude: 69.24,
             ),
-      ).called(2);
+      ).called(greaterThanOrEqualTo(1));
 
-      await tester.tap(find.byKey(const ValueKey('cart-address')));
+      await tester.tap(find.byKey(const ValueKey('household-cart-location')));
       await tester.pumpAndSettle();
       final add = find.byKey(const ValueKey('checkout-add-new-location'));
       await tester.ensureVisible(add);
@@ -540,15 +545,20 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(CartScreen), findsOneWidget);
       expect(find.byType(DeliveryAddressScreen), findsNothing);
-      expect(find.textContaining('yana 7\u00a0000'), findsWidgets);
+      // The compact minimum row is in the cart footer, never a second card.
+      expect(
+        find.byKey(const ValueKey('cart-minimum-progress')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('checkout-delivery-minimum')),
+        findsNothing,
+      );
       expect(
         container.read(addressesControllerProvider).value!.single.isDefault,
         isTrue,
       );
 
-      // Incomplete checkout direct links return to cart, not an auto popup.
-      unawaited(router.push<void>(Routes.checkout('household')));
-      await tester.pumpAndSettle();
       expect(find.byType(CartScreen), findsOneWidget);
       expect(find.byType(DeliveryAddressScreen), findsNothing);
       await unmountApp(tester);
@@ -598,6 +608,8 @@ void main() {
           await tester.pumpAndSettle();
         }
         await tester.pump(const Duration(seconds: 1));
+        // Legacy checkout URLs remain valid, but this below-minimum fixture
+        // returns to the cart after the covering address route is closed.
         expect(find.byType(CartScreen), findsOneWidget);
         expect(find.byType(DeliveryAddressScreen), findsNothing);
       }

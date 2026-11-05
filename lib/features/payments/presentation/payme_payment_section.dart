@@ -52,6 +52,7 @@ class _PaymePaymentSectionState extends ConsumerState<PaymePaymentSection> {
     super.initState();
     _lifecycle = AppLifecycleListener(onResume: _onResume);
     if (ref.read(paymeEnabledProvider) &&
+        widget.order.storeTypeWire == 'household' &&
         widget.autoStart &&
         PaymentStatus.fromWire(widget.order.paymentStatus) !=
             PaymentStatus.paid) {
@@ -78,7 +79,10 @@ class _PaymePaymentSectionState extends ConsumerState<PaymePaymentSection> {
   }
 
   Future<void> _startPayment() async {
-    if (!ref.read(paymeEnabledProvider)) return;
+    if (!ref.read(paymeEnabledProvider) ||
+        widget.order.storeTypeWire != 'household') {
+      return;
+    }
     if (!OfflineGate.check(ref)) return;
     _resumeCheckDone = false;
     await ref
@@ -88,7 +92,10 @@ class _PaymePaymentSectionState extends ConsumerState<PaymePaymentSection> {
 
   @override
   Widget build(BuildContext context) {
-    if (!ref.watch(paymeEnabledProvider)) return const SizedBox.shrink();
+    if (!ref.watch(paymeEnabledProvider) &&
+        widget.order.paymentMethod != 'payme') {
+      return const SizedBox.shrink();
+    }
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final state = ref.watch(paymePaymentControllerProvider(widget.order.id));
@@ -118,6 +125,14 @@ class _PaymePaymentSectionState extends ConsumerState<PaymePaymentSection> {
     });
 
     final status = PaymentStatus.fromWire(widget.order.paymentStatus);
+    if (status == PaymentStatus.refundPending ||
+        status == PaymentStatus.refunded) {
+      return Text(
+        status == PaymentStatus.refunded
+            ? l10n.paymePaymentRefunded
+            : l10n.paymePaymentRefundPending,
+      );
+    }
     if (status == PaymentStatus.paid) {
       return Row(
         children: [
@@ -133,6 +148,14 @@ class _PaymePaymentSectionState extends ConsumerState<PaymePaymentSection> {
           ),
         ],
       );
+    }
+
+    if (widget.order.status == 'cancelled') {
+      return Text(l10n.paymePaymentCancelled);
+    }
+    if (!ref.watch(paymeEnabledProvider) ||
+        widget.order.storeTypeWire != 'household') {
+      return Text(l10n.paymeUnavailable);
     }
 
     return Column(

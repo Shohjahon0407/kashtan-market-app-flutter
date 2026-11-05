@@ -14,6 +14,7 @@ class CartRecommendations extends ConsumerWidget {
     this.minimumMode = false,
     this.showFallback = false,
     this.onBrowse,
+    this.grid = false,
     super.key,
   });
 
@@ -21,6 +22,9 @@ class CartRecommendations extends ConsumerWidget {
   final bool minimumMode;
   final bool showFallback;
   final VoidCallback? onBrowse;
+
+  /// Do'kon savatida: pastga davom etadigan 2 ustunli grid (Uzum kabi).
+  final bool grid;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -71,6 +75,38 @@ class CartRecommendations extends ConsumerWidget {
                 icon: const Icon(Icons.refresh, size: 18),
                 label: Text(l10n.commonRetry),
               ),
+            )
+          else if (grid)
+            GridView.builder(
+              key: PageStorageKey(
+                'cart-suggestions-${storeType?.wire ?? 'all'}',
+              ),
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              padding: EdgeInsets.zero,
+              itemCount: products.length,
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                crossAxisSpacing: 8,
+                mainAxisSpacing: 8,
+                // Katta shriftda karta cho'ziladi — matn kesilmasin.
+                childAspectRatio: (0.70 / math.max(1.0, scale * .9)).clamp(
+                  0.42,
+                  0.70,
+                ),
+              ),
+              itemBuilder: (context, index) {
+                final product = products[index];
+                return KeyedSubtree(
+                  key: ValueKey('cart-recommendation-${product.id}'),
+                  child: ProductCard(
+                    product: product,
+                    storeType:
+                        storeType ?? StoreType.fromWire(product.storeTypeWire)!,
+                    catalogStyle: true,
+                  ),
+                );
+              },
             )
           else
             LayoutBuilder(

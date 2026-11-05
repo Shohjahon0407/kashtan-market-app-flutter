@@ -105,6 +105,11 @@ void main() {
     final add = find.byKey(const ValueKey('product-detail-add-to-cart'));
     expect(add, findsOneWidget);
     expect(tester.widget<FilledButton>(add).onPressed, isNull);
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('product-detail-unavailable')),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(
       find.byKey(const ValueKey('product-detail-unavailable')),
       findsOneWidget,
@@ -114,6 +119,7 @@ void main() {
         storeType: any(named: 'storeType'),
         configuration: any(named: 'configuration'),
         quantity: any(named: 'quantity'),
+        idempotencyKey: any(named: 'idempotencyKey'),
       ),
     );
   });

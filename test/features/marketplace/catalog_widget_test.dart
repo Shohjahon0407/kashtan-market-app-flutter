@@ -14,7 +14,9 @@ import 'package:beshkashtan_customer/features/catalog/presentation/widgets/categ
 import 'package:beshkashtan_customer/features/catalog/presentation/widgets/household_category_landing.dart';
 import 'package:beshkashtan_customer/features/catalog/presentation/widgets/meat_product_card.dart';
 import 'package:beshkashtan_customer/features/catalog/presentation/widgets/product_card.dart';
+import 'package:beshkashtan_customer/features/catalog/presentation/widgets/product_image.dart';
 import 'package:beshkashtan_customer/features/catalog/presentation/widgets/restaurant_category_landing.dart';
+import 'package:beshkashtan_customer/features/catalog/presentation/widgets/shashlik_cart_bar.dart';
 import 'package:beshkashtan_customer/features/catalog/presentation/widgets/shashlik_catalog.dart';
 import 'package:beshkashtan_customer/features/favorites/data/favorite_models.dart';
 import 'package:beshkashtan_customer/features/favorites/data/favorites_api.dart';
@@ -169,6 +171,13 @@ class _CatalogHarness {
 }
 
 void main() {
+  setUp(() {
+    final previous = VisibilityDetectorController.instance.updateInterval;
+    VisibilityDetectorController.instance.updateInterval = Duration.zero;
+    addTearDown(
+      () => VisibilityDetectorController.instance.updateInterval = previous,
+    );
+  });
   Future<_CatalogHarness> pumpCatalog(
     WidgetTester tester,
     ThemeMode themeMode, {
@@ -182,6 +191,7 @@ void main() {
     List<CategoryProductBanner> categoryBanners = const [],
     List<ProductSummary> categoryRecommendations = const [],
     double textScale = 1,
+    bool withNavbar = false,
   }) async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await PrefsStore.load();
@@ -218,6 +228,26 @@ void main() {
           nextUrl: null,
         ),
       );
+    }
+    if (storeType == StoreType.household &&
+        initialCategoryId == null &&
+        searchOnly == false) {
+      for (final category in landing.categories.where(
+        (c) => c.productCount > 0,
+      )) {
+        when(
+          () => catalogApi.fetchProducts(
+            storeType: 'household',
+            categoryId: category.id,
+            query: '',
+          ),
+        ).thenAnswer(
+          (_) async => CursorPage(
+            items: catalogProducts ?? [_product('preview')],
+            nextUrl: null,
+          ),
+        );
+      }
     }
     when(
       () => storeApi.fetchLanding(storeType.wire),
@@ -269,14 +299,24 @@ void main() {
             GlobalCupertinoLocalizations.delegate,
             GlobalWidgetsLocalizations.delegate,
           ],
-          home: CatalogScreen(
-            storeType: storeType,
-            initialCategoryId: initialCategoryId,
-            searchOnly:
-                searchOnly ??
-                ((storeType == StoreType.household ||
-                        storeType == StoreType.restaurant) &&
-                    initialCategoryId == null),
+          home: Builder(
+            builder: (_) {
+              final screen = CatalogScreen(
+                storeType: storeType,
+                initialCategoryId: initialCategoryId,
+                searchOnly:
+                    searchOnly ??
+                    ((storeType == StoreType.household ||
+                            storeType == StoreType.restaurant) &&
+                        initialCategoryId == null),
+              );
+              return withNavbar
+                  ? Scaffold(
+                      body: screen,
+                      bottomNavigationBar: const SizedBox(height: 80),
+                    )
+                  : screen;
+            },
           ),
         ),
       ),
@@ -424,6 +464,11 @@ void main() {
       );
       expect(family.family.products, hasLength(2));
       await revealImagelessProducts(tester);
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('shashlik-family-lamb-jazz')),
+        120,
+        scrollable: find.byType(Scrollable).first,
+      );
       expect(
         find.byKey(const ValueKey('shashlik-family-lamb-jazz')),
         findsOneWidget,
@@ -493,7 +538,7 @@ void main() {
     },
   );
 
-  testWidgets('restaurant lenta 360px da 2 ta, 390px da 3 ta rasm ko‘rsatadi', (
+  testWidgets('restaurant lenta keyingi kartani ko‘rsatadi va resize qiladi', (
     tester,
   ) async {
     final previousInterval =
@@ -511,10 +556,22 @@ void main() {
       canonicalName: '1-TAOMLAR',
       storeTypeWire: 'restaurant',
       productCount: 3,
-      previewImageUrls: [
-        'https://example.invalid/1.webp',
-        'https://example.invalid/2.webp',
-        'https://example.invalid/3.webp',
+      previewProducts: [
+        CategoryProductPreview(
+          id: '1',
+          name: 'Sho‘rva',
+          imageUrl: 'https://example.invalid/1.webp',
+        ),
+        CategoryProductPreview(
+          id: '2',
+          name: 'Mastava',
+          imageUrl: 'https://example.invalid/2.webp',
+        ),
+        CategoryProductPreview(
+          id: '3',
+          name: 'Moshxo‘rda',
+          imageUrl: 'https://example.invalid/3.webp',
+        ),
       ],
     );
 
@@ -551,7 +608,7 @@ void main() {
           .widget<PageView>(find.byType(PageView))
           .controller!
           .viewportFraction,
-      .5,
+      closeTo((328 * .82 + 12) / 328, .001),
     );
 
     await pumpAt(390);
@@ -560,7 +617,7 @@ void main() {
           .widget<PageView>(find.byType(PageView))
           .controller!
           .viewportFraction,
-      closeTo(1 / 3, .0001),
+      closeTo((358 * .82 + 12) / 358, .001),
     );
 
     await tester.pumpWidget(const SizedBox.shrink());
@@ -670,26 +727,85 @@ void main() {
     );
   });
 
-  testWidgets('household root rasmli category landingni ko‘rsatadi', (
-    tester,
-  ) async {
-    final harness = await pumpCatalog(
-      tester,
-      ThemeMode.light,
-      searchOnly: false,
-    );
+  testWidgets(
+    'household root real category product ribbons replace category collages',
+    (tester) async {
+      final harness = await pumpCatalog(
+        tester,
+        ThemeMode.light,
+        searchOnly: false,
+      );
 
-    expect(find.text('Xozmak'), findsOneWidget);
-    expect(find.text('Asboblar'), findsOneWidget);
-    expect(find.text('Bo‘sh kategoriya'), findsNothing);
-    expect(find.byType(ProductCard), findsNothing);
-    expect(
-      find.byKey(const ValueKey('household-search-button')),
-      findsOneWidget,
-    );
-    expect(find.byKey(const ValueKey('catalog-search-field')), findsNothing);
-    verifyNever(() => harness.catalogApi.fetchProducts(storeType: 'household'));
-  });
+      expect(find.text('Xozmak'), findsOneWidget);
+      expect(find.text('Asboblar'), findsNWidgets(2));
+      expect(find.text('Bo‘sh kategoriya'), findsNothing);
+      expect(find.byType(ProductCard), findsNothing);
+      expect(
+        find.byKey(const ValueKey('household-preview-preview')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('household-category-card-category-1')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('household-search-entry')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('catalog-search-field')), findsNothing);
+      verifyNever(
+        () => harness.catalogApi.fetchProducts(storeType: 'household'),
+      );
+    },
+  );
+
+  for (final size in [
+    const Size(320, 640),
+    const Size(430, 850),
+    const Size(800, 360),
+  ]) {
+    testWidgets('household root, cart and navbar fit 200% $size', (
+      tester,
+    ) async {
+      tester.view.physicalSize = size;
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await pumpCatalog(
+        tester,
+        ThemeMode.light,
+        searchOnly: false,
+        textScale: 2,
+        withNavbar: true,
+        cart: CartData(
+          id: 'household-cart',
+          storeTypeWire: 'household',
+          items: [
+            CartItem(
+              id: 'line',
+              product: _product('preview'),
+              quantity: 1,
+              selectedAddons: const [],
+              note: '',
+              subtotal: '50000',
+            ),
+          ],
+          totalItems: 1,
+          totalQuantity: 1,
+          subtotal: '50000',
+        ),
+      );
+      expect(
+        find.byKey(const ValueKey('household-categories-button')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('household-categories-button')).hitTestable(),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('household-cart-bar')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
 
   testWidgets(
     'restaurant root mahsulot o‘rniga rasmli categorylarni ko‘rsatadi',
@@ -702,7 +818,9 @@ void main() {
         searchOnly: false,
       );
 
-      expect(find.text('Restoran'), findsOneWidget);
+      expect(find.text('Restoran'), findsNothing);
+      expect(find.text('Ofiyat'), findsOneWidget);
+      expect(find.text('milliy taomlari'), findsOneWidget);
       expect(find.text('An’anaviy taomlar'), findsNothing);
       expect(find.text('Grill va tandir'), findsNothing);
       expect(find.text('1-TAOMLAR'), findsOneWidget);
@@ -742,6 +860,97 @@ void main() {
       ),
     ).called(1);
   });
+
+  for (final size in [
+    const Size(320, 800),
+    const Size(430, 850),
+    const Size(800, 360),
+  ]) {
+    for (final scale in [1.0, 2.0]) {
+      testWidgets(
+        'restaurant category is a single food list $size scale=$scale',
+        (tester) async {
+          tester.view.devicePixelRatio = 1;
+          tester.view.physicalSize = size;
+          addTearDown(tester.view.reset);
+          const name =
+              'Qaynatma sho‘rva katta porsiya sabzavotlar va go‘sht bilan';
+          await pumpCatalog(
+            tester,
+            ThemeMode.light,
+            storeType: StoreType.restaurant,
+            initialCategoryId: 'first-courses',
+            landing: _restaurantLanding,
+            textScale: scale,
+            catalogProducts: [
+              _product(
+                'first',
+                storeType: StoreType.restaurant,
+                name: name,
+                price: '125000',
+              ),
+              _product(
+                'second',
+                storeType: StoreType.restaurant,
+                name: 'Ikkinchi taom',
+              ),
+            ],
+          );
+          expect(find.byType(SliverGrid), findsNothing);
+          final first = find.byKey(const ValueKey('restaurant-product-first'));
+          final firstRect = tester.getRect(first);
+          final image = find.descendant(
+            of: first,
+            matching: find.byType(ProductImageView),
+          );
+          expect(tester.widget<ProductImageView>(image).fit, BoxFit.cover);
+          final imageRect = tester.getRect(image);
+          expect(imageRect.height, closeTo(imageRect.width * 9 / 16, .01));
+          expect(tester.widget<Text>(find.text(name)).style!.fontSize, 16);
+          expect(tester.widget<Text>(find.text(name)).maxLines, 2);
+          expect(firstRect.width, lessThanOrEqualTo(680));
+          expect(
+            tester.getTopLeft(find.text(name)).dy,
+            greaterThanOrEqualTo(imageRect.bottom),
+          );
+          final buy = find.byKey(const ValueKey('product-card-buy-first'));
+          expect(tester.getSize(buy).width, greaterThanOrEqualTo(48));
+          expect(tester.getSize(buy).height, greaterThanOrEqualTo(48));
+          expect(
+            find.descendant(of: first, matching: find.byIcon(Icons.add)),
+            findsOneWidget,
+          );
+          final scrollable = find
+              .descendant(
+                of: find.byType(CustomScrollView),
+                matching: find.byType(Scrollable),
+              )
+              .first;
+          final offset = tester
+              .state<ScrollableState>(scrollable)
+              .position
+              .pixels;
+          final worldBottom = firstRect.bottom + offset;
+          final second = find.byKey(
+            const ValueKey('restaurant-product-second'),
+          );
+          await tester.scrollUntilVisible(second, 250, scrollable: scrollable);
+          await tester.pumpAndSettle();
+          final secondRect = tester.getRect(second);
+          final newOffset = tester
+              .state<ScrollableState>(scrollable)
+              .position
+              .pixels;
+          expect(
+            secondRect.top + newOffset,
+            greaterThanOrEqualTo(worldBottom + 9),
+          );
+          expect(secondRect.left, closeTo(firstRect.left, .01));
+          expect(tester.takeException(), isNull);
+        },
+      );
+    }
+  }
 
   testWidgets('category card bosilishi tanlangan kategoriyani qaytaradi', (
     tester,
@@ -1142,7 +1351,13 @@ void main() {
         find.byKey(const ValueKey('shashlik-family-beef-jazz')),
         findsOneWidget,
       );
-      expect(find.textContaining('Kilogrammi 200'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(ShashlikFamilyCard).first,
+          matching: find.textContaining('200'),
+        ),
+        findsWidgets,
+      );
 
       await tester.tap(find.byKey(const ValueKey('shashlik-section-charcoal')));
       await tester.pumpAndSettle();
@@ -1153,21 +1368,26 @@ void main() {
       await tester.tap(
         find.byKey(const ValueKey('shashlik-family-add-beef-jazz')),
       );
-      await tester.pumpAndSettle();
+      // Allow the bottom sheet's entrance transition to finish.
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
       expect(
         find.byKey(const ValueKey('shashlik-selector-submit')),
         findsOneWidget,
       );
       await tester.tap(find.byKey(const ValueKey('shashlik-selector-plus')));
+      await tester.pump();
       await tester.tap(find.byKey(const ValueKey('shashlik-selector-plus')));
       await tester.pump();
       expect(
         tester
-            .widget<Text>(
-              find.byKey(const ValueKey('shashlik-selector-quantity')),
+            .widget<TextField>(
+              find.byKey(const ValueKey('shashlik-quantity-input')),
             )
-            .data,
-        '3 dona',
+            .controller!
+            .text,
+        '3',
       );
       await tester.tap(
         find.byKey(const ValueKey('shashlik-selector-product-beef-kilo')),
@@ -1175,114 +1395,86 @@ void main() {
       await tester.pump();
       expect(
         tester
-            .widget<Text>(
-              find.byKey(const ValueKey('shashlik-selector-quantity')),
+            .widget<TextField>(
+              find.byKey(const ValueKey('shashlik-quantity-input')),
             )
-            .data,
-        '3 kilogram',
+            .controller!
+            .text,
+        '1',
       );
+      await tester.tap(find.byIcon(Icons.close));
+      await tester.pumpAndSettle();
     },
   );
 
-  testWidgets('go‘sht katalogi oltita gorizontal kartani qat’iy tartiblaydi', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(360, 800);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    const meatLanding = StoreLandingData(
-      header: StoreHeader(
-        storeTypeWire: 'meat',
-        label: 'KERAKSIZ MEAT HERO',
-        subtitle: 'Mol, qo‘y va tovuq go‘shti',
-        isEnabled: true,
-        showHeader: true,
-      ),
-      categories: [
-        ProductCategory(
-          id: 'meat-category',
-          name: 'Go‘shtlar',
+  testWidgets(
+    'go‘sht katalogi oq fonda rasmli bo‘limlar va miqdor amali bilan chiqadi',
+    (tester) async {
+      tester.view.physicalSize = const Size(360, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      const meatLanding = StoreLandingData(
+        header: StoreHeader(
           storeTypeWire: 'meat',
-          productCount: 4,
+          label: 'KERAKSIZ MEAT HERO',
+          subtitle: 'Mol, qo‘y va tovuq go‘shti',
+          isEnabled: true,
+          showHeader: true,
         ),
-      ],
-      stores: [],
-      banners: [],
-      sections: [],
-    );
-
-    await pumpCatalog(
-      tester,
-      ThemeMode.light,
-      storeType: StoreType.meat,
-      landing: meatLanding,
-      catalogProducts: [
-        _product('qazi', storeType: StoreType.meat, name: 'Qazi'),
-        _product('lamb-liver', storeType: StoreType.meat, name: "Qo'y jigar"),
-        _product('horse', storeType: StoreType.meat, name: "Ot go'shi"),
-        _product('beef', storeType: StoreType.meat, name: "Mol go'shti"),
-        _product('beef-liver', storeType: StoreType.meat, name: 'Mol jigar'),
-        _product('lamb', storeType: StoreType.meat, name: "Qo'y go'shti"),
-      ],
-    );
-
-    expect(find.byKey(const ValueKey('catalog-search-field')), findsNothing);
-    expect(find.text('KERAKSIZ MEAT HERO'), findsNothing);
-    expect(find.byType(ChoiceChip), findsNothing);
-    expect(find.byType(ProductCard), findsNothing);
-    expect(find.byType(MeatProductCard), findsNWidgets(6));
-    expect(find.byIcon(Icons.favorite_border), findsNothing);
-
-    const labels = [
-      'Qo‘y go‘shti',
-      'Mol go‘shti',
-      'Ot go‘shti',
-      'Qazi',
-      'Mol jigar',
-      'Qo‘y jigar',
-    ];
-    final positions = [
-      for (final label in labels) tester.getTopLeft(find.text(label)).dy,
-    ];
-    expect(positions, orderedEquals([...positions]..sort()));
-    expect(
-      tester
-          .getBottomRight(
-            find.byKey(const ValueKey('meat-product-card-lamb-liver')),
-          )
-          .dy,
-      lessThanOrEqualTo(800),
-    );
-    expect(find.byKey(const ValueKey('meat-animal-lamb-lamb')), findsOneWidget);
-    expect(find.byKey(const ValueKey('meat-animal-beef-beef')), findsOneWidget);
-    expect(
-      find.byKey(const ValueKey('meat-animal-horse-horse')),
-      findsOneWidget,
-    );
-
-    final fallbackAssets = tester
-        .widgetList<Image>(
-          find.descendant(
-            of: find.byKey(const ValueKey('meat-product-list')),
-            matching: find.byType(Image),
+        categories: [
+          ProductCategory(
+            id: 'meat-category',
+            name: 'Go‘shtlar',
+            storeTypeWire: 'meat',
+            productCount: 4,
           ),
-        )
-        .map((image) => image.image)
-        .map(
-          (provider) =>
-              provider is ResizeImage ? provider.imageProvider : provider,
-        )
-        .whereType<AssetImage>()
-        .map((provider) => provider.assetName)
-        .toSet();
-    expect(fallbackAssets, contains('assets/products/meat/lamb-meat.webp'));
-    expect(fallbackAssets, contains('assets/products/meat/beef-meat.webp'));
-    expect(fallbackAssets, contains('assets/products/meat/horse-meat.webp'));
-    expect(fallbackAssets, contains('assets/products/meat/qazi.webp'));
-    expect(fallbackAssets, contains('assets/products/meat/beef-liver.webp'));
-    expect(fallbackAssets, contains('assets/products/meat/lamb-liver.webp'));
-  });
+        ],
+        stores: [],
+        banners: [],
+        sections: [],
+      );
+
+      await pumpCatalog(
+        tester,
+        ThemeMode.light,
+        storeType: StoreType.meat,
+        landing: meatLanding,
+        catalogProducts: [
+          _product('qazi', storeType: StoreType.meat, name: 'Qazi'),
+          _product('lamb-liver', storeType: StoreType.meat, name: "Qo'y jigar"),
+          _product('horse', storeType: StoreType.meat, name: "Ot go'shi"),
+          _product('beef', storeType: StoreType.meat, name: "Mol go'shti"),
+          _product('beef-liver', storeType: StoreType.meat, name: 'Mol jigar'),
+          _product('lamb', storeType: StoreType.meat, name: "Qo'y go'shti"),
+        ],
+      );
+
+      expect(find.byKey(const ValueKey('catalog-search-field')), findsNothing);
+      expect(find.text('KERAKSIZ MEAT HERO'), findsNothing);
+      expect(find.byType(ChoiceChip), findsNothing);
+      expect(find.byType(ProductCard), findsNothing);
+      expect(find.byType(MeatProductCard), findsWidgets);
+      expect(find.text('Qo‘y go‘shti'), findsOneWidget);
+      expect(find.byKey(const ValueKey('meat-add-lamb')), findsOneWidget);
+      final picture = find.descendant(
+        of: find.byKey(const ValueKey('meat-preview-lamb')),
+        matching: find.byType(AspectRatio),
+      );
+      expect(tester.widget<AspectRatio>(picture.first).aspectRatio, 2);
+      final assets = tester
+          .widgetList<Image>(find.byType(Image))
+          .map((image) => image.image)
+          .map(
+            (provider) =>
+                provider is ResizeImage ? provider.imageProvider : provider,
+          )
+          .whereType<AssetImage>()
+          .map((provider) => provider.assetName);
+      expect(assets, contains('assets/products/meat/lamb-meat.webp'));
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('go‘sht mini-savatchasi listni yopmaydi va scroll saqlanadi', (
     tester,
@@ -1324,15 +1516,15 @@ void main() {
       ),
     );
 
-    final list = find.byKey(const ValueKey('meat-product-list'));
-    final miniCart = find.byKey(const ValueKey('catalog-mini-cart'));
+    final list = find.byKey(const PageStorageKey('meat-product-list'));
+    final miniCart = find.byKey(const ValueKey('shashlik-go-to-cart'));
     expect(miniCart, findsOneWidget);
     expect(
       tester.getRect(list).bottom,
       lessThanOrEqualTo(tester.getRect(miniCart).top),
     );
 
-    await tester.drag(list, const Offset(0, -300));
+    await tester.drag(list, const Offset(0, -3000));
     await tester.pumpAndSettle();
     expect(find.text('Qo‘y jigar'), findsOneWidget);
   });
@@ -1488,7 +1680,89 @@ void main() {
     );
 
     expect(find.byKey(const ValueKey('catalog-mini-cart')), findsOneWidget);
-    expect(find.text('SAVAT · 2 ta'), findsOneWidget);
+    expect(find.text("Savatga o'tish"), findsOneWidget);
+    expect(find.text('2 ta'), findsOneWidget);
     expect(find.text("30\u00a0000 so'm"), findsOneWidget);
   });
+
+  testWidgets(
+    'shashlik bar stays in all sections and never covers snackbar or products',
+    (tester) async {
+      final product = _product(
+        'lamb',
+        storeType: StoreType.shashlik,
+        name: "Qo'y jazz",
+        price: '21000',
+      );
+      await pumpCatalog(
+        tester,
+        ThemeMode.light,
+        storeType: StoreType.shashlik,
+        landing: _landingFor(StoreType.shashlik),
+        catalogProducts: [
+          product,
+          _product('coal', storeType: StoreType.shashlik, name: 'Tosh ko‘mir'),
+          for (var i = 0; i < 20; i++)
+            _product(
+              'other-$i',
+              storeType: StoreType.shashlik,
+              name: 'Boshqa $i',
+            ),
+        ],
+        cart: CartData(
+          id: 'cart',
+          storeTypeWire: 'shashlik',
+          items: [
+            CartItem(
+              id: 'line',
+              product: product,
+              quantity: 3,
+              selectedAddons: const [],
+              note: '',
+              subtotal: '63000',
+            ),
+          ],
+          totalItems: 1,
+          totalQuantity: 3,
+          subtotal: '63000',
+        ),
+      );
+      final action = find.byKey(const ValueKey('shashlik-go-to-cart'));
+      for (final section in ['charcoal', 'kebabs', 'other']) {
+        await tester.tap(find.byKey(ValueKey('shashlik-section-$section')));
+        await tester.pumpAndSettle();
+        expect(action, findsOneWidget);
+        expect(
+          tester.widget<ShashlikCartBar>(find.byType(ShashlikCartBar)).subtotal,
+          '63000',
+        );
+      }
+      final list = find.byType(Scrollable).first;
+      final position = tester.state<ScrollableState>(list).position;
+      position.jumpTo(300);
+      await tester.pumpAndSettle();
+      final context = tester.element(action);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Added')));
+      await tester.pumpAndSettle();
+      expect(
+        tester.getRect(find.byType(SnackBar)).bottom,
+        lessThanOrEqualTo(tester.getRect(action).top),
+      );
+      ScaffoldMessenger.of(context).removeCurrentSnackBar();
+      final container = ProviderScope.containerOf(context, listen: false);
+      final api = container.read(cartApiProvider);
+      when(
+        () => api.fetch('shashlik'),
+      ).thenAnswer((_) async => CartData.empty('shashlik'));
+      await container
+          .read(cartControllerProvider(StoreType.shashlik).notifier)
+          .refresh();
+      await tester.pumpAndSettle();
+      expect(action, findsNothing);
+      expect(position.pixels, closeTo(300, .1));
+      expect(tester.takeException(), isNull);
+    },
+  );
 }

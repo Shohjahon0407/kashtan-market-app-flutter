@@ -170,6 +170,13 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
       }
     } on ApiFailure catch (failure) {
       if (!mounted) return;
+      // A courier may have picked up the order while confirmation was open.
+      // Refresh capabilities even when the mutation is rejected by the server.
+      ref.invalidate(orderDetailProvider(widget.orderId));
+      await ref
+          .read(orderTrackingControllerProvider(widget.orderId).notifier)
+          .refresh();
+      if (!mounted) return;
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(

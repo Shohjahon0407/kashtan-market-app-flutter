@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 
 import '../../../core/localization/failure_l10n.dart';
 import '../../../core/network/api_failure.dart';
+import '../../../core/routing/back_navigation.dart';
 import '../../../core/routing/routes.dart';
 import '../../../core/store_scope/store_type.dart';
 import '../../../core/ui/theme/app_dimens.dart';
@@ -53,6 +54,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     final unread = ref.watch(notificationUnreadCountProvider).value ?? 0;
     return Scaffold(
       appBar: AppBar(
+        leading: const AppBackButton(),
         title: Text(l10n.notificationsTitle),
         actions: [
           if (unread > 0)

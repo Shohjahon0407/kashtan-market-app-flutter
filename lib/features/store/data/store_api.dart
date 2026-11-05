@@ -4,12 +4,14 @@ import '../../../core/config/api_endpoints.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/network/api_failure.dart';
 import '../../../core/storage/json_disk_cache.dart';
+import '../../catalog/data/restaurant_offline_repository.dart';
 import 'store_models.dart';
 
 class StoreApi {
-  const StoreApi(this._client, {this.cache, this.cacheKeySuffix});
+  const StoreApi(this._client, {this.cache, this.cacheKeySuffix, this.offline});
 
   final ApiClient _client;
+  final RestaurantOfflineRepository? offline;
 
   /// Oxirgi muvaffaqiyatli landing shu keshga yoziladi (provider o'qiydi).
   final JsonDiskCache? cache;
@@ -25,15 +27,17 @@ class StoreApi {
       try {
         data = await _withRestaurantPreviewFallback(data);
       } on Object {
-        // Preview rasmlar yordamchi vizual. Eski backendda mahsulot so'rovi
-        // ishlamasa ham landing lokal category rasmlari bilan ochilaversin.
+        // Legacy compatibility is best-effort; keep the original images if
+        // the shared catalogue request fails. Never invent product metadata.
       }
     }
     final suffix = cacheKeySuffix?.call();
     if (cache != null && suffix != null) {
       unawaited(cache!.write(landingCacheKey(storeType, suffix), data));
     }
-    return StoreLandingData.fromJson(data);
+    final landing = StoreLandingData.fromJson(data);
+    if (storeType == 'restaurant') await offline?.saveLanding(data);
+    return landing;
   }
 
   bool _usesLegacyCategoryPayload(Map<String, dynamic> landing) {
@@ -42,21 +46,23 @@ class StoreApi {
     return categories.whereType<Map<String, dynamic>>().any(
       (category) =>
           (category['product_count'] as num? ?? 0) > 0 &&
-          !category.containsKey('preview_images'),
+          category['preview_products'] is! List,
     );
   }
 
   Future<Map<String, dynamic>> _withRestaurantPreviewFallback(
     Map<String, dynamic> landing,
   ) async {
-    final previews = <String, List<String>>{};
+    final previews = <String, List<Map<String, dynamic>>>{};
     final categories = (landing['categories'] as List? ?? const [])
         .whereType<Map<String, dynamic>>()
         .map((value) => Map<String, dynamic>.from(value))
         .toList(growable: false);
     for (final category in categories) {
       final id = '${category['id'] ?? ''}';
-      if (id.isNotEmpty) previews[id] = <String>[];
+      if (id.isNotEmpty && category['preview_products'] is! List) {
+        previews[id] = [];
+      }
     }
 
     Object? page = await _client.get(
@@ -71,11 +77,24 @@ class StoreApi {
         final category = rawProduct['category'];
         if (category is! Map<String, dynamic>) continue;
         final categoryId = '${category['id'] ?? ''}';
-        final images = previews[categoryId];
-        if (images == null || images.length >= 6) continue;
+        final products = previews[categoryId];
+        final id = '${rawProduct['id'] ?? ''}'.trim();
+        if (products == null ||
+            products.length >= 6 ||
+            id.isEmpty ||
+            products.any((product) => product['id'] == id)) {
+          continue;
+        }
         final image = '${rawProduct['main_image'] ?? rawProduct['image'] ?? ''}'
             .trim();
-        if (image.isNotEmpty && !images.contains(image)) images.add(image);
+        if (image.isNotEmpty) {
+          products.add({
+            'id': id,
+            'name': rawProduct['name'],
+            'image': image,
+            'price': rawProduct['price'],
+          });
+        }
       }
 
       final next = '${page['next'] ?? ''}'.trim();
@@ -89,7 +108,14 @@ class StoreApi {
         for (final category in categories)
           <String, dynamic>{
             ...category,
-            'preview_images': previews['${category['id'] ?? ''}'] ?? const [],
+            if (previews.containsKey('${category['id'] ?? ''}')) ...{
+              'preview_products': previews['${category['id'] ?? ''}'],
+              if (previews['${category['id'] ?? ''}']!.isNotEmpty)
+                'preview_images': [
+                  for (final product in previews['${category['id'] ?? ''}']!)
+                    product['image'],
+                ],
+            },
           },
       ],
     };

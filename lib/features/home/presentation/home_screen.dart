@@ -239,7 +239,7 @@ class _HomeList extends ConsumerWidget {
                   ),
                   child: _HomeHeader(addresses: addresses),
                 ),
-                const SizedBox(height: AppSpacing.xl),
+                const SizedBox(height: AppSpacing.md),
                 Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: AppSpacing.screenH,
@@ -300,79 +300,78 @@ class _HomeHeader extends ConsumerWidget {
       _ => l10n.homeAddressNotSelected,
     };
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                l10n.appName,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1.1,
-                ),
-              ),
-              const SizedBox(height: 3),
-              Semantics(
-                button: true,
-                label: l10n.profileAddresses,
-                child: InkWell(
-                  key: const ValueKey('home-address-button'),
-                  onTap: () =>
-                      pushAuthenticated(context, ref, Routes.addresses),
-                  borderRadius: BorderRadius.circular(AppRadius.xs),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 2),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.location_on_outlined,
-                          size: 14,
-                          color: colors.onSurfaceVariant,
-                        ),
-                        const SizedBox(width: 3),
-                        Flexible(
-                          child: Text(
-                            addressTitle,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.labelSmall?.copyWith(
-                              color: colors.onSurfaceVariant,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 2),
-                        Icon(
-                          Icons.keyboard_arrow_down,
-                          size: 14,
-                          color: colors.onSurfaceVariant,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ],
+    final identity = Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            l10n.appName,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontSize: 14,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0,
+            ),
           ),
-        ),
-        const SizedBox(width: AppSpacing.md),
+          const SizedBox(height: 3),
+          Semantics(
+            button: true,
+            label: l10n.profileAddresses,
+            child: InkWell(
+              key: const ValueKey('home-address-button'),
+              onTap: () => pushAuthenticated(context, ref, Routes.addresses),
+              borderRadius: BorderRadius.circular(AppRadius.xs),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.location_on_outlined,
+                      size: 14,
+                      color: colors.onSurfaceVariant,
+                    ),
+                    const SizedBox(width: 3),
+                    Flexible(
+                      child: Text(
+                        addressTitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: colors.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 2),
+                    Icon(
+                      Icons.keyboard_arrow_down,
+                      size: 14,
+                      color: colors.onSurfaceVariant,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    final actions = Wrap(
+      alignment: WrapAlignment.end,
+      spacing: 0,
+      runSpacing: AppSpacing.sm,
+      children: [
         NotificationBellButton(
           onPressed: () =>
               pushAuthenticated(context, ref, Routes.notifications),
         ),
-        const SizedBox(width: AppSpacing.sm),
         _HeaderIconButton(
           key: const ValueKey('home-language-button'),
           tooltip: l10n.profileLanguage,
           icon: Icons.translate_rounded,
           onTap: () => showAppLanguagePicker(context, ref),
         ),
-        const SizedBox(width: AppSpacing.sm),
         _HeaderIconButton(
           key: const ValueKey('home-main-cart-button'),
           tooltip: l10n.cartTitle,
@@ -380,13 +379,29 @@ class _HomeHeader extends ConsumerWidget {
           badgeCount: cartQuantity,
           onTap: () => context.push(Routes.cart),
         ),
-        const SizedBox(width: AppSpacing.sm),
         _HeaderIconButton(
           tooltip: l10n.profileTitle,
           icon: Icons.person_outline,
           onTap: () => pushAuthenticated(context, ref, Routes.profile),
         ),
       ],
+    );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Keep the normal phone header on one compact row. Only large
+        // accessibility text needs a separate row for the actions.
+        if (MediaQuery.textScalerOf(context).scale(14) > 20) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              identity.child,
+              const SizedBox(height: AppSpacing.sm),
+              actions,
+            ],
+          );
+        }
+        return Row(children: [identity, const SizedBox(width: 4), actions]);
+      },
     );
   }
 

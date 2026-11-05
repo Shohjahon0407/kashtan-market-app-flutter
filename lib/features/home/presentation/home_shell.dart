@@ -6,6 +6,7 @@ import '../../../core/routing/auth_gate.dart';
 import '../../../core/routing/back_navigation.dart';
 import '../../../core/routing/routes.dart';
 import '../../../generated/l10n/app_localizations.dart';
+import '../../checkout/domain/checkout_controller.dart';
 import '../../orders/domain/orders_controller.dart';
 import '../domain/home_tab_controller.dart';
 
@@ -45,9 +46,28 @@ class _HomeShellState extends ConsumerState<HomeShell> {
       });
     }
     final activeOrders = ref.watch(activeOrdersCountProvider);
+    final pendingCheckout = ref.watch(pendingCheckoutProvider).value;
     return BackNavigationGuard(
       child: Scaffold(
-        body: shell,
+        body: Column(
+          children: [
+            if (pendingCheckout != null)
+              SafeArea(
+                bottom: false,
+                child: MaterialBanner(
+                  content: Text(l10n.checkoutResumePending),
+                  actions: [
+                    TextButton(
+                      onPressed: () =>
+                          context.push(Routes.checkout(pendingCheckout.wire)),
+                      child: Text(l10n.commonContinue),
+                    ),
+                  ],
+                ),
+              ),
+            Expanded(child: shell),
+          ],
+        ),
         bottomNavigationBar: NavigationBar(
           selectedIndex: index,
           onDestinationSelected: (target) async {

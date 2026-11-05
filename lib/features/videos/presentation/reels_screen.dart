@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/localization/failure_l10n.dart';
 import '../../../core/network/api_failure.dart';
 import '../../../core/routing/auth_gate.dart';
+import '../../../core/routing/back_navigation.dart';
 import '../../../core/routing/route_visibility.dart';
 import '../../../core/routing/routes.dart';
 import '../../../core/ui/theme/app_dimens.dart';
@@ -104,6 +105,10 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen>
     });
     final notifier = ref.read(reelsFeedControllerProvider.notifier);
     return Scaffold(
+      appBar: AppBar(
+        leading: const AppBackButton(),
+        title: Text(l10n.navVideos),
+      ),
       body: SafeArea(
         bottom: false,
         child: switch (feed) {

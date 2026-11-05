@@ -45,6 +45,8 @@ class CartItem {
     required this.note,
     required this.subtotal,
     this.variant,
+    this.isOrderable = true,
+    this.unavailableReasonCode,
   });
 
   factory CartItem.fromJson(Map<String, dynamic> json) {
@@ -52,6 +54,8 @@ class CartItem {
         JsonRead.map(json['product']) ?? const <String, dynamic>{};
     final variantJson = JsonRead.map(json['variant']);
     return CartItem(
+      isOrderable: json['is_orderable'] != false,
+      unavailableReasonCode: json['unavailable_reason_code'] as String?,
       id: JsonRead.string(json['id']),
       product: ProductSummary.fromJson(productJson),
       variant: variantJson == null
@@ -63,17 +67,38 @@ class CartItem {
         SelectedAddon.fromJson,
       ),
       note: JsonRead.string(json['note']),
-      subtotal: JsonRead.string(json['subtotal'], '0'),
+      subtotal: json.containsKey('subtotal') && json['subtotal'] == null
+          ? ''
+          : JsonRead.string(json['subtotal'], '0'),
     );
   }
 
   final String id;
   final ProductSummary product;
   final ProductVariant? variant;
+  final bool isOrderable;
+  final String? unavailableReasonCode;
   final int quantity;
   final List<SelectedAddon> selectedAddons;
   final String note;
   final String subtotal;
+
+  /// Bitta dona narxi (server qator jamidan, variant/qo'shimchalar bilan).
+  String get unitPrice {
+    final total = _parseMoneyMinor(subtotal);
+    if (subtotal.isEmpty || quantity <= 0) return subtotal;
+    return _formatMoneyMinor(total ~/ quantity);
+  }
+
+  /// Chegirmagacha qator jami (eski narx bo'yicha); chegirma bo'lmasa `null`.
+  String? get originalSubtotal {
+    final price = variant?.price ?? product.price;
+    final old = variant != null ? variant!.oldPrice : product.oldPrice;
+    if (old == null || subtotal.isEmpty) return null;
+    final saving = _parseMoneyMinor(old) - _parseMoneyMinor(price);
+    if (saving <= 0) return null;
+    return _formatMoneyMinor(_parseMoneyMinor(subtotal) + saving * quantity);
+  }
 
   String get configurationIdentity => CartConfiguration(
     productId: product.id,
@@ -86,6 +111,8 @@ class CartItem {
     id: id,
     product: product,
     variant: variant,
+    isOrderable: isOrderable,
+    unavailableReasonCode: unavailableReasonCode,
     quantity: quantity ?? this.quantity,
     selectedAddons: selectedAddons,
     note: note,
@@ -102,15 +129,19 @@ class CartData {
     required this.totalQuantity,
     required this.subtotal,
     this.minimumDeliveryOrderAmount,
+    this.revision,
   });
 
   factory CartData.fromJson(Map<String, dynamic> json) => CartData(
     id: JsonRead.string(json['id']),
     storeTypeWire: JsonRead.string(json['store_type']),
+    revision: (json['revision'] as num?)?.toInt(),
     items: JsonRead.list(json['items'], CartItem.fromJson),
     totalItems: JsonRead.integer(json['total_items']),
     totalQuantity: JsonRead.integer(json['total_quantity']),
-    subtotal: JsonRead.string(json['subtotal'], '0'),
+    subtotal: json.containsKey('subtotal') && json['subtotal'] == null
+        ? ''
+        : JsonRead.string(json['subtotal'], '0'),
     minimumDeliveryOrderAmount: JsonRead.nullableString(
       json['minimum_delivery_order_amount'],
     ),
@@ -127,6 +158,8 @@ class CartData {
 
   final String id;
   final String storeTypeWire;
+  final int? revision;
+  bool get isOrderable => items.every((item) => item.isOrderable);
   final List<CartItem> items;
   final int totalItems;
   final int totalQuantity;
@@ -134,6 +167,24 @@ class CartData {
 
   /// Null for older servers: do not invent a store-specific policy.
   final String? minimumDeliveryOrderAmount;
+
+  /// Chegirmagacha mahsulotlar jami (Uzum'dagi "N tovar" qatori).
+  String get originalSubtotal => _formatMoneyMinor(
+    items.fold<int>(
+      0,
+      (sum, item) =>
+          sum + _parseMoneyMinor(item.originalSubtotal ?? item.subtotal),
+    ),
+  );
+
+  /// Eski narxlar bo'yicha jami chegirma (0 bo'lishi mumkin).
+  String get discountTotal {
+    final saving =
+        _parseMoneyMinor(originalSubtotal) - _parseMoneyMinor(subtotal);
+    return _formatMoneyMinor(saving > 0 ? saving : 0);
+  }
+
+  bool get hasDiscount => _parseMoneyMinor(discountTotal) > 0;
 
   bool get hasDeliveryMinimum =>
       _parseMoneyMinor(minimumDeliveryOrderAmount ?? '0') > 0;
@@ -207,6 +258,7 @@ class CartData {
     totalQuantity: totalQuantity ?? this.totalQuantity,
     subtotal: subtotal ?? this.subtotal,
     minimumDeliveryOrderAmount: minimumDeliveryOrderAmount,
+    revision: revision,
   );
 }
 

@@ -125,6 +125,12 @@ class ApiClient {
       _sessionOwner == null ||
       options.extra[authOwnerKey] == null ||
       options.extra[authOwnerKey] == _sessionOwner();
+  Options _ownedOptions({Map<String, dynamic>? headers, String? contentType}) =>
+      Options(
+        headers: headers,
+        contentType: contentType,
+        extra: {if (_sessionOwner != null) authOwnerKey: _sessionOwner()},
+      );
   int _localEvidenceRevision = 0;
 
   /// Til o'zgarganda [LocalizedJsonTransformer.script] shu orqali yangilanadi.
@@ -144,7 +150,7 @@ class ApiClient {
     () => _dio.get<dynamic>(
       path,
       queryParameters: query,
-      options: headers == null ? null : Options(headers: headers),
+      options: _ownedOptions(headers: headers),
       cancelToken: cancelToken,
     ),
   );
@@ -154,7 +160,13 @@ class ApiClient {
   /// Dio absolut URL'da `baseUrl` ni chetlab o'tadi, lekin interceptorlar
   /// baribir ishlaydi — ya'ni Bearer qo'shiladi va `lang` buzilmaydi.
   Future<dynamic> getUrl(String absoluteUrl, {CancelToken? cancelToken}) =>
-      _send(() => _dio.get<dynamic>(absoluteUrl, cancelToken: cancelToken));
+      _send(
+        () => _dio.get<dynamic>(
+          absoluteUrl,
+          options: _ownedOptions(),
+          cancelToken: cancelToken,
+        ),
+      );
 
   Future<dynamic> post(
     String path, {
@@ -167,7 +179,7 @@ class ApiClient {
       path,
       data: body,
       queryParameters: query,
-      options: headers == null ? null : Options(headers: headers),
+      options: _ownedOptions(headers: headers),
       cancelToken: cancelToken,
     ),
   );
@@ -183,7 +195,7 @@ class ApiClient {
       path,
       data: body,
       queryParameters: query,
-      options: headers == null ? null : Options(headers: headers),
+      options: _ownedOptions(headers: headers),
       cancelToken: cancelToken,
     ),
   );
@@ -199,7 +211,7 @@ class ApiClient {
     () => _dio.post<dynamic>(
       path,
       data: body,
-      options: Options(contentType: Headers.multipartFormDataContentType),
+      options: _ownedOptions(contentType: Headers.multipartFormDataContentType),
       onSendProgress: onSendProgress,
       cancelToken: cancelToken,
     ),
@@ -216,7 +228,7 @@ class ApiClient {
       path,
       data: body,
       queryParameters: query,
-      options: headers == null ? null : Options(headers: headers),
+      options: _ownedOptions(headers: headers),
       cancelToken: cancelToken,
     ),
   );
@@ -232,7 +244,7 @@ class ApiClient {
       path,
       data: body,
       queryParameters: query,
-      options: headers == null ? null : Options(headers: headers),
+      options: _ownedOptions(headers: headers),
       cancelToken: cancelToken,
     ),
   );

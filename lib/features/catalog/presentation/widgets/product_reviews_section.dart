@@ -1,26 +1,39 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/localization/failure_l10n.dart';
 import '../../../../core/network/api_failure.dart';
+import '../../../../core/store_scope/store_type.dart';
 import '../../../../core/ui/theme/app_buttons.dart';
 import '../../../../core/ui/theme/app_dimens.dart';
 import '../../../../generated/l10n/app_localizations.dart';
 import '../../../auth/domain/auth_controller.dart';
 import '../../../ugc/presentation/ugc_actions.dart';
 import '../../data/product_models.dart';
+import '../../data/restaurant_offline_repository.dart';
 import '../../domain/catalog_controller.dart';
 
 class ProductReviewsSection extends ConsumerWidget {
-  const ProductReviewsSection({required this.detail, super.key});
+  const ProductReviewsSection({
+    required this.detail,
+    this.onWatched,
+    super.key,
+  });
 
   final ProductDetail detail;
+  final ValueChanged<String>? onWatched;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
-    final reviews = ref.watch(productReviewsProvider(detail.product.id));
+    final reviews = detail.product.storeType == StoreType.restaurant
+        ? ref.watch(restaurantProductReviewsProvider(detail.product.id))
+        : ref.watch(productReviewsProvider(detail.product.id));
+    final retain = onWatched;
+    if (retain != null) scheduleMicrotask(() => retain(detail.product.id));
     final currentUserId = ref.watch(authControllerProvider).user?.id;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -91,8 +104,19 @@ class ProductReviewsSection extends ConsumerWidget {
                                       displayName: review.userName,
                                     );
                                     if (blocked) {
+                                      await ref
+                                          .read(
+                                            restaurantOfflineRepositoryProvider,
+                                          )
+                                          .invalidateProduct(detail.product.id);
+                                      if (!context.mounted) return;
                                       ref.invalidate(
                                         productReviewsProvider(
+                                          detail.product.id,
+                                        ),
+                                      );
+                                      ref.invalidate(
+                                        restaurantProductReviewsProvider(
                                           detail.product.id,
                                         ),
                                       );
@@ -175,6 +199,8 @@ class ProductReviewsSection extends ConsumerWidget {
           );
       ref.invalidate(productReviewsProvider(detail.product.id));
       ref.invalidate(productDetailProvider(detail.product.id));
+      ref.invalidate(restaurantProductReviewsProvider(detail.product.id));
+      ref.invalidate(restaurantProductDetailProvider(detail.product.id));
       if (!context.mounted) return;
       ScaffoldMessenger.of(
         context,

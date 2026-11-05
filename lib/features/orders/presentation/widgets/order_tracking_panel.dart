@@ -7,11 +7,11 @@ import '../../../../core/ui/formatters/uzs.dart';
 import '../../../../core/ui/lifecycle/visible_clock.dart';
 import '../../../../core/ui/theme/app_dimens.dart';
 import '../../../../generated/l10n/app_localizations.dart';
-import '../../../payments/domain/payment_availability.dart';
 import '../../../payments/presentation/payme_payment_section.dart';
 import '../../data/order_models.dart';
 import 'courier_card.dart';
 import 'delivery_window_header.dart';
+import 'order_contact.dart';
 import 'order_stage_stepper.dart';
 import 'order_status_badge.dart';
 
@@ -73,7 +73,15 @@ class OrderTrackingPanel extends ConsumerWidget {
               ),
             ),
           ),
-        if (order.isDelivery) ...[
+        if (order.paymentMethod == 'payme' &&
+            const {'unpaid', 'pending'}.contains(order.paymentStatus) &&
+            order.status == 'pending')
+          Text(
+            l10n.paymeAwaitingPayment,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.titleMedium,
+          )
+        else if (order.isDelivery) ...[
           DeliveryWindowHeader(order: order),
           if (stage.stepIndex != null) ...[
             const SizedBox(height: AppSpacing.xl),
@@ -112,7 +120,7 @@ class OrderTrackingPanel extends ConsumerWidget {
         const Divider(height: 1),
         const SizedBox(height: AppSpacing.sm),
         _SummaryEntry(order: order, onTap: onOpenSummary),
-        if (ref.watch(paymeEnabledProvider) && order.status != 'cancelled') ...[
+        if (order.paymentMethod == 'payme') ...[
           const SizedBox(height: AppSpacing.lg),
           PaymePaymentSection(order: order, autoStart: autoPay),
         ],
@@ -157,6 +165,23 @@ class OrderTrackingPanel extends ConsumerWidget {
                 : const Icon(Icons.cancel_outlined),
             label: Text(l10n.orderCancel),
           ),
+        ],
+        if (order.cancellationRequiresCall) ...[
+          const SizedBox(height: AppSpacing.xl),
+          Text(
+            l10n.orderCancelCallCourier,
+            key: const ValueKey('order-cancel-call-hint'),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          if (order.courierPhone.trim().isNotEmpty)
+            OutlinedButton.icon(
+              key: const ValueKey('order-cancel-call-courier'),
+              onPressed: () => callPhone(context, order.courierPhone),
+              icon: const Icon(Icons.call_rounded),
+              label: Text(l10n.orderCancelCallAction),
+            )
+          else
+            Text(l10n.orderCourierPhoneUnavailable),
         ],
       ],
     );

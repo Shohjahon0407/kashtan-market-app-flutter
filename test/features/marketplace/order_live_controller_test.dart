@@ -6,6 +6,39 @@ import 'package:flutter_test/flutter_test.dart';
 /// WS payload'i REST kelguncha buyurtma ustiga qo'llanadi; eski nuqta
 /// yangisini bosmaydi; REST kelganda yamoq tozalanadi.
 void main() {
+  test(
+    'WS payment state updates paid and refund independently of order status',
+    () {
+      final order = OrderData.fromJson({
+        'id': 'o',
+        'store_type': 'household',
+        'status': 'pending',
+        'payment_method': 'payme',
+        'payment_status': 'unpaid',
+        'items': <Map<String, dynamic>>[],
+      });
+      final paid = applyOrderLive(
+        order,
+        OrderLiveState(
+          patch: OrderLifecyclePatch.fromEvent({
+            'status': 'pending',
+            'payment_status': 'paid',
+          }, language: 'uz'),
+        ),
+      );
+      expect(paid.paymentStatus, 'paid');
+      final refunded = applyOrderLive(
+        paid,
+        OrderLiveState(
+          patch: OrderLifecyclePatch.fromEvent({
+            'status': 'cancelled',
+            'payment_status': 'refunded',
+          }, language: 'uz'),
+        ),
+      );
+      expect(refunded.paymentStatus, 'refunded');
+    },
+  );
   late ProviderContainer container;
   late ProviderSubscription<OrderLiveState> sub;
 
@@ -21,6 +54,35 @@ void main() {
 
   OrderLiveController notifier() =>
       container.read(orderLiveProvider('o-1').notifier);
+
+  test('websocket cancellation permission updates before REST refresh', () {
+    notifier().applyLifecycle({
+      'type': 'order_accepted',
+      'status': 'preparing',
+      'user_status': 'accepted',
+      'can_cancel': false,
+    }, language: 'uz');
+    expect(
+      applyOrderLive(
+        _pending(),
+        container.read(orderLiveProvider('o-1')),
+      ).canCancel,
+      false,
+    );
+    notifier().applyLifecycle({
+      'type': 'order_on_way',
+      'status': 'out_for_delivery',
+      'user_status': 'on_way',
+      'can_cancel': false,
+      'picked_up_at': '2026-10-23T10:00:00Z',
+    }, language: 'uz');
+    final departed = applyOrderLive(
+      _pending(),
+      container.read(orderLiveProvider('o-1')),
+    );
+    expect(departed.canCancel, false);
+    expect(departed.cancellationRequiresCall, true);
+  });
 
   test('order_accepted hodisasi statusni va kuryerni darhol qo\'yadi', () {
     notifier().applyLifecycle({

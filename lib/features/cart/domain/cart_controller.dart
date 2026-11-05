@@ -14,13 +14,15 @@ import '../data/cart_api.dart';
 import '../data/cart_models.dart';
 import 'offline_cart_queue.dart';
 
-final cartApiProvider = Provider<CartApi>(
-  (ref) => CartApi(
+final cartApiProvider = Provider<CartApi>((ref) {
+  final owner = ref.watch(accountScopeProvider);
+  return CartApi(
     ref.watch(apiClientProvider),
     ref.watch(guestCartTokenStoreProvider),
-    () => ref.read(authControllerProvider).isAuthenticated,
-  ),
-);
+    () => owner != 'guest',
+    () => ref.mounted && ref.read(accountScopeProvider) == owner,
+  );
+});
 
 /// Savat mutatsiyalarining kalitlari.
 ///
@@ -270,6 +272,23 @@ class CartController extends AsyncNotifier<CartState> {
 
   Future<void> remove(CartItem item) => _setExistingQuantity(item, 0);
 
+  /// Absolute quantity for the exact configuration, not an additional amount.
+  /// Reuses debouncing, offline persistence, rollback and reconciliation.
+  Future<bool> setQuantity(CartItem item, int quantity) {
+    if (quantity < 1 ||
+        quantity > 999999 ||
+        !item.product.isPurchasable ||
+        item.product.inReview ||
+        _findByIdentity(
+              state.value?.cart.items ?? const [],
+              item.configurationIdentity,
+            ) ==
+            null) {
+      return Future.value(false);
+    }
+    return _setExistingQuantity(item, quantity);
+  }
+
   Future<void> clear() => _mutate(CartMutationKeys.clear, _clear);
 
   Future<bool> _clear(CartState current) async {
@@ -279,7 +298,7 @@ class CartController extends AsyncNotifier<CartState> {
       CartState(cart: CartData.empty(storeType.wire), busyKeys: {..._pending}),
     );
     try {
-      await ref.read(cartApiProvider).clear(storeType.wire);
+      await ref.read(offlineCartQueueProvider).submitClear(storeType.wire);
       if (!ref.mounted || generation != _generation) return false;
       await _reconcile();
       return true;
@@ -337,9 +356,9 @@ class CartController extends AsyncNotifier<CartState> {
     );
   }
 
-  Future<void> _setExistingQuantity(CartItem item, int quantity) async {
+  Future<bool> _setExistingQuantity(CartItem item, int quantity) async {
     final current = state.value;
-    if (current == null) return;
+    if (current == null) return false;
     final latest = _findByIdentity(
       current.cart.items,
       item.configurationIdentity,
@@ -348,7 +367,7 @@ class CartController extends AsyncNotifier<CartState> {
         _quantityIntents[item.configurationIdentity]?.desiredQuantity ??
         latest?.quantity ??
         item.quantity;
-    await _changeQuantity(
+    return _changeQuantity(
       product: item.product,
       variant: item.variant,
       addons: item.selectedAddons,
@@ -480,8 +499,8 @@ class CartController extends AsyncNotifier<CartState> {
             intent.discardOfflineAdd = false;
           }
           await ref
-              .read(cartApiProvider)
-              .addItem(
+              .read(offlineCartQueueProvider)
+              .submitAdd(
                 storeType: storeType.wire,
                 configuration: intent.configuration,
                 quantity: target,
@@ -584,11 +603,13 @@ class CartController extends AsyncNotifier<CartState> {
       return;
     }
     if (target <= 0) {
-      await ref.read(offlineCartQueueProvider).enqueueRemove(confirmed.id);
+      await ref
+          .read(offlineCartQueueProvider)
+          .enqueueRemove(confirmed.id, storeType: storeType.wire);
     } else {
       await ref
           .read(offlineCartQueueProvider)
-          .enqueueSetQuantity(confirmed.id, target);
+          .enqueueSetQuantity(confirmed.id, target, storeType: storeType.wire);
     }
   }
 
@@ -726,13 +747,15 @@ class CartController extends AsyncNotifier<CartState> {
 }
 
 final guestCartCoordinatorProvider = Provider<GuestCartCoordinator>(
-  GuestCartCoordinator.new,
+  (ref) => GuestCartCoordinator(ref, ref.watch(accountScopeProvider)),
 );
 
 class GuestCartCoordinator {
-  GuestCartCoordinator(this.ref);
+  GuestCartCoordinator(this.ref, this.owner);
 
   final Ref ref;
+  final String owner;
+  bool get _active => ref.mounted && ref.read(accountScopeProvider) == owner;
   Future<void>? _mergeInFlight;
 
   Future<void> mergeIfNeeded() {
@@ -744,8 +767,17 @@ class GuestCartCoordinator {
   }
 
   Future<void> _merge() async {
-    final merged = await ref.read(cartApiProvider).mergeGuestCart();
-    if (!merged) return;
+    if (!_active || owner == 'guest') return;
+    final api = ref.read(cartApiProvider);
+    final queue = ref.read(offlineCartQueueProvider);
+    final merged = await api.mergeGuestCart();
+    if (!merged || !_active) return;
+    await queue.adoptMergedGuestQueue();
+    if (!_active) return;
+    await api.completeGuestMerge();
+    if (!_active) return;
+    await queue.flush();
+    if (!_active) return;
     for (final storeType in StoreType.values) {
       ref.invalidate(cartControllerProvider(storeType));
     }

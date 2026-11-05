@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:beshkashtan_customer/core/localization/locale_controller.dart';
 import 'package:beshkashtan_customer/core/network/api_failure.dart';
+import 'package:beshkashtan_customer/core/storage/account_scope.dart';
 import 'package:beshkashtan_customer/core/storage/prefs_store.dart';
 import 'package:beshkashtan_customer/features/orders/data/order_models.dart';
 import 'package:beshkashtan_customer/features/orders/data/orders_api.dart';
@@ -21,21 +24,30 @@ class _MockPaymentsApi extends Mock implements PaymentsApi {}
 
 class _MockOrdersApi extends Mock implements OrdersApi {}
 
-OrderData _order(String paymentStatus) => OrderData.fromJson({
-  'id': 'order-1',
-  'order_number': 'BK-1',
-  'store_type': 'restaurant',
-  'fulfillment_type': 'pickup',
-  'status': 'pending',
-  'status_label': 'Ko‘rib chiqilmoqda',
-  'payment_method': 'payme',
-  'payment_status': paymentStatus,
-  'subtotal': '30000.00',
-  'delivery_fee': '0.00',
-  'total': '30000.00',
-  'items': <Map<String, dynamic>>[],
-  'created_at': '2026-08-22T10:00:00Z',
-});
+class _Owner extends Notifier<String> {
+  @override
+  String build() => 'one';
+  void change() => state = 'two';
+}
+
+final _ownerProvider = NotifierProvider<_Owner, String>(_Owner.new);
+
+OrderData _order(String paymentStatus, {String store = 'household'}) =>
+    OrderData.fromJson({
+      'id': 'order-1',
+      'order_number': 'BK-1',
+      'store_type': store,
+      'fulfillment_type': 'pickup',
+      'status': 'pending',
+      'status_label': 'Ko‘rib chiqilmoqda',
+      'payment_method': 'payme',
+      'payment_status': paymentStatus,
+      'subtotal': '30000.00',
+      'delivery_fee': '0.00',
+      'total': '30000.00',
+      'items': <Map<String, dynamic>>[],
+      'created_at': '2026-08-22T10:00:00Z',
+    });
 
 const _createResult = PaymePaymentCreateResult(
   paymentId: 'pay-1',
@@ -66,6 +78,102 @@ Future<ProviderContainer> _container({
 
 void main() {
   _autoStartTests();
+  for (final store in ['restaurant', 'shashlik', 'grocery', 'meat']) {
+    testWidgets('non-Xozmak order has no Payme start action: $store', (
+      tester,
+    ) async {
+      final api = _MockPaymentsApi();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            paymeEnabledProvider.overrideWithValue(true),
+            accountScopeProvider.overrideWithValue('test-user'),
+            paymentsApiProvider.overrideWithValue(api),
+          ],
+          child: MaterialApp(
+            locale: const Locale('uz'),
+            supportedLocales: AppLocalizations.supportedLocales,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            home: Scaffold(
+              body: PaymePaymentSection(
+                order: _order('pending', store: store),
+                autoStart: true,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(FilledButton), findsNothing);
+      verifyNever(() => api.createPaymePayment(any()));
+      expect(tester.takeException(), isNull);
+    });
+  }
+  test('late checkout URL from a previous account is never launched', () async {
+    final pending = Completer<PaymePaymentCreateResult>();
+    final api = _MockPaymentsApi();
+    when(
+      () => api.createPaymePayment('order-1'),
+    ).thenAnswer((_) => pending.future);
+    var launches = 0;
+    final container = ProviderContainer(
+      overrides: [
+        paymeEnabledProvider.overrideWithValue(true),
+        accountScopeProvider.overrideWith((ref) => ref.watch(_ownerProvider)),
+        paymentsApiProvider.overrideWithValue(api),
+        paymentUrlLauncherProvider.overrideWithValue((
+          uri, {
+          LaunchMode mode = LaunchMode.platformDefault,
+        }) async {
+          launches++;
+          return true;
+        }),
+      ],
+    );
+    addTearDown(container.dispose);
+    final provider = paymePaymentControllerProvider('order-1');
+    final sub = container.listen(provider, (_, _) {});
+    addTearDown(sub.close);
+    final future = container.read(provider.notifier).startPayment();
+    container.read(_ownerProvider.notifier).change();
+    container.read(provider);
+    pending.complete(_createResult);
+    await future;
+    expect(launches, 0);
+    expect(container.read(provider).phase, PaymePhase.idle);
+  });
+  for (final url in [
+    'https://evil.example/pay',
+    'https://checkout.paycom.uz.evil.example/pay',
+    'https://user@checkout.paycom.uz/pay',
+    'https://checkout.paycom.uz:444/pay',
+  ]) {
+    test('never launches untrusted payment URL: $url', () async {
+      final api = _MockPaymentsApi();
+      when(() => api.createPaymePayment('order-1')).thenAnswer(
+        (_) async => PaymePaymentCreateResult(
+          paymentId: 'p',
+          paymentUrl: url,
+          status: PaymentStatus.pending,
+        ),
+      );
+      var launches = 0;
+      final container = await _container(
+        paymentsApi: api,
+        ordersApi: _MockOrdersApi(),
+        launcher: (uri, {LaunchMode mode = LaunchMode.platformDefault}) async {
+          launches++;
+          return true;
+        },
+      );
+      final provider = paymePaymentControllerProvider('order-1');
+      final sub = container.listen(provider, (_, _) {});
+      addTearDown(sub.close);
+      await container.read(provider.notifier).startPayment();
+      expect(launches, 0);
+      expect(container.read(provider).failure, isNotNull);
+    });
+  }
   test('disabled Payme never creates a payment or launches a URL', () async {
     final api = _MockPaymentsApi();
     var launches = 0;
@@ -86,35 +194,39 @@ void main() {
     verifyNever(() => api.createPaymePayment(any()));
     expect(launches, 0);
   });
-  testWidgets('disabled section stays hidden even with autoStart and resume', (
-    tester,
-  ) async {
-    final api = _MockPaymentsApi();
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [paymentsApiProvider.overrideWithValue(api)],
-        child: MaterialApp(
-          locale: const Locale('uz'),
-          supportedLocales: AppLocalizations.supportedLocales,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          home: Scaffold(
-            body: PaymePaymentSection(
-              order: _order('pending'),
-              autoStart: true,
+  testWidgets(
+    'existing Payme order stays informative but cannot start when disabled',
+    (tester) async {
+      final api = _MockPaymentsApi();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            paymeEnabledProvider.overrideWithValue(false),
+            paymentsApiProvider.overrideWithValue(api),
+          ],
+          child: MaterialApp(
+            locale: const Locale('uz'),
+            supportedLocales: AppLocalizations.supportedLocales,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            home: Scaffold(
+              body: PaymePaymentSection(
+                order: _order('pending'),
+                autoStart: true,
+              ),
             ),
           ),
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
-    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
-    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
-    await tester.pumpAndSettle();
-    expect(find.textContaining('Payme'), findsNothing);
-    expect(find.byType(FilledButton), findsNothing);
-    verifyNever(() => api.createPaymePayment(any()));
-    expect(tester.takeException(), isNull);
-  });
+      );
+      await tester.pumpAndSettle();
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Payme'), findsOneWidget);
+      expect(find.byType(FilledButton), findsNothing);
+      verifyNever(() => api.createPaymePayment(any()));
+      expect(tester.takeException(), isNull);
+    },
+  );
   test(
     'muvaffaqiyat: https URL tashqi rejimda ochiladi, holat awaitingReturn',
     () async {
@@ -140,11 +252,79 @@ void main() {
       await container.read(provider.notifier).startPayment();
 
       expect(launchedUri, Uri.parse('https://checkout.paycom.uz/abc'));
-      expect(launchedMode, LaunchMode.externalApplication);
+      expect(launchedMode, LaunchMode.externalNonBrowserApplication);
       expect(container.read(provider).phase, PaymePhase.awaitingReturn);
       expect(container.read(provider).failure, isNull);
     },
   );
+
+  for (final nativeThrows in [false, true]) {
+    test(
+      'production native unavailable falls back to HTTPS: $nativeThrows',
+      () async {
+        final api = _MockPaymentsApi();
+        when(
+          () => api.createPaymePayment('order-1'),
+        ).thenAnswer((_) async => _createResult);
+        final modes = <LaunchMode>[];
+        final urls = <Uri>[];
+        final container = await _container(
+          paymentsApi: api,
+          ordersApi: _MockOrdersApi(),
+          launcher:
+              (uri, {LaunchMode mode = LaunchMode.platformDefault}) async {
+                modes.add(mode);
+                urls.add(uri);
+                if (mode == LaunchMode.externalNonBrowserApplication) {
+                  if (nativeThrows) throw Exception('No native handler');
+                  return false;
+                }
+                return true;
+              },
+        );
+        final provider = paymePaymentControllerProvider('order-1');
+        final subscription = container.listen(provider, (_, _) {});
+        addTearDown(subscription.close);
+        await container.read(provider.notifier).startPayment();
+        expect(modes, [
+          LaunchMode.externalNonBrowserApplication,
+          LaunchMode.externalApplication,
+        ]);
+        expect(urls, [
+          Uri.parse(_createResult.paymentUrl),
+          Uri.parse(_createResult.paymentUrl),
+        ]);
+        expect(container.read(provider).phase, PaymePhase.awaitingReturn);
+      },
+    );
+  }
+
+  test('sandbox opens only original sandbox HTTPS URL', () async {
+    final api = _MockPaymentsApi();
+    when(() => api.createPaymePayment('order-1')).thenAnswer(
+      (_) async => const PaymePaymentCreateResult(
+        paymentId: 'p',
+        paymentUrl: 'https://test.paycom.uz/abc',
+        status: PaymentStatus.pending,
+      ),
+    );
+    final modes = <LaunchMode>[];
+    final container = await _container(
+      paymentsApi: api,
+      ordersApi: _MockOrdersApi(),
+      launcher: (uri, {LaunchMode mode = LaunchMode.platformDefault}) async {
+        expect(uri.toString(), 'https://test.paycom.uz/abc');
+        modes.add(mode);
+        return true;
+      },
+    );
+    final provider = paymePaymentControllerProvider('order-1');
+    final subscription = container.listen(provider, (_, _) {});
+    addTearDown(subscription.close);
+    await container.read(provider.notifier).startPayment();
+    expect(modes, [LaunchMode.externalApplication]);
+    expect(container.read(provider).phase, PaymePhase.awaitingReturn);
+  });
 
   test('404 — serviceUnavailable, tugma qayta ishlaydi', () async {
     final paymentsApi = _MockPaymentsApi();

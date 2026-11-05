@@ -1,4 +1,47 @@
 {
+  "shashlikCartUpdated": "Корзина обновлена",
+  "shashlikSaveQuantity": "Сохранить количество",
+  "shashlikChooseQuantity": "Выбрать количество",
+  "shashlikPieceUnit": "шт.",
+  "shashlikKilogramUnit": "кг",
+  "cartItemsInCartTitle": "{count} товар(ов) в корзине",
+  "@cartItemsInCartTitle": {"placeholders": {"count": {"type": "int"}}},
+  "cartCheckoutAction": "Оформить",
+  "cartOrderSummaryTitle": "Ваш заказ",
+  "cartItemsLine": "{count} товар(ов)",
+  "@cartItemsLine": {"placeholders": {"count": {"type": "int"}}},
+  "cartDiscount": "Скидка",
+  "cartPerUnit": "{price}/шт",
+  "@cartPerUnit": {"placeholders": {"price": {"type": "String"}}},
+  "deliveryEstimateTitle": "Ориентировочный срок доставки",
+  "deliveryEstimateAvailabilityHint": "Уточняется с учётом наличия товаров",
+  "cartMinimumHint": "Минимальный заказ для доставки — ещё {amount}",
+  "@cartMinimumHint": {"placeholders": {"amount": {"type": "String"}}},
+  "checkoutReceiveMethod": "Способ получения",
+  "checkoutCourier": "Курьер",
+  "checkoutPickupFree": "бесплатно",
+  "checkoutChooseAddressHint": "выберите адрес",
+  "checkoutChangeOther": "Выбрать другой",
+  "checkoutChooseAddressAction": "Выбрать адрес",
+  "checkoutDeliveryAddressLabel": "Адрес доставки",
+  "checkoutPickupStoreLabel": "Самовывоз из магазина",
+  "checkoutQuoteCalculating": "Рассчитываем стоимость доставки…",
+  "checkoutRecipient": "Получатель",
+  "checkoutRecipientName": "Имя",
+  "checkoutRecipientPhone": "Номер телефона",
+  "checkoutRecipientSave": "Сохранить",
+  "checkoutRecipientReset": "Мне",
+  "checkoutRecipientPhoneInvalid": "Введите корректный номер",
+  "checkoutPickupReadyHint": "Сообщим, когда заказ будет готов",
+  "checkoutPaymentType": "Способ оплаты",
+  "checkoutOrderSummary": "Ваш заказ",
+  "checkoutPayOnReceive": "Оплата при получении",
+  "checkoutPayOnReceiveCaption": "Наличными курьеру или в магазине",
+  "checkoutPayOnlineCaption": "Payme — UZCARD, HUMO, Visa, Mastercard",
+  "checkoutPayWithPayme": "Оплатить через Payme",
+  "checkoutDeliveryFree": "Бесплатно",
+  "checkoutTotal": "Итого",
+  "checkoutMinimumTitle": "Не набрана минимальная сумма заказа",
   "cartContinueOrder": "Продолжить оформление",
   "cartSelectDeliveryAddress": "Выбрать адрес доставки",
   "cartMinimumRecommendations": "Дополните заказ до минимума",
@@ -14,9 +57,15 @@
   "checkoutReviewTitle": "Проверьте заказ",
   "checkoutProductsSummary": "{count, plural, =1 {1 товар} few {{count} товара} many {{count} товаров} other {{count} товара}}",
   "checkoutEditCart": "Редактировать корзину",
-  "checkoutCartChanged": "Корзина или условия доставки изменились. Проверьте их перед продолжением.",
+  "checkoutCartChanged": "Корзина изменилась. Проверьте состав и сумму и подтвердите снова.",
   "checkoutReceiptOpen": "Посмотреть товары",
-  "@checkoutProductsSummary": {"placeholders": {"count": {"type": "int"}}},
+  "@checkoutProductsSummary": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "deliveryAddressTitle": "Адрес доставки",
   "deliveryAddressSubtitle": "Куда доставить заказ?",
   "deliveryAddressSavedHint": "Выберите сохранённый адрес для заказа.",
@@ -30,13 +79,13 @@
   "deliveryAddressGpsHint": "Вы можете выбрать сохранённый адрес даже без GPS.",
   "checkoutMinimumIncludesDelivery": "Учитывается сумма товаров и стоимость доставки.",
   "checkoutMinimumNeedsAddress": "Выберите адрес, чтобы рассчитать доставку.",
-  "addressCoverageLoading": "Загружаем зону доставки…",
+  "addressCoverageLoading": "Загружаем данные карты…",
   "addressRadiusLimit": "Выберите точку внутри зелёного круга. Адрес за пределами зоны подтвердить нельзя.",
   "addressAddTitle": "Добавить новый адрес",
   "addressEditTitle": "Изменить адрес",
   "addressSelectPoint": "Укажите точку доставки",
   "addressMapHelp": "Как выбрать адрес?",
-  "addressMapHelpBody": "Нажмите GPS или передвиньте карту, чтобы указать точку. Выберите дом или работу и оставьте курьеру ориентир или код домофона. Адрес сохранится только после подтверждения. Радиус показывает зону филиала; возможность и стоимость доставки проверяются при оформлении.",
+  "addressMapHelpBody": "Нажмите GPS или передвиньте карту, чтобы выбрать любую точку. Выберите дом или работу и оставьте курьеру ориентир или код домофона. Адрес сохранится только после подтверждения. Возможность и стоимость доставки проверяются при оформлении заказа.",
   "addressTypeHome": "Дом",
   "addressTypeWork": "Работа",
   "addressTypeOther": "Другое",
@@ -54,11 +103,17 @@
   "appUpdateBody": "Вышла версия {version}. Обновите приложение, чтобы воспользоваться новыми возможностями и улучшениями.",
   "appUpdateDownload": "Скачать",
   "appUpdateLater": "Позже",
-  "appUpdateOpenFailed": "Не удалось открыть Google Play. Попробуйте ещё раз или обновите приложение позже.",
+  "appUpdateOpenFailed": "Не удалось открыть магазин приложений. Попробуйте ещё раз или обновите приложение позже.",
   "checkoutAddressActionHint": "Выберите, куда доставить заказ",
   "checkoutReceiptTitle": "Состав заказа",
   "checkoutCartCount": "Товары: {count}",
-  "@checkoutCartCount": {"placeholders": {"count": {"type": "int"}}},
+  "@checkoutCartCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "checkoutOptional": "Необязательно",
   "checkoutPaymentHint": "Выберите удобный способ",
   "checkoutPayOnline": "Оплата онлайн",
@@ -92,13 +147,18 @@
   "commonEmpty": "Пока пусто",
   "commonYes": "Да",
   "commonNo": "Нет",
-  "offlineBanner": "Офлайн режим",
-  "connectionServerUnavailable": "Не удалось подключиться к серверу",
-  "offlineStaleData": "устаревшие данные",
-  "errorNetwork": "Нет подключения к интернету. Проверьте соединение.",
-  "errorServer": "Ошибка сервера. Попробуйте позже.",
-  "errorUnknown": "Произошла непредвиденная ошибка.",
-  "errorSessionExpired": "Сессия истекла. Войдите заново.",
+  "offlineBanner": "Нет интернета",
+  "connectionServerUnavailable": "Пока не удалось подключиться",
+  "offlineStaleData": "Сохранённые данные",
+  "offlineMenuSaving": "Сохраняем меню: {done}/{total}",
+  "offlineMenuReady": "Меню сохранено на телефоне · Доступно без интернета",
+  "offlineMenuPartial": "Меню сохранено не полностью. Загрузка продолжится при подключении к интернету.",
+  "offlineMenuWaiting": "Меню сохранится на телефоне при подключении к интернету.",
+  "errorNetwork": "Не удалось подключиться к интернету. Проверьте соединение и попробуйте ещё раз.",
+  "errorNetworkSlow": "Загрузка заняла слишком много времени. Проверьте интернет и попробуйте ещё раз.",
+  "errorServer": "Пока не удалось выполнить действие. Попробуйте ещё раз немного позже.",
+  "errorUnknown": "Не удалось выполнить действие. Попробуйте ещё раз.",
+  "errorSessionExpired": "Чтобы продолжить, войдите в приложение снова.",
   "errorThrottled": "Слишком много попыток. Подождите немного.",
   "errorNotFound": "Не найдено.",
   "errorForbidden": "Нет доступа к этому действию.",
@@ -156,17 +216,49 @@
   "shashlikOptionKiloMince": "Фарш на вес",
   "shashlikChooseProduct": "Выберите вид продукта и количество",
   "shashlikQuantity": "Количество",
+  "shashlikQuantityHint": "Прокрутите для выбора или нажмите число для ввода",
+  "shashlikQuantityInvalid": "Введите целое число от 1 до 999 999",
   "shashlikAddToCart": "Добавить в корзину",
   "shashlikPriceFrom": "от {price}",
-  "@shashlikPriceFrom": {"placeholders": {"price": {"type": "String"}}},
+  "@shashlikPriceFrom": {
+    "placeholders": {
+      "price": {
+        "type": "String"
+      }
+    }
+  },
   "shashlikKilogramPrice": "За килограмм {price}",
-  "@shashlikKilogramPrice": {"placeholders": {"price": {"type": "String"}}},
+  "@shashlikKilogramPrice": {
+    "placeholders": {
+      "price": {
+        "type": "String"
+      }
+    }
+  },
   "shashlikPieceQuantity": "{count, plural, =1 {1 штука} few {{count} штуки} many {{count} штук} other {{count} штуки}}",
-  "@shashlikPieceQuantity": {"placeholders": {"count": {"type": "int"}}},
+  "@shashlikPieceQuantity": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "shashlikKilogramQuantity": "{count, plural, =1 {1 килограмм} few {{count} килограмма} many {{count} килограммов} other {{count} килограмма}}",
-  "@shashlikKilogramQuantity": {"placeholders": {"count": {"type": "int"}}},
+  "@shashlikKilogramQuantity": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "shashlikInCart": "В корзине: {count}",
-  "@shashlikInCart": {"placeholders": {"count": {"type": "int"}}},
+  "@shashlikInCart": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "cartTitle": "Корзина",
   "cartEmpty": "Корзина пуста",
   "cartEmptyNow": "Ваша корзина пока пуста",
@@ -197,7 +289,9 @@
   "profileAppVersion": "Версия {version}",
   "@profileAppVersion": {
     "placeholders": {
-      "version": {"type": "String"}
+      "version": {
+        "type": "String"
+      }
     }
   },
   "profileDeleteAccount": "Удалить аккаунт",
@@ -267,6 +361,8 @@
   "catalogEmpty": "В этом магазине пока нет товаров",
   "catalogSearchHint": "Поиск в этом магазине",
   "catalogCategoryFilter": "Категории",
+  "householdSearchHint": "Поиск в Xozmak",
+  "householdCategorySearchHint": "Поиск категории",
   "householdSectionHomeTools": "Дом, ремонт и инструменты",
   "householdSectionTechTransport": "Техника и транспорт",
   "householdSectionKitchenLiving": "Кухня и хозяйство",
@@ -319,7 +415,13 @@
   "homeForYou": "Для вас",
   "homeForYouSubtitle": "Подобрали по вашим интересам",
   "catalogSimilarTo": "Похожие на «{name}»",
-  "@catalogSimilarTo": {"placeholders": {"name": {"type": "String"}}},
+  "@catalogSimilarTo": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "productVariant": "Выберите вариант",
   "productAddons": "Дополнения",
   "productRequired": "Обязательно",
@@ -389,6 +491,9 @@
   "orderCourier": "Курьер",
   "orderCancel": "Отменить заказ",
   "orderCancelConfirm": "Отменить заказ?",
+  "orderCancelCallCourier": "Курьер забрал заказ и уже в пути. Для отмены позвоните курьеру.",
+  "orderCancelCallAction": "Позвонить курьеру",
+  "orderCourierPhoneUnavailable": "Номер телефона курьера пока недоступен.",
   "unsupportedStoreTitle": "Неизвестный магазин",
   "unsupportedStoreMessage": "Этот тип магазина не поддерживается приложением.",
   "unsupportedStoreBack": "Вернуться на главную",
@@ -466,10 +571,22 @@
   "orderDeliveryWindowTitle": "Доставим в",
   "orderDeliveryWindowPending": "Уточним после подтверждения курьером",
   "orderDeliveredAt": "Доставлен · {time}",
-  "@orderDeliveredAt": {"placeholders": {"time": {"type": "String"}}},
+  "@orderDeliveredAt": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
   "orderSummaryTitle": "Детали заказа",
   "orderSummaryProducts": "{count} товар(ов)",
-  "@orderSummaryProducts": {"placeholders": {"count": {"type": "int"}}},
+  "@orderSummaryProducts": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "orderDeliveryDetails": "Детали доставки",
   "orderRecipientPhone": "Номер получателя",
   "orderPaymentMethodLabel": "Способ оплаты",
@@ -536,7 +653,13 @@
   "ugcBlockedUsers": "Заблокированные пользователи",
   "ugcBlockedUsersEmpty": "Заблокированных пользователей нет",
   "ugcBlockConfirmation": "Заблокировать пользователя {name}? Его публичные комментарии и отзывы больше не будут вам видны.",
-  "@ugcBlockConfirmation": {"placeholders": {"name": {"type": "String"}}},
+  "@ugcBlockConfirmation": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "checkoutDeliveryMapTitle": "Карта доставки",
   "checkoutMapStore": "Магазин",
   "checkoutMapAddress": "Адрес доставки",
@@ -552,11 +675,11 @@
   "checkoutGpsStale": "Данные GPS устарели. Обновите местоположение или выберите адрес вручную.",
   "checkoutGpsApproximate": "Местоположение приблизительное. Включите точную геолокацию или обновите GPS.",
   "checkoutGpsSettings": "Открыть настройки",
-  "checkoutMapTilesUnavailable": "Карта не загрузилась. Метки и радиус доступны.",
-  "checkoutMapCoverageUnavailable": "Не удалось загрузить зону доставки.",
+  "checkoutMapTilesUnavailable": "Не загрузились изображения карты. Метки адресов работают.",
+  "checkoutMapCoverageUnavailable": "Не удалось показать филиал на карте. Вы можете выбрать сохранённый адрес.",
   "checkoutCoverageRadius": "Радиус доставки: {radius} км",
   "checkoutOutsideRadius": "Адрес вне радиуса доставки {radius} км. Выберите другой адрес или самовывоз.",
-  "checkoutTariffUnavailable": "Для этого расстояния не настроен тариф доставки.",
+  "checkoutTariffUnavailable": "Пока не удалось определить стоимость доставки по этому адресу.",
   "checkoutMapPreviewHint": "Это предварительный просмотр зоны филиала. Выберите адрес доставки для заказа.",
   "@checkoutCoverageRadius": {
     "placeholders": {
@@ -571,5 +694,17 @@
         "type": "String"
       }
     }
-  }
+  },
+  "cartUnavailable": "Этот товар сейчас недоступен для заказа. Удалите его из корзины.",
+  "cartVariantUnavailable": "Выбранный вариант недоступен. Выберите товар заново.",
+  "cartAddonsUnavailable": "Выбранные дополнения недоступны. Выберите товар заново.",
+  "orderCancellationUnavailable": "Этот заказ уже нельзя отменить. Обновите статус заказа.",
+  "errorValidation": "Проверьте данные и попробуйте снова.",
+  "checkoutResumePending": "Нужно проверить результат предыдущего заказа. Продолжите.",
+  "catalogSwipeProducts": "Листайте вбок",
+  "paymeAwaitingPayment": "Ожидаем оплату",
+  "paymePaymentRefundPending": "Заказ отменён. Ожидается возврат денег.",
+  "paymePaymentRefunded": "Деньги возвращены",
+  "storeSwitchTitle": "Сменить магазин",
+  "storeSwitchKeepsCart": "Корзина и выбранные параметры каждого магазина сохранятся."
 }

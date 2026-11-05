@@ -330,7 +330,10 @@ class _CategorySectionView extends StatelessWidget {
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       Text(
-        _groupTitle(AppLocalizations.of(context), section.group),
+        householdCategoryGroupTitle(
+          AppLocalizations.of(context),
+          section.group,
+        ),
         style: Theme.of(context).textTheme.headlineSmall?.copyWith(
           fontWeight: FontWeight.w900,
           letterSpacing: -0.4,
@@ -519,7 +522,7 @@ class _CategoryImage extends StatelessWidget {
   );
 }
 
-String _groupTitle(
+String householdCategoryGroupTitle(
   AppLocalizations l10n,
   HouseholdCategoryGroup group,
 ) => switch (group) {

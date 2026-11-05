@@ -300,7 +300,7 @@ void main() {
     expect(order.customerStage, CustomerOrderStage.delivered);
   });
 
-  test('order cancel faqat pending/accepted holatlarda', () {
+  test('order cancel buyurtma olib ketilguncha ochiq', () {
     OrderData order(String status) => OrderData.fromJson({
       'id': 'order-$status',
       'order_number': status,
@@ -319,7 +319,9 @@ void main() {
 
     expect(order('pending').canCancel, isTrue);
     expect(order('accepted').canCancel, isTrue);
-    expect(order('preparing').canCancel, isFalse);
+    expect(order('preparing').canCancel, isTrue);
+    expect(order('ready_for_pickup').canCancel, isTrue);
+    expect(order('out_for_delivery').canCancel, isFalse);
     expect(order('completed').canCancel, isFalse);
   });
 

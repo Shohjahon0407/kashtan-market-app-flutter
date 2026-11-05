@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/localization/failure_l10n.dart';
 import '../../../core/network/api_failure.dart';
+import '../../../core/routing/back_navigation.dart';
 import '../../../core/routing/routes.dart';
 import '../../../core/ui/theme/app_buttons.dart';
 import '../../../core/ui/theme/app_dimens.dart';
@@ -23,7 +24,10 @@ class AddressesScreen extends ConsumerWidget {
     final addresses = ref.watch(addressesControllerProvider);
 
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.profileAddresses)),
+      appBar: AppBar(
+        leading: const AppBackButton(),
+        title: Text(l10n.profileAddresses),
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => context.push(Routes.addressNew),
         icon: const Icon(Icons.add_location_alt_outlined),

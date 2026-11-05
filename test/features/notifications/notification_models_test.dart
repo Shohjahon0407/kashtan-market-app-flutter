@@ -54,4 +54,15 @@ void main() {
       expect(incomplete.opensOrder, isFalse);
     },
   );
+
+  test('importance=high muhim push sifatida aniqlanadi', () {
+    bool important(Object? value) =>
+        CustomerPushMessage.fromData(data: {'importance': value}).isImportant;
+
+    expect(important('high'), isTrue);
+    expect(important(' HIGH '), isTrue);
+    expect(important('normal'), isFalse);
+    expect(important(null), isFalse);
+    expect(CustomerPushMessage.fromData(data: {}).isImportant, isFalse);
+  });
 }

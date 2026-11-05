@@ -10,13 +10,20 @@ class CartApi {
     this._client, [
     GuestCartTokenStore? tokens,
     bool Function()? isAuthenticated,
+    bool Function()? isCurrent,
   ]) : _tokens = tokens,
-       _isAuthenticated = isAuthenticated ?? (() => true);
+       _isAuthenticated = isAuthenticated ?? (() => true),
+       _isCurrent = isCurrent ?? (() => true);
 
   final ApiClient _client;
   final GuestCartTokenStore? _tokens;
   final bool Function() _isAuthenticated;
+  final bool Function() _isCurrent;
   Future<String>? _guestSessionInFlight;
+  final _addReceipts = <String, String>{};
+  final _addOffsets = <String, int>{};
+  int? addedQuantityOffset(String key) => _addOffsets[key];
+  String? addedItemId(String key) => _addReceipts[key];
 
   static const _guestHeader = 'X-Guest-Cart-Token';
 
@@ -28,9 +35,11 @@ class CartApi {
   }
 
   Future<T> _withGuestSessionRecovery<T>(
-    Future<T> Function(Map<String, dynamic>? headers) request,
-  ) async {
+    Future<T> Function(Map<String, dynamic>? headers) request, {
+    bool recoverGuest = true,
+  }) async {
     final headers = await _cartHeaders();
+    if (!_isCurrent()) throw const CancelledFailure();
     try {
       return await request(headers);
     } on UnauthorizedFailure {
@@ -38,9 +47,12 @@ class CartApi {
       // server cleanup qilgan bo‘lsa yangi session bilan aynan bir marta
       // qayta uriniladi. Network/timeout xatolari bu branchga tushmaydi —
       // mutating POST/PATCH hech qachon noaniq holatda takrorlanmaydi.
-      if (_tokens == null || _isAuthenticated()) rethrow;
+      if (!_isCurrent()) throw const CancelledFailure();
+      if (!recoverGuest || _tokens == null || _isAuthenticated()) rethrow;
       await _tokens.clearGuestCartToken();
-      return request(await _cartHeaders());
+      final recoveredHeaders = await _cartHeaders();
+      if (!_isCurrent()) throw const CancelledFailure();
+      return request(recoveredHeaders);
     }
   }
 
@@ -65,6 +77,7 @@ class CartApi {
     if (token.isEmpty) {
       throw const UnknownFailure.malformed('guest cart token javobda yo‘q');
     }
+    if (!_isCurrent()) throw const CancelledFailure();
     await _tokens!.saveGuestCartToken(token);
     return token;
   }
@@ -84,10 +97,11 @@ class CartApi {
     required String storeType,
     required CartConfiguration configuration,
     required int quantity,
-  }) async => _withGuestSessionRecovery(
-    (headers) => _client.post(
+    String? idempotencyKey,
+  }) async => _withGuestSessionRecovery((headers) async {
+    final data = await _client.post(
       Api.cartItems,
-      headers: headers,
+      headers: {...?headers, 'Idempotency-Key': ?idempotencyKey},
       body: {
         'store_type': storeType,
         'product_id': configuration.productId,
@@ -100,8 +114,15 @@ class CartApi {
         if (configuration.note.trim().isNotEmpty)
           'note': configuration.note.trim(),
       },
-    ),
-  );
+    );
+    final id = JsonRead.nullableString(JsonRead.map(data)?['id']);
+    if (idempotencyKey != null && id != null) {
+      _addReceipts[idempotencyKey] = id;
+      _addOffsets[idempotencyKey] = JsonRead.integer(
+        JsonRead.map(data)?['merged_quantity_offset'],
+      );
+    }
+  }, recoverGuest: idempotencyKey == null);
 
   Future<void> updateQuantity(String itemId, int quantity) =>
       _updateQuantity(itemId, quantity);
@@ -141,10 +162,16 @@ class CartApi {
 
   Future<bool> mergeGuestCart() async {
     final token = await _tokens?.readGuestCartToken();
+    if (!_isCurrent()) throw const CancelledFailure();
     if (token == null || token.isEmpty) return false;
     await _client.post(Api.mergeGuestCart, headers: {_guestHeader: token});
-    await _tokens!.clearGuestCartToken();
+    // Keep the token until queued guest intents have durably moved to the user.
+    // A restart can safely repeat the server's idempotent merge in this window.
     return true;
+  }
+
+  Future<void> completeGuestMerge() async {
+    await _tokens?.clearGuestCartToken();
   }
 
   CartData _decodeCart(Object? data) {

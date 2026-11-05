@@ -18,6 +18,53 @@ void main() {
     const Locale('uz', 'Cyrl'),
     const Locale('ru'),
   ]) {
+    for (final size in [
+      const Size(320, 800),
+      const Size(430, 800),
+      const Size(800, 360),
+    ]) {
+      testWidgets('cancellation call at 2x: $locale $size', (tester) async {
+        tester.view.physicalSize = size;
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        await tester.pumpWidget(
+          ProviderScope(
+            child: _app(
+              OrderTrackingPanel(
+                order: _order(
+                  status: 'out_for_delivery',
+                  userStatus: 'on_way',
+                  courierPhone: '+998901234567',
+                ),
+                mutating: false,
+                onCancel: () => fail('Direct cancel must be unavailable'),
+                onOpenSummary: () {},
+              ),
+              locale: locale,
+              textScale: 2,
+            ),
+          ),
+        );
+        await tester.pump();
+        final call = find.byKey(const ValueKey('order-cancel-call-courier'));
+        await tester.scrollUntilVisible(
+          call,
+          200,
+          scrollable: find.byType(Scrollable).first,
+        );
+        final l10n = AppLocalizations.of(tester.element(call));
+        expect(find.text(l10n.orderCancel), findsNothing);
+        expect(find.text(l10n.orderCancelCallAction), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      });
+    }
+  }
+  for (final locale in [
+    const Locale('uz'),
+    const Locale('uz', 'Cyrl'),
+    const Locale('ru'),
+  ]) {
     for (final width in [320.0, 360.0, 430.0]) {
       for (final scale in [1.0, 1.5, 2.0]) {
         testWidgets(
@@ -115,6 +162,56 @@ void main() {
     ),
   );
 
+  testWidgets('before departure cancel remains available; on way only call', (
+    tester,
+  ) async {
+    for (final status in ['preparing', 'ready_for_pickup']) {
+      await tester.pumpWidget(
+        panel(_order(status: status, userStatus: 'accepted')),
+      );
+      await tester.pump();
+      await tester.scrollUntilVisible(
+        find.text('Buyurtmani bekor qilish'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.text('Buyurtmani bekor qilish'), findsOneWidget);
+    }
+    for (final phone in ['', '+998901234567']) {
+      await tester.pumpWidget(
+        panel(
+          _order(
+            status: 'out_for_delivery',
+            userStatus: 'on_way',
+            courierPhone: phone,
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.scrollUntilVisible(
+        find.textContaining('Bekor qilish uchun'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.text('Buyurtmani bekor qilish'), findsNothing);
+      if (phone.isEmpty) {
+        expect(
+          find.text('Kuryer telefon raqami hozircha mavjud emas.'),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const ValueKey('order-cancel-call-courier')),
+          findsNothing,
+        );
+      } else {
+        expect(
+          find.byKey(const ValueKey('order-cancel-call-courier')),
+          findsOneWidget,
+        );
+      }
+    }
+  });
+
   testWidgets('existing Payme order keeps its data but has no payment action', (
     tester,
   ) async {
@@ -123,8 +220,9 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
     expect(order.paymentMethod, 'payme');
     expect(order.paymentStatus, 'pending');
-    expect(find.byType(PaymePaymentSection), findsNothing);
-    expect(find.textContaining('Payme'), findsNothing);
+    expect(find.byType(PaymePaymentSection), findsOneWidget);
+    expect(find.textContaining('Payme'), findsOneWidget);
+    expect(find.byKey(ValueKey('payme-pay-${order.id}')), findsNothing);
   });
 
   testWidgets('tasdiq kutilmoqda: vaqt yo\'q, taymer bor, kuryer yo\'q', (
@@ -235,16 +333,35 @@ void main() {
   });
 }
 
-Widget _app(Widget child) => MaterialApp(
+Widget _app(
+  Widget child, {
+  Locale locale = const Locale('uz'),
+  double textScale = 1,
+}) => MaterialApp(
   theme: AppTheme.light(),
-  locale: const Locale('uz'),
+  locale: locale,
   supportedLocales: AppLocalizations.supportedLocales,
   localizationsDelegates: const [
     AppLocalizations.delegate,
-    GlobalMaterialLocalizations.delegate,
-    GlobalCupertinoLocalizations.delegate,
-    GlobalWidgetsLocalizations.delegate,
+    ScriptFallbackDelegate<MaterialLocalizations>(
+      GlobalMaterialLocalizations.delegate,
+      Locale('uz'),
+    ),
+    ScriptFallbackDelegate<CupertinoLocalizations>(
+      GlobalCupertinoLocalizations.delegate,
+      Locale('uz'),
+    ),
+    ScriptFallbackDelegate<WidgetsLocalizations>(
+      GlobalWidgetsLocalizations.delegate,
+      Locale('uz'),
+    ),
   ],
+  builder: (context, child) => MediaQuery(
+    data: MediaQuery.of(
+      context,
+    ).copyWith(textScaler: TextScaler.linear(textScale)),
+    child: child!,
+  ),
   home: Scaffold(body: child),
 );
 

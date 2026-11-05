@@ -33,12 +33,18 @@ void goToStoreTab(BuildContext context, StoreType storeType, StoreTab tab) {
 void openStoreProduct(
   BuildContext context,
   StoreType storeType,
-  String productId,
-) {
+  String productId, {
+  String? categoryId,
+}) {
   final currentPath = GoRouterState.of(context).uri.path;
   final storeRoot = Routes.storeRoot(storeType.wire);
   final catalogRoot = Routes.storeCatalog(storeType.wire);
-  final target = Routes.productDetail(storeType.wire, productId);
+  final path = Routes.productDetail(storeType.wire, productId);
+  final target = categoryId == null
+      ? path
+      : Uri.parse(
+          path,
+        ).replace(queryParameters: {'category': categoryId}).toString();
 
   if (currentPath == catalogRoot || currentPath.startsWith('$catalogRoot/')) {
     context.push(target);

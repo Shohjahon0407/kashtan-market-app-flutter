@@ -106,6 +106,7 @@ class _CartApi extends Fake implements CartApi {
     required String storeType,
     required CartConfiguration configuration,
     required int quantity,
+    String? idempotencyKey,
   }) async {
     added = product(configuration.productId, store: storeType);
   }
@@ -226,6 +227,8 @@ void main() {
         const Offset(0, -400),
       );
       await tester.pumpAndSettle();
+      await tester.ensureVisible(buy);
+      await tester.pumpAndSettle();
       await tester.tap(buy);
       await tester.pumpAndSettle();
       expect(cartApi.added?.id, 'hammer');
@@ -310,7 +313,7 @@ void main() {
           scale: 2,
           locale: locale,
         );
-        await tester.drag(find.byType(ListView).first, const Offset(0, -500));
+        await tester.drag(find.byType(Scrollable).first, const Offset(0, -500));
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
       });

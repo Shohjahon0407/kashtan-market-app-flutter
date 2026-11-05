@@ -1,4 +1,7 @@
+import 'package:beshkashtan_customer/core/localization/locale_controller.dart';
+import 'package:beshkashtan_customer/core/storage/prefs_store.dart';
 import 'package:beshkashtan_customer/core/store_scope/store_type.dart';
+import 'package:beshkashtan_customer/core/ui/theme/app_colors.dart';
 import 'package:beshkashtan_customer/features/cart/data/cart_api.dart';
 import 'package:beshkashtan_customer/features/cart/data/cart_models.dart';
 import 'package:beshkashtan_customer/features/cart/domain/cart_controller.dart';
@@ -17,6 +20,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../helpers/review_draft.dart';
 
@@ -85,8 +89,8 @@ const _cart = CartData(
   subtotal: '12000',
 );
 
-/// Tanlangan kartaning och foni va yashil chegarasi bor.
-Color? _cardColor(WidgetTester tester, String key) {
+/// Selection uses a green border, not the retired pale-green card fill.
+BorderSide _cardBorder(WidgetTester tester, String key) {
   final material = tester.widget<Material>(
     find.descendant(
       of: find.byKey(ValueKey(key)),
@@ -94,10 +98,18 @@ Color? _cardColor(WidgetTester tester, String key) {
       matchRoot: true,
     ),
   );
-  return material.color;
+  final context = tester.element(find.byKey(ValueKey(key)));
+  expect(material.color, Theme.of(context).colorScheme.surface);
+  return (material.shape! as RoundedRectangleBorder).side;
 }
 
+late PrefsStore _reliabilityPrefs;
+
 void main() {
+  setUp(() async {
+    SharedPreferences.setMockInitialValues({});
+    _reliabilityPrefs = await PrefsStore.load();
+  });
   for (final enabled in [false, true]) {
     testWidgets('checkout payment options: Payme enabled=$enabled', (
       tester,
@@ -125,7 +137,11 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            prefsStoreProvider.overrideWithValue(_reliabilityPrefs),
             if (enabled) paymeEnabledProvider.overrideWithValue(true),
+            paymentCapabilitiesProvider.overrideWith(
+              (_) async => {'household': enabled},
+            ),
             cartApiProvider.overrideWithValue(cartApi),
             orderDraftProvider.overrideWith2(
               (type) => ReviewDraft(
@@ -181,8 +197,8 @@ void main() {
         expect(find.text('Payme'), findsNothing);
         expect(find.text('Kuryerga naqd'), findsOneWidget);
         expect(
-          _cardColor(tester, 'checkout-payment-cash'),
-          const Color(0xFFE7F6F1),
+          _cardBorder(tester, 'checkout-payment-cash').color,
+          AppColors.primary,
         );
         expect(tester.takeException(), isNull);
         return;
@@ -197,15 +213,21 @@ void main() {
         find.byKey(const ValueKey('checkout-payment-cash')),
         findsOneWidget,
       );
-      expect(find.text("To'lov usuli"), findsOneWidget);
+      expect(find.text("To'lov turi"), findsOneWidget);
       expect(find.text('Payme'), findsOneWidget);
       // Yetkazib berish tanlangani uchun naqd yorlig'i kuryerga ishora qiladi.
       expect(find.text('Kuryerga naqd'), findsOneWidget);
 
-      // Default — Payme: katta to'liq bo'yalgan karta o'rniga yengil tint.
-      const paymeBrand = Color(0xFFE7F6F1);
-      expect(_cardColor(tester, 'checkout-payment-payme'), paymeBrand);
-      expect(_cardColor(tester, 'checkout-payment-cash'), isNot(paymeBrand));
+      // Default — Payme: both cards keep the neutral surface.
+      expect(
+        _cardBorder(tester, 'checkout-payment-payme').color,
+        AppColors.primary,
+      );
+      expect(_cardBorder(tester, 'checkout-payment-payme').width, 2);
+      expect(
+        _cardBorder(tester, 'checkout-payment-cash').color,
+        isNot(AppColors.primary),
+      );
 
       // Naqdga o'tish (bo'lim ro'yxat ichida — avval ko'rinadigan qilamiz).
       await tester.ensureVisible(
@@ -214,7 +236,14 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('checkout-payment-cash')));
       await tester.pumpAndSettle();
-      expect(_cardColor(tester, 'checkout-payment-payme'), isNot(paymeBrand));
+      expect(
+        _cardBorder(tester, 'checkout-payment-payme').color,
+        isNot(AppColors.primary),
+      );
+      expect(
+        _cardBorder(tester, 'checkout-payment-cash').color,
+        AppColors.primary,
+      );
 
       // Qayta Payme'ga qaytish.
       await tester.ensureVisible(
@@ -223,7 +252,10 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('checkout-payment-payme')));
       await tester.pumpAndSettle();
-      expect(_cardColor(tester, 'checkout-payment-payme'), paymeBrand);
+      expect(
+        _cardBorder(tester, 'checkout-payment-payme').color,
+        AppColors.primary,
+      );
     });
   }
 }

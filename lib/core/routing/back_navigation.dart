@@ -65,7 +65,7 @@ class AppBackCoordinator {
     }
   }
 
-  void go(String target) {
+  void go(String target, {bool keepCurrentPage = false}) {
     if (target == location) return;
 
     final destination = Uri.parse(target);
@@ -79,6 +79,13 @@ class AppBackCoordinator {
       destination,
     );
     if (current != null) {
+      // A -> B -> C -> A may restore A from the still-mounted stack. Drop
+      // every excursion above its first remembered snapshot too; otherwise
+      // a later Back at A would resurrect B after the visible stack was closed.
+      final index = _history.indexWhere(
+        (snapshot) => _snapshotAt(snapshot, destination) != null,
+      );
+      if (index >= 0) _history.removeRange(index, _history.length);
       router.restore(current);
       return;
     }
@@ -90,7 +97,11 @@ class AppBackCoordinator {
       return;
     }
     remember();
-    router.go(target);
+    if (keepCurrentPage) {
+      unawaited(router.push<void>(target));
+    } else {
+      router.go(target);
+    }
   }
 
   /// Also recognize a tab root below a pushed detail/category page. Returning
@@ -155,7 +166,24 @@ class AppBackCoordinator {
 }
 
 void appBack(BuildContext context) {
-  unawaited(AppBackCoordinator.of(GoRouter.of(context)).back());
+  final router = GoRouter.maybeOf(context);
+  if (router != null) {
+    unawaited(AppBackCoordinator.of(router).back());
+  } else {
+    unawaited(Navigator.of(context).maybePop());
+  }
+}
+
+/// Unlike AppBar's implicit leading, this also works on shell roots and
+/// direct links. The coordinator preserves modal/form vetoes and Home fallback.
+class AppBackButton extends StatelessWidget {
+  const AppBackButton({super.key});
+
+  @override
+  Widget build(BuildContext context) => BackButton(
+    key: const ValueKey('app-back-button'),
+    onPressed: () => appBack(context),
+  );
 }
 
 class AppBackButtonDispatcher extends RootBackButtonDispatcher {

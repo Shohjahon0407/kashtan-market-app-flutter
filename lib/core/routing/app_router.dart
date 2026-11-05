@@ -11,6 +11,7 @@ import '../../features/auth/presentation/screens/phone_screen.dart';
 import '../../features/cart/presentation/cart_screen.dart';
 import '../../features/catalog/domain/catalog_controller.dart';
 import '../../features/catalog/presentation/catalog_screen.dart';
+import '../../features/catalog/presentation/household_categories_screen.dart';
 import '../../features/catalog/presentation/product_detail_screen.dart';
 import '../../features/catalog/presentation/shashlik_family_screen.dart';
 import '../../features/checkout/domain/delivery_address_selection.dart';
@@ -43,6 +44,9 @@ import 'route_not_found_screen.dart';
 import 'routes.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
+  // Product carousels replace an imperative detail route without adding a
+  // back entry. Expose that current product URL to browser refresh/deep links.
+  GoRouter.optionURLReflectsImperativeAPIs = true;
   final refresh = _RouterRefresh(ref);
   ref.onDispose(refresh.dispose);
 
@@ -341,6 +345,11 @@ StatefulShellRoute _storeShellRoute(
             );
           },
           routes: [
+            if (storeType == StoreType.household)
+              GoRoute(
+                path: 'categories',
+                builder: (context, state) => const HouseholdCategoriesScreen(),
+              ),
             GoRoute(
               path: 'search',
               builder: (context, state) => ProviderScope(
@@ -385,6 +394,7 @@ StatefulShellRoute _storeShellRoute(
                 path: 'family/:familyKey',
                 builder: (context, state) => ShashlikFamilyScreen(
                   familyKey: state.pathParameters['familyKey'] ?? '',
+                  initialProductId: state.uri.queryParameters['product'],
                 ),
               ),
             GoRoute(
@@ -392,6 +402,7 @@ StatefulShellRoute _storeShellRoute(
               builder: (context, state) => ProductDetailScreen(
                 storeType: storeType,
                 productId: state.pathParameters['productId'] ?? '',
+                categoryId: state.uri.queryParameters['category'],
               ),
             ),
           ],

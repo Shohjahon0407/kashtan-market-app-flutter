@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:beshkashtan_customer/core/config/api_endpoints.dart';
 import 'package:beshkashtan_customer/core/localization/uzbek_transliterator.dart';
 import 'package:beshkashtan_customer/core/network/api_client.dart';
@@ -47,6 +49,78 @@ String _encode(Map<String, dynamic> map) {
 }
 
 void main() {
+  test(
+    'idempotent mutation body stays identical when UI script changes',
+    () async {
+      var script = UzScript.cyrillic;
+      final seen = <Map<String, dynamic>>[];
+      final adapter = _ScriptedAdapter((request) {
+        seen.add(Map<String, dynamic>.from(request.data as Map));
+        return _json({'ok': 'true'}, 200);
+      });
+      final client = ApiClient.create(
+        tokenStore: InMemoryTokenStore(),
+        apiLang: () => 'uz',
+        script: () => script,
+        refresh: (_) async => null,
+        onSessionExpired: () async {},
+        adapter: adapter,
+      );
+      const payload = {'store_type': 'household', 'note': 'Қўнғироқ қилинг'};
+      await client.post(
+        '/cart/items/',
+        body: Map<String, dynamic>.from(payload),
+        headers: {'Idempotency-Key': 'frozen'},
+      );
+      script = UzScript.none;
+      await client.post(
+        '/cart/items/',
+        body: Map<String, dynamic>.from(payload),
+        headers: {'Idempotency-Key': 'frozen'},
+      );
+      expect(seen, [payload, payload]);
+    },
+  );
+
+  test(
+    'queued checkout keeps its original account before auth interception',
+    () async {
+      var owner = 'A';
+      final entered = Completer<void>();
+      final release = Completer<void>();
+      final adapter = _ScriptedAdapter((_) => _json({'ok': 'true'}, 200));
+      final client = ApiClient.create(
+        tokenStore: InMemoryTokenStore(access: 'token-A', refresh: 'refresh-A'),
+        apiLang: () => 'uz',
+        script: () => UzScript.none,
+        refresh: (_) async => null,
+        onSessionExpired: () async {},
+        sessionOwner: () => owner,
+        adapter: adapter,
+      );
+      client.raw.interceptors.insert(
+        0,
+        InterceptorsWrapper(
+          onRequest: (options, handler) async {
+            entered.complete();
+            await release.future;
+            handler.next(options);
+          },
+        ),
+      );
+      final pending = client.post(
+        '/orders/',
+        body: {'store_type': 'household'},
+      );
+      final rejected = expectLater(pending, throwsA(isA<CancelledFailure>()));
+      await entered.future;
+      owner = 'B';
+      release.complete();
+      await rejected;
+      expect(adapter.calls, isEmpty);
+    },
+  );
+
   late InMemoryTokenStore tokens;
   late int refreshCallCount;
   late int sessionExpiredCount;

@@ -59,13 +59,6 @@
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
 	</array>
-	<key>UISupportedInterfaceOrientations~ipad</key>
-	<array>
-		<string>UIInterfaceOrientationPortrait</string>
-		<string>UIInterfaceOrientationPortraitUpsideDown</string>
-		<string>UIInterfaceOrientationLandscapeLeft</string>
-		<string>UIInterfaceOrientationLandscapeRight</string>
-	</array>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Yetkazib berish manzilingizni xaritada aniqlash uchun joylashuvingiz kerak.</string>
 	<key>NSMicrophoneUsageDescription</key>
@@ -74,8 +67,6 @@
 	<string>Mahsulot so‘roviga rasm biriktirish uchun foto kutubxonaga kirish kerak.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Mahsulot rasmini olish va so‘rovga biriktirish uchun kamera kerak.</string>
-	<key>NSUserTrackingUsageDescription</key>
-	<string>Ilova sizni kuzatmaydi.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>
@@ -90,7 +81,6 @@
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>tel</string>
-		<string>https</string>
 	</array>
 </dict>
 </plist>

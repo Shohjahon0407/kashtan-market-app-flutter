@@ -25,11 +25,13 @@ class StoreGrid extends StatelessWidget {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       padding: EdgeInsets.zero,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
         mainAxisSpacing: AppSpacing.lg,
         crossAxisSpacing: AppSpacing.lg,
-        childAspectRatio: 0.90,
+        childAspectRatio:
+            0.90 /
+            (MediaQuery.textScalerOf(context).scale(13) / 13).clamp(1, 2),
       ),
       itemCount: items.length + (trailingCard == null ? 0 : 1),
       itemBuilder: (context, index) {

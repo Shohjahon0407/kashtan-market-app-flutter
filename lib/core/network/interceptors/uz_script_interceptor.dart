@@ -55,6 +55,16 @@ class UzScriptRequestInterceptor extends Interceptor {
       options.queryParameters['q'] = UzbekTransliterator.toLatin(q);
     }
 
+    // Durable mutations persist the original payload before sending it.
+    // A language change must not alter that payload on a retry.
+    if (options.headers.entries.any(
+      (entry) =>
+          entry.key.toLowerCase() == 'idempotency-key' && entry.value != null,
+    )) {
+      handler.next(options);
+      return;
+    }
+
     // Yoziladigan body maydonlari
     final data = options.data;
     if (data is Map<String, dynamic>) {

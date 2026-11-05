@@ -268,4 +268,68 @@ void main() {
 
     expect(find.text('2 kilogram'), findsOneWidget);
   });
+  testWidgets(
+    'unavailable line with quantity above one can be removed directly',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await PrefsStore.load();
+      final api = _MockCartApi();
+      var removed = false;
+      final cart = _restaurantCart(3).copyWith(
+        items: [
+          CartItem(
+            id: 'osh-line',
+            product: _restaurantProduct,
+            quantity: 3,
+            selectedAddons: const [],
+            note: '',
+            subtotal: '114000.00',
+            isOrderable: false,
+            unavailableReasonCode: 'store_unavailable',
+          ),
+        ],
+      );
+      when(
+        () => api.fetch('restaurant'),
+      ).thenAnswer((_) async => removed ? CartData.empty('restaurant') : cart);
+      when(() => api.deleteItem('osh-line')).thenAnswer((_) async {
+        removed = true;
+      });
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            prefsStoreProvider.overrideWithValue(prefs),
+            authControllerProvider.overrideWith(
+              _AuthenticatedAuthController.new,
+            ),
+            cartApiProvider.overrideWithValue(api),
+            recommendationsApiProvider.overrideWithValue(
+              FakeRecommendationsApi(),
+            ),
+          ],
+          child: const MaterialApp(
+            locale: Locale('uz'),
+            supportedLocales: [Locale('uz')],
+            localizationsDelegates: [
+              AppLocalizations.delegate,
+              GlobalMaterialLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+            ],
+            home: CartScreen(storeType: StoreType.restaurant),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(CartQuantityStepper), findsNothing);
+      final remove = find.byKey(const ValueKey('remove-unavailable-osh-line'));
+      await tester.ensureVisible(remove);
+      await tester.tap(remove);
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+      expect(removed, isTrue);
+      verify(() => api.deleteItem('osh-line')).called(1);
+      verifyNever(() => api.updateQuantity(any(), any()));
+    },
+  );
 }

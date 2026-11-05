@@ -2,6 +2,26 @@ import '../../../core/config/app_config.dart';
 import '../../../core/network/json_read.dart';
 import '../../../core/store_scope/store_type.dart';
 
+class CategoryProductPreview {
+  const CategoryProductPreview({
+    required this.id,
+    required this.name,
+    required this.imageUrl,
+    this.price,
+  });
+  factory CategoryProductPreview.fromJson(Map<String, dynamic> json) =>
+      CategoryProductPreview(
+        id: JsonRead.string(json['id']),
+        name: JsonRead.string(json['name']),
+        imageUrl: AppConfig.resolveMediaUrl(
+          JsonRead.nullableString(json['image']),
+        ),
+        price: JsonRead.nullableString(json['price']),
+      );
+  final String id, name;
+  final String? imageUrl, price;
+}
+
 class ProductCategory {
   const ProductCategory({
     required this.id,
@@ -12,6 +32,7 @@ class ProductCategory {
     this.imageUrl,
     this.iconUrl,
     this.previewImageUrls = const [],
+    this.previewProducts = const [],
     this.productCount = 0,
     this.sortOrder = 0,
   });
@@ -37,6 +58,10 @@ class ProductCategory {
             .whereType<String>()
             .where((url) => url.isNotEmpty)
             .toList(growable: false),
+        previewProducts: JsonRead.list(
+          json['preview_products'],
+          CategoryProductPreview.fromJson,
+        ),
         productCount: JsonRead.integer(json['product_count']),
         sortOrder: JsonRead.integer(json['sort_order']),
       );
@@ -49,6 +74,7 @@ class ProductCategory {
   final String? imageUrl;
   final String? iconUrl;
   final List<String> previewImageUrls;
+  final List<CategoryProductPreview> previewProducts;
   final int productCount;
   final int sortOrder;
 }

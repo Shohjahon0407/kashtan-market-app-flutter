@@ -120,4 +120,30 @@ void main() {
       expect(prefs.getString('push.customer.last_token'), 'fcm-commit-token');
     },
   );
+
+  group('waitForApnsToken (iOS)', () {
+    test('token kelguncha kutadi', () async {
+      var calls = 0;
+      final ok = await waitForApnsToken(
+        () async => ++calls < 3 ? null : 'apns',
+        delay: Duration.zero,
+      );
+      expect(ok, isTrue);
+      expect(calls, 3);
+    });
+
+    test('kelmasa false, xato ham yutiladi', () async {
+      var calls = 0;
+      final ok = await waitForApnsToken(
+        () async {
+          calls++;
+          throw StateError('hali tayyor emas');
+        },
+        attempts: 4,
+        delay: Duration.zero,
+      );
+      expect(ok, isFalse);
+      expect(calls, 4);
+    });
+  });
 }

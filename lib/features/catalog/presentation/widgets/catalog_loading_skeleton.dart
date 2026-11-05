@@ -5,6 +5,33 @@ import '../../../../core/ui/theme/app_dimens.dart';
 /// Katalog ochilayotganda markazda aylanuvchi indikator o'rniga final
 /// layoutga o'xshash, animatsiyasiz placeholder. Bu GPU/CPU'ni band qilmaydi
 /// va kontent kelganda sahifa sakrashini kamaytiradi.
+class RestaurantProductListSkeletonSliver extends StatelessWidget {
+  const RestaurantProductListSkeletonSliver({this.itemCount = 3, super.key});
+  final int itemCount;
+
+  @override
+  Widget build(BuildContext context) => SliverPadding(
+    padding: const EdgeInsets.all(AppSpacing.screenH),
+    sliver: SliverList.separated(
+      itemCount: itemCount,
+      separatorBuilder: (_, _) => const SizedBox(height: 10),
+      itemBuilder: (context, _) => Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 680),
+          child: LayoutBuilder(
+            builder: (context, constraints) => SizedBox(
+              height: constraints.maxWidth * 9 / 16 + 58,
+              child: _ProductPlaceholder(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
 class CatalogGridSkeletonSliver extends StatelessWidget {
   const CatalogGridSkeletonSliver({this.itemCount = 6, super.key});
 

@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart' as url_launcher;
 
 import '../../../core/network/api_failure.dart';
+import '../../../core/storage/account_scope.dart';
 import '../../orders/data/order_models.dart';
 import '../../orders/domain/orders_controller.dart';
 import '../data/payment_models.dart';
@@ -51,57 +52,92 @@ class PaymePaymentController extends Notifier<PaymePaymentState> {
   PaymePaymentController(this.orderId);
 
   final String orderId;
+  int _epoch = 0;
+
+  bool _current(int epoch) => ref.mounted && epoch == _epoch;
 
   @override
-  PaymePaymentState build() => const PaymePaymentState();
+  PaymePaymentState build() {
+    ref.watch(accountScopeProvider);
+    _epoch++;
+    return const PaymePaymentState();
+  }
 
   /// Backend'dan payment_url oladi va tashqi brauzerda ochadi.
   Future<void> startPayment() async {
     if (!ref.read(paymeEnabledProvider) || state.busy) return;
+    final epoch = _epoch;
     state = const PaymePaymentState(phase: PaymePhase.creating);
     try {
       final result = await ref
           .read(paymentsApiProvider)
           .createPaymePayment(orderId);
-      if (!ref.mounted) return;
+      if (!_current(epoch)) return;
 
-      if (result.status == PaymentStatus.paid) {
+      if (const {
+        PaymentStatus.paid,
+        PaymentStatus.cancelled,
+        PaymentStatus.refundPending,
+        PaymentStatus.refunded,
+      }.contains(result.status)) {
         // Allaqachon to'langan — buyurtmani yangilab natijani ko'rsatamiz.
         await _refreshOrder();
-        if (!ref.mounted) return;
+        if (!_current(epoch)) return;
         state = const PaymePaymentState();
         return;
       }
 
       final uri = Uri.tryParse(result.paymentUrl);
       // Faqat https ochiladi — boshqa scheme'lar (shu jumladan http) rad etiladi.
-      if (uri == null || uri.scheme != 'https') {
+      if (uri == null ||
+          uri.scheme != 'https' ||
+          uri.userInfo.isNotEmpty ||
+          uri.hasPort ||
+          !const {'checkout.paycom.uz', 'test.paycom.uz'}.contains(uri.host)) {
         state = const PaymePaymentState(failure: UnknownFailure());
         return;
       }
-      final launched = await ref.read(paymentUrlLauncherProvider)(
-        uri,
-        mode: url_launcher.LaunchMode.externalApplication,
-      );
-      if (!ref.mounted) return;
+      final launcher = ref.read(paymentUrlLauncherProvider);
+      var launched = false;
+      // A production HTTPS checkout link can be handled by the installed
+      // Payme app. Prefer that handler, retaining the exact server URL.
+      // Sandbox must never be rewritten to a production/deep-link scheme.
+      if (uri.host == 'checkout.paycom.uz') {
+        try {
+          launched = await launcher(
+            uri,
+            mode: url_launcher.LaunchMode.externalNonBrowserApplication,
+          );
+        } on Exception {
+          // No supported app / platform launch failure: use HTTPS checkout.
+        }
+        if (!_current(epoch)) return;
+      }
+      if (!launched) {
+        launched = await launcher(
+          uri,
+          mode: url_launcher.LaunchMode.externalApplication,
+        );
+      }
+      if (!_current(epoch)) return;
       if (!launched) {
         state = const PaymePaymentState(failure: UnknownFailure());
         return;
       }
       state = const PaymePaymentState(phase: PaymePhase.awaitingReturn);
     } on NotFoundFailure catch (failure) {
-      if (!ref.mounted) return;
+      if (!_current(epoch)) return;
       state = PaymePaymentState(failure: failure, serviceUnavailable: true);
     } on NetworkFailure catch (failure) {
-      if (!ref.mounted) return;
+      if (!_current(epoch)) return;
       state = PaymePaymentState(failure: failure, serviceUnavailable: true);
     } on ApiFailure catch (failure) {
-      if (!ref.mounted) return;
+      if (!_current(epoch)) return;
       state = PaymePaymentState(failure: failure);
     } on Object {
       // Order refresh'dagi kutilmagan xato (masalan dispose bo'lgan
       // provider) — ekran ochiq bo'lsa umumiy xato, aks holda jim.
-      if (!ref.mounted) return;
+      if (!_current(epoch)) return;
       state = const PaymePaymentState(failure: UnknownFailure());
     }
   }
@@ -110,27 +146,30 @@ class PaymePaymentController extends Notifier<PaymePaymentState> {
   /// (alohida status endpoint yo'q, haqiqat `payment_status` maydonida).
   Future<void> checkStatus() async {
     if (state.busy) return;
+    final epoch = _epoch;
     state = const PaymePaymentState(phase: PaymePhase.checking);
     try {
       final order = await _refreshOrder();
-      if (!ref.mounted) return;
+      if (!_current(epoch)) return;
       final status = PaymentStatus.fromWire(order.paymentStatus);
       state = switch (status) {
         // Yakuniy holat — natija order ma'lumotidan chiziladi.
         PaymentStatus.paid ||
         PaymentStatus.failed ||
+        PaymentStatus.refundPending ||
+        PaymentStatus.refunded ||
         PaymentStatus.cancelled => const PaymePaymentState(),
         // Hali kutilmoqda — "tekshirish" tugmasi qoladi.
         _ => const PaymePaymentState(phase: PaymePhase.awaitingReturn),
       };
     } on ApiFailure catch (failure) {
-      if (!ref.mounted) return;
+      if (!_current(epoch)) return;
       state = PaymePaymentState(
         phase: PaymePhase.awaitingReturn,
         failure: failure,
       );
     } on Object {
-      if (!ref.mounted) return;
+      if (!_current(epoch)) return;
       state = const PaymePaymentState(
         phase: PaymePhase.awaitingReturn,
         failure: UnknownFailure(),

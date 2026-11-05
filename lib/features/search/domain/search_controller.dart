@@ -25,6 +25,7 @@ class SearchState {
     this.isLoading = false,
     this.isLoadingMore = false,
     this.failure,
+    this.paginationFailure,
     this.searched = false,
   });
 
@@ -36,6 +37,7 @@ class SearchState {
   final bool isLoading;
   final bool isLoadingMore;
   final ApiFailure? failure;
+  final ApiFailure? paginationFailure;
 
   /// Kamida bitta so'rov yakunlanganmi (bo'sh natijani "yozishni boshlang"
   /// holatidan ajratish uchun).
@@ -50,6 +52,7 @@ class SearchState {
     bool? isLoading,
     bool? isLoadingMore,
     ApiFailure? Function()? failure,
+    ApiFailure? Function()? paginationFailure,
     bool? searched,
   }) => SearchState(
     query: query ?? this.query,
@@ -58,6 +61,9 @@ class SearchState {
     isLoading: isLoading ?? this.isLoading,
     isLoadingMore: isLoadingMore ?? this.isLoadingMore,
     failure: failure != null ? failure() : this.failure,
+    paginationFailure: paginationFailure != null
+        ? paginationFailure()
+        : this.paginationFailure,
     searched: searched ?? this.searched,
   );
 }
@@ -99,6 +105,8 @@ class ProductSearchController extends Notifier<SearchState> {
     state = state.copyWith(
       query: trimmed,
       isLoading: true,
+      isLoadingMore: false,
+      paginationFailure: () => null,
       failure: () => null,
     );
 
@@ -115,7 +123,7 @@ class ProductSearchController extends Notifier<SearchState> {
         ProductSummary.fromJson,
       );
       // Javob kelguncha so'rov almashgan bo'lsa natijani tashlaymiz.
-      if (state.query != trimmed) return;
+      if (!ref.mounted || _inFlight != token || token.isCancelled) return;
       state = state.copyWith(
         items: page.items,
         nextUrl: () => page.nextUrl,
@@ -126,7 +134,7 @@ class ProductSearchController extends Notifier<SearchState> {
     } on CancelledFailure {
       // Yangi so'rov eskisini bekor qildi — hech narsa qilmaymiz.
     } on ApiFailure catch (failure) {
-      if (state.query != trimmed) return;
+      if (!ref.mounted || _inFlight != token || token.isCancelled) return;
       state = state.copyWith(
         isLoading: false,
         searched: true,
@@ -143,29 +151,32 @@ class ProductSearchController extends Notifier<SearchState> {
     // yopilgach javob kelib `state` ga tegmaydi.
     final token = CancelToken();
     _inFlight = token;
-    state = state.copyWith(isLoadingMore: true);
+    state = state.copyWith(isLoadingMore: true, paginationFailure: () => null);
     try {
       final data = await ref
           .read(apiClientProvider)
           .getUrl(next, cancelToken: token);
-      if (!ref.mounted) return;
+      if (!ref.mounted || _inFlight != token || token.isCancelled) return;
       final page = PageDecoder.cursor<ProductSummary>(
         data,
         ProductSummary.fromJson,
       );
       state = state.copyWith(
-        items: [...state.items, ...page.items],
+        items: {
+          for (final item in [...state.items, ...page.items]) item.id: item,
+        }.values.toList(),
         nextUrl: () => page.nextUrl,
         isLoadingMore: false,
       );
     } on CancelledFailure {
-      if (!ref.mounted) return;
+      if (!ref.mounted || _inFlight != token || token.isCancelled) return;
       state = state.copyWith(isLoadingMore: false);
-    } on ApiFailure {
-      if (!ref.mounted) return;
-      // Keyingi sahifa xatosi jim yutilmaydi ham, ro'yxatni buzmaydi ham —
-      // scroll qayta urinish imkonini beradi.
-      state = state.copyWith(isLoadingMore: false);
+    } on ApiFailure catch (failure) {
+      if (!ref.mounted || _inFlight != token || token.isCancelled) return;
+      state = state.copyWith(
+        isLoadingMore: false,
+        paginationFailure: () => failure,
+      );
     }
   }
 }

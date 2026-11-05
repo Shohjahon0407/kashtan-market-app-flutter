@@ -30,7 +30,10 @@ void main() {
             ],
             builder: (context, state) => BackNavigationGuard(
               child: Scaffold(
-                appBar: AppBar(title: Text(path)),
+                appBar: AppBar(
+                  leading: const AppBackButton(),
+                  title: Text(path),
+                ),
                 body: TextButton(
                   onPressed: () => showDialog<void>(
                     context: context,
@@ -75,6 +78,15 @@ void main() {
     expect(back.location, '/');
     expect(await back.back(), isFalse);
     await tester.pumpAndSettle();
+  });
+
+  testWidgets('visible back on a direct link falls back to Home', (
+    tester,
+  ) async {
+    final router = await mount(tester, initial: '/profile');
+    await tester.tap(find.byKey(const ValueKey('app-back-button')));
+    await tester.pumpAndSettle();
+    expect(AppBackCoordinator.of(router).location, '/');
   });
 
   testWidgets('direct link falls back to Home; dialog closes first', (

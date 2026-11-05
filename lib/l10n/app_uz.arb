@@ -1,4 +1,47 @@
 {
+  "shashlikCartUpdated": "Savat yangilandi",
+  "shashlikSaveQuantity": "Miqdorni saqlash",
+  "shashlikChooseQuantity": "Miqdorni tanlash",
+  "shashlikPieceUnit": "dona",
+  "shashlikKilogramUnit": "kilogram",
+  "cartItemsInCartTitle": "{count} ta tovar savatda",
+  "@cartItemsInCartTitle": {"placeholders": {"count": {"type": "int"}}},
+  "cartCheckoutAction": "Rasmiylashtirish",
+  "cartOrderSummaryTitle": "Buyurtmangiz",
+  "cartItemsLine": "{count} ta tovar",
+  "@cartItemsLine": {"placeholders": {"count": {"type": "int"}}},
+  "cartDiscount": "Chegirma",
+  "cartPerUnit": "{price}/dona",
+  "@cartPerUnit": {"placeholders": {"price": {"type": "String"}}},
+  "deliveryEstimateTitle": "Taxminiy yetkazish vaqti",
+  "deliveryEstimateAvailabilityHint": "Mahsulot mavjudligiga qarab aniqlashtiriladi",
+  "cartMinimumHint": "Yetkazish uchun minimal buyurtma — yana {amount}",
+  "@cartMinimumHint": {"placeholders": {"amount": {"type": "String"}}},
+  "checkoutReceiveMethod": "Olish usuli",
+  "checkoutCourier": "Kuryer",
+  "checkoutPickupFree": "bepul",
+  "checkoutChooseAddressHint": "manzil tanlang",
+  "checkoutChangeOther": "Boshqasini tanlash",
+  "checkoutChooseAddressAction": "Manzil tanlash",
+  "checkoutDeliveryAddressLabel": "Yetkazib berish manzili",
+  "checkoutPickupStoreLabel": "Do'kondan olib ketish",
+  "checkoutQuoteCalculating": "Yetkazish narxi hisoblanmoqda…",
+  "checkoutRecipient": "Oluvchi",
+  "checkoutRecipientName": "Ism",
+  "checkoutRecipientPhone": "Telefon raqami",
+  "checkoutRecipientSave": "Saqlash",
+  "checkoutRecipientReset": "O'zimga",
+  "checkoutRecipientPhoneInvalid": "Telefon raqamini to'g'ri kiriting",
+  "checkoutPickupReadyHint": "Tayyor bo'lgach xabar beramiz",
+  "checkoutPaymentType": "To'lov turi",
+  "checkoutOrderSummary": "Sizning buyurtmangiz",
+  "checkoutPayOnReceive": "Olinganda to'lanadi",
+  "checkoutPayOnReceiveCaption": "Kuryerga yoki do'konda naqd pul bilan",
+  "checkoutPayOnlineCaption": "Payme — UZCARD, HUMO, Visa, Mastercard",
+  "checkoutPayWithPayme": "Payme orqali to'lash",
+  "checkoutDeliveryFree": "Bepul",
+  "checkoutTotal": "Jami",
+  "checkoutMinimumTitle": "Minimal buyurtma summasiga yetmadi",
   "cartContinueOrder": "Buyurtmani davom ettirish",
   "cartSelectDeliveryAddress": "Yetkazish manzilini tanlash",
   "cartMinimumRecommendations": "Minimumni to‘ldirish uchun",
@@ -14,9 +57,15 @@
   "checkoutReviewTitle": "Buyurtmani tekshiring",
   "checkoutProductsSummary": "{count} ta mahsulot",
   "checkoutEditCart": "Savatni tahrirlash",
-  "checkoutCartChanged": "Savat yoki yetkazish shartlari o‘zgardi. Davom etishdan oldin qayta tekshiring.",
+  "checkoutCartChanged": "Savat o‘zgardi. Tarkibi va summasini tekshirib, qayta tasdiqlang.",
   "checkoutReceiptOpen": "Mahsulotlarni ko‘rish",
-  "@checkoutProductsSummary": {"placeholders": {"count": {"type": "int"}}},
+  "@checkoutProductsSummary": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "deliveryAddressTitle": "Yetkazib berish manzili",
   "deliveryAddressSubtitle": "Buyurtma qayerga yetkazilsin?",
   "deliveryAddressSavedHint": "Buyurtma uchun saqlangan manzilni tanlang.",
@@ -30,13 +79,13 @@
   "deliveryAddressGpsHint": "GPS bo‘lmasa ham saqlangan manzilni tanlashingiz mumkin.",
   "checkoutMinimumIncludesDelivery": "Mahsulotlar va yetkazish narxi birga hisoblanadi.",
   "checkoutMinimumNeedsAddress": "Yetkazish narxini hisoblash uchun manzilni tanlang.",
-  "addressCoverageLoading": "Yetkazish hududi yuklanmoqda…",
+  "addressCoverageLoading": "Xarita ma’lumotlari yuklanmoqda…",
   "addressRadiusLimit": "Nuqtani yashil doira ichida tanlang. Hududdan tashqaridagi manzilni tasdiqlab bo‘lmaydi.",
   "addressAddTitle": "Yangi manzil qo‘shish",
   "addressEditTitle": "Manzilni tahrirlash",
   "addressSelectPoint": "Yetkazish nuqtasini belgilang",
   "addressMapHelp": "Manzilni qanday tanlash mumkin?",
-  "addressMapHelpBody": "GPS tugmasini bosing yoki xaritani surib aniq nuqtani belgilang. Uy yoki ishxonani tanlab, kuryer uchun kirish yo‘li va eshik kodini yozishingiz mumkin. Nuqta faqat tasdiqlaganingizdan keyin saqlanadi. Radius filial hududining ko‘rinishi; yetkazish imkoniyati va narxi checkout’da tekshiriladi.",
+  "addressMapHelpBody": "GPS tugmasini bosing yoki xaritani surib istalgan joydagi nuqtani belgilang. Uy yoki ishxonani tanlab, kuryer uchun kirish yo‘li va eshik kodini yozishingiz mumkin. Manzil faqat tasdiqlaganingizdan keyin saqlanadi. Yetkazish imkoniyati va narxi buyurtmani rasmiylashtirishda tekshiriladi.",
   "addressTypeHome": "Uy",
   "addressTypeWork": "Ishxona",
   "addressTypeOther": "Boshqa",
@@ -52,14 +101,26 @@
   "categorySearchFallback": "Bu kategoriyada topilmadi. Xozmakning boshqa kategoriyalaridagi natijalar:",
   "appUpdateTitle": "Yangilanish mavjud",
   "appUpdateBody": "Ilovaning {version} versiyasi chiqdi. Yangi imkoniyatlar va yaxshilanishlardan foydalanish uchun yangilang.",
-  "@appUpdateBody": {"placeholders": {"version": {"type": "String"}}},
+  "@appUpdateBody": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
   "appUpdateDownload": "Yuklab olish",
   "appUpdateLater": "Keyinroq",
-  "appUpdateOpenFailed": "Google Play’ni ochib bo‘lmadi. Qayta urinib ko‘ring yoki keyinroq yangilang.",
+  "appUpdateOpenFailed": "Ilovalar do‘konini ochib bo‘lmadi. Qayta urinib ko‘ring yoki keyinroq yangilang.",
   "checkoutAddressActionHint": "Buyurtma qayerga yetkazilishini tanlang",
   "checkoutReceiptTitle": "Mahsulotlar cheki",
   "checkoutCartCount": "{count} ta mahsulot",
-  "@checkoutCartCount": {"placeholders": {"count": {"type": "int"}}},
+  "@checkoutCartCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "checkoutOptional": "Ixtiyoriy",
   "checkoutPaymentHint": "Qulay usulni tanlang",
   "checkoutPayOnline": "Onlayn to‘lov",
@@ -96,16 +157,22 @@
   "commonEmpty": "Hozircha bo'sh",
   "commonYes": "Ha",
   "commonNo": "Yo'q",
-  "offlineBanner": "Offline rejim",
-  "connectionServerUnavailable": "Serverga ulanib bo‘lmadi",
-  "offlineStaleData": "eski ma'lumotlar",
-  "errorNetwork": "Internet aloqasi yo'q. Ulanishni tekshiring.",
+  "offlineBanner": "Internet yo‘q",
+  "connectionServerUnavailable": "Hozir ulanib bo‘lmadi",
+  "offlineStaleData": "Saqlangan ma’lumotlar",
+  "offlineMenuSaving": "Menyu saqlanmoqda: {done}/{total}",
+  "@offlineMenuSaving": {"placeholders": {"done": {"type": "int"}, "total": {"type": "int"}}},
+  "offlineMenuReady": "Menyu telefonga saqlandi · Internetsiz ko‘rish mumkin",
+  "offlineMenuPartial": "Menyu hali to‘liq saqlanmagan. Internetga ulanganda davom etadi.",
+  "offlineMenuWaiting": "Menyu internet borida telefonga saqlanadi.",
+  "errorNetwork": "Internetga ulanib bo‘lmadi. Ulanishni tekshirib, qayta urinib ko‘ring.",
+  "errorNetworkSlow": "Yuklash cho‘zilib ketdi. Internetni tekshirib, qayta urinib ko‘ring.",
   "@errorNetwork": {
     "description": "Tarmoq xatosi"
   },
-  "errorServer": "Serverda xatolik yuz berdi. Birozdan so'ng urinib ko'ring.",
-  "errorUnknown": "Kutilmagan xatolik yuz berdi.",
-  "errorSessionExpired": "Sessiya muddati tugadi. Qaytadan kiring.",
+  "errorServer": "Hozircha amalga oshirib bo‘lmadi. Birozdan so‘ng qayta urinib ko‘ring.",
+  "errorUnknown": "Amalni bajarib bo‘lmadi. Qayta urinib ko‘ring.",
+  "errorSessionExpired": "Davom etish uchun ilovaga qaytadan kiring.",
   "errorThrottled": "Juda ko'p urinish. Biroz kuting.",
   "errorNotFound": "Topilmadi.",
   "errorForbidden": "Bu amalga ruxsat yo'q.",
@@ -184,26 +251,70 @@
   "shashlikOptionKiloMince": "Kilolik qiyma",
   "shashlikChooseProduct": "Mahsulot turini va miqdorini tanlang",
   "shashlikQuantity": "Miqdor",
+  "shashlikQuantityHint": "Miqdorni surib tanlang yoki raqamni bosib kiriting",
+  "shashlikQuantityInvalid": "1 dan 999 999 gacha butun son kiriting",
   "shashlikAddToCart": "Savatga qo‘shish",
   "shashlikPriceFrom": "{price} dan",
-  "@shashlikPriceFrom": {"placeholders": {"price": {"type": "String"}}},
+  "@shashlikPriceFrom": {
+    "placeholders": {
+      "price": {
+        "type": "String"
+      }
+    }
+  },
   "shashlikKilogramPrice": "Kilogrammi {price}",
-  "@shashlikKilogramPrice": {"placeholders": {"price": {"type": "String"}}},
+  "@shashlikKilogramPrice": {
+    "placeholders": {
+      "price": {
+        "type": "String"
+      }
+    }
+  },
   "shashlikPieceQuantity": "{count, plural, =1 {1 dona} other {{count} dona}}",
-  "@shashlikPieceQuantity": {"placeholders": {"count": {"type": "int"}}},
+  "@shashlikPieceQuantity": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "shashlikKilogramQuantity": "{count, plural, =1 {1 kilogram} other {{count} kilogram}}",
-  "@shashlikKilogramQuantity": {"placeholders": {"count": {"type": "int"}}},
+  "@shashlikKilogramQuantity": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "shashlikInCart": "Savatda: {count} ta",
-  "@shashlikInCart": {"placeholders": {"count": {"type": "int"}}},
+  "@shashlikInCart": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "cartTitle": "Savat",
   "cartEmpty": "Savat bo'sh",
   "cartEmptyNow": "Savat hozircha bo‘sh",
   "cartRecommendationsTitle": "Kerak bo‘lib qolishi mumkin",
   "mapAttributionTitle": "Xarita manbalari",
   "checkoutDeliveryMinimum": "Yetkazish uchun minimal buyurtma: {amount}",
-  "@checkoutDeliveryMinimum": {"placeholders": {"amount": {"type": "String"}}},
+  "@checkoutDeliveryMinimum": {
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
   "checkoutMinimumRemaining": "Minimal buyurtmagacha yana {amount}",
-  "@checkoutMinimumRemaining": {"placeholders": {"amount": {"type": "String"}}},
+  "@checkoutMinimumRemaining": {
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
   "checkoutMinimumReached": "Minimal buyurtma summasi to‘plandi",
   "checkoutAddProducts": "Mahsulot qo‘shish",
   "cartEmptyStore": "savat bo'sh",
@@ -227,7 +338,9 @@
   "profileAppVersion": "Versiya {version}",
   "@profileAppVersion": {
     "placeholders": {
-      "version": {"type": "String"}
+      "version": {
+        "type": "String"
+      }
     }
   },
   "profileDeleteAccount": "Hisobni o'chirish",
@@ -318,6 +431,8 @@
   "catalogEmpty": "Bu do'konda hozircha mahsulot yo'q",
   "catalogSearchHint": "Shu do'kondan qidiring",
   "catalogCategoryFilter": "Kategoriyalar",
+  "householdSearchHint": "Xozmakdan qidirish",
+  "householdCategorySearchHint": "Kategoriya qidirish",
   "householdSectionHomeTools": "Uy, qurilish va ustachilik",
   "householdSectionTechTransport": "Texnika va transport",
   "householdSectionKitchenLiving": "Oshxona va ro‘zg‘or",
@@ -336,6 +451,9 @@
   "productUnavailable": "Hozir xarid qilib bo'lmaydi",
   "productSoldOut": "Tugadi",
   "productSoldOutDetail": "Bu taom hozircha tugagan.",
+  "paymeAwaitingPayment": "To‘lov kutilmoqda",
+  "paymePaymentRefundPending": "Buyurtma bekor qilindi. Pul qaytarilishi kutilmoqda.",
+  "paymePaymentRefunded": "Pul qaytarildi",
   "paymePayButton": "Payme orqali to'lash",
   "paymeCheckPayment": "To'lovni tekshirish",
   "paymeUnavailable": "Payme orqali to'lov xizmati vaqtincha mavjud emas",
@@ -370,7 +488,13 @@
   "homeForYou": "Siz uchun",
   "homeForYouSubtitle": "Qiziqishlaringizga qarab tanladik",
   "catalogSimilarTo": "«{name}»ga o'xshashlar",
-  "@catalogSimilarTo": {"placeholders": {"name": {"type": "String"}}},
+  "@catalogSimilarTo": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "productVariant": "Variantni tanlang",
   "productAddons": "Qo'shimchalar",
   "productRequired": "Majburiy",
@@ -440,6 +564,9 @@
   "orderCourier": "Kuryer",
   "orderCancel": "Buyurtmani bekor qilish",
   "orderCancelConfirm": "Buyurtmani bekor qilmoqchimisiz?",
+  "orderCancelCallCourier": "Kuryer buyurtmangizni olib yo‘lga chiqdi. Bekor qilish uchun kuryerga qo‘ng‘iroq qiling.",
+  "orderCancelCallAction": "Kuryerga qo‘ng‘iroq qilish",
+  "orderCourierPhoneUnavailable": "Kuryer telefon raqami hozircha mavjud emas.",
   "unsupportedStoreTitle": "Noma'lum do'kon",
   "unsupportedStoreMessage": "Bu do'kon turi ilova tomonidan qo'llanmaydi.",
   "unsupportedStoreBack": "Bosh sahifaga qaytish",
@@ -517,10 +644,22 @@
   "orderDeliveryWindowTitle": "Yetkazib beradigan vaqtimiz",
   "orderDeliveryWindowPending": "Kuryer tasdiqlagach aniqlanadi",
   "orderDeliveredAt": "Yetkazildi · {time}",
-  "@orderDeliveredAt": {"placeholders": {"time": {"type": "String"}}},
+  "@orderDeliveredAt": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
   "orderSummaryTitle": "Buyurtma tafsilotlari",
   "orderSummaryProducts": "{count} ta mahsulot",
-  "@orderSummaryProducts": {"placeholders": {"count": {"type": "int"}}},
+  "@orderSummaryProducts": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "orderDeliveryDetails": "Yetkazish tafsilotlari",
   "orderRecipientPhone": "Oluvchining raqami",
   "orderPaymentMethodLabel": "To'lov usuli",
@@ -587,7 +726,13 @@
   "ugcBlockedUsers": "Bloklangan foydalanuvchilar",
   "ugcBlockedUsersEmpty": "Bloklangan foydalanuvchilar yo'q",
   "ugcBlockConfirmation": "{name} foydalanuvchisini bloklaysizmi? Uning public izoh va sharhlari sizga ko'rinmaydi.",
-  "@ugcBlockConfirmation": {"placeholders": {"name": {"type": "String"}}},
+  "@ugcBlockConfirmation": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "checkoutDeliveryMapTitle": "Yetkazish xaritasi",
   "checkoutMapStore": "Do‘kon",
   "checkoutMapAddress": "Yetkazish manzili",
@@ -603,11 +748,11 @@
   "checkoutGpsStale": "GPS nuqtasi eskirgan. Joylashuvni qayta aniqlang yoki manzilni qo‘lda tanlang.",
   "checkoutGpsApproximate": "Joylashuv taxminiy. Telefoningizda aniq lokatsiyani yoqing yoki GPS’ni qayta tekshiring.",
   "checkoutGpsSettings": "Sozlamalarni ochish",
-  "checkoutMapTilesUnavailable": "Xarita rasmlari yuklanmadi. Markerlar va radius ishlaydi.",
-  "checkoutMapCoverageUnavailable": "Yetkazish hududini yuklab bo‘lmadi.",
+  "checkoutMapTilesUnavailable": "Xarita rasmlari yuklanmadi. Manzil belgilari ishlaydi.",
+  "checkoutMapCoverageUnavailable": "Filialni xaritada ko‘rsatib bo‘lmadi. Saqlangan manzilni tanlashingiz mumkin.",
   "checkoutCoverageRadius": "Yetkazish radiusi: {radius} km",
   "checkoutOutsideRadius": "Manzil {radius} km yetkazish radiusidan tashqarida. Boshqa manzil yoki olib ketishni tanlang.",
-  "checkoutTariffUnavailable": "Bu masofa uchun yetkazish tarifi sozlanmagan.",
+  "checkoutTariffUnavailable": "Bu manzil uchun yetkazish narxi hozircha aniqlanmadi.",
   "checkoutMapPreviewHint": "Bu filial hududi ko‘rinishi. Buyurtma uchun yetkazish manzilini tanlang.",
   "@checkoutCoverageRadius": {
     "placeholders": {
@@ -622,5 +767,14 @@
         "type": "String"
       }
     }
-  }
+  },
+  "cartUnavailable": "Bu mahsulot hozir buyurtma uchun mavjud emas. Uni savatdan olib tashlang.",
+  "cartVariantUnavailable": "Tanlangan variant mavjud emas. Mahsulotni qayta tanlang.",
+  "cartAddonsUnavailable": "Tanlangan qo‘shimchalar mavjud emas. Mahsulotni qayta tanlang.",
+  "orderCancellationUnavailable": "Bu buyurtmani endi bekor qilib bo‘lmaydi. Buyurtma holatini yangilang.",
+  "errorValidation": "Ma’lumotlarni tekshirib, qayta urinib ko‘ring.",
+  "checkoutResumePending": "Oldingi buyurtma natijasini tekshirish kerak. Davom eting.",
+  "catalogSwipeProducts": "Yonga suring",
+  "storeSwitchTitle": "Do‘konni almashtirish",
+  "storeSwitchKeepsCart": "Har bir do‘kondagi savatingiz va tanlovlaringiz saqlanadi."
 }

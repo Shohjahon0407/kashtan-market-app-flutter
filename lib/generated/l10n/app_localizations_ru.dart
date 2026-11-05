@@ -9,6 +9,133 @@ class AppLocalizationsRu extends AppLocalizations {
   AppLocalizationsRu([String locale = 'ru']) : super(locale);
 
   @override
+  String get shashlikCartUpdated => 'Корзина обновлена';
+
+  @override
+  String get shashlikSaveQuantity => 'Сохранить количество';
+
+  @override
+  String get shashlikChooseQuantity => 'Выбрать количество';
+
+  @override
+  String get shashlikPieceUnit => 'шт.';
+
+  @override
+  String get shashlikKilogramUnit => 'кг';
+
+  @override
+  String cartItemsInCartTitle(int count) {
+    return '$count товар(ов) в корзине';
+  }
+
+  @override
+  String get cartCheckoutAction => 'Оформить';
+
+  @override
+  String get cartOrderSummaryTitle => 'Ваш заказ';
+
+  @override
+  String cartItemsLine(int count) {
+    return '$count товар(ов)';
+  }
+
+  @override
+  String get cartDiscount => 'Скидка';
+
+  @override
+  String cartPerUnit(String price) {
+    return '$price/шт';
+  }
+
+  @override
+  String get deliveryEstimateTitle => 'Ориентировочный срок доставки';
+
+  @override
+  String get deliveryEstimateAvailabilityHint =>
+      'Уточняется с учётом наличия товаров';
+
+  @override
+  String cartMinimumHint(String amount) {
+    return 'Минимальный заказ для доставки — ещё $amount';
+  }
+
+  @override
+  String get checkoutReceiveMethod => 'Способ получения';
+
+  @override
+  String get checkoutCourier => 'Курьер';
+
+  @override
+  String get checkoutPickupFree => 'бесплатно';
+
+  @override
+  String get checkoutChooseAddressHint => 'выберите адрес';
+
+  @override
+  String get checkoutChangeOther => 'Выбрать другой';
+
+  @override
+  String get checkoutChooseAddressAction => 'Выбрать адрес';
+
+  @override
+  String get checkoutDeliveryAddressLabel => 'Адрес доставки';
+
+  @override
+  String get checkoutPickupStoreLabel => 'Самовывоз из магазина';
+
+  @override
+  String get checkoutQuoteCalculating => 'Рассчитываем стоимость доставки…';
+
+  @override
+  String get checkoutRecipient => 'Получатель';
+
+  @override
+  String get checkoutRecipientName => 'Имя';
+
+  @override
+  String get checkoutRecipientPhone => 'Номер телефона';
+
+  @override
+  String get checkoutRecipientSave => 'Сохранить';
+
+  @override
+  String get checkoutRecipientReset => 'Мне';
+
+  @override
+  String get checkoutRecipientPhoneInvalid => 'Введите корректный номер';
+
+  @override
+  String get checkoutPickupReadyHint => 'Сообщим, когда заказ будет готов';
+
+  @override
+  String get checkoutPaymentType => 'Способ оплаты';
+
+  @override
+  String get checkoutOrderSummary => 'Ваш заказ';
+
+  @override
+  String get checkoutPayOnReceive => 'Оплата при получении';
+
+  @override
+  String get checkoutPayOnReceiveCaption => 'Наличными курьеру или в магазине';
+
+  @override
+  String get checkoutPayOnlineCaption =>
+      'Payme — UZCARD, HUMO, Visa, Mastercard';
+
+  @override
+  String get checkoutPayWithPayme => 'Оплатить через Payme';
+
+  @override
+  String get checkoutDeliveryFree => 'Бесплатно';
+
+  @override
+  String get checkoutTotal => 'Итого';
+
+  @override
+  String get checkoutMinimumTitle => 'Не набрана минимальная сумма заказа';
+
+  @override
   String get cartContinueOrder => 'Продолжить оформление';
 
   @override
@@ -68,7 +195,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get checkoutCartChanged =>
-      'Корзина или условия доставки изменились. Проверьте их перед продолжением.';
+      'Корзина изменилась. Проверьте состав и сумму и подтвердите снова.';
 
   @override
   String get checkoutReceiptOpen => 'Посмотреть товары';
@@ -118,7 +245,7 @@ class AppLocalizationsRu extends AppLocalizations {
       'Выберите адрес, чтобы рассчитать доставку.';
 
   @override
-  String get addressCoverageLoading => 'Загружаем зону доставки…';
+  String get addressCoverageLoading => 'Загружаем данные карты…';
 
   @override
   String get addressRadiusLimit =>
@@ -138,7 +265,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get addressMapHelpBody =>
-      'Нажмите GPS или передвиньте карту, чтобы указать точку. Выберите дом или работу и оставьте курьеру ориентир или код домофона. Адрес сохранится только после подтверждения. Радиус показывает зону филиала; возможность и стоимость доставки проверяются при оформлении.';
+      'Нажмите GPS или передвиньте карту, чтобы выбрать любую точку. Выберите дом или работу и оставьте курьеру ориентир или код домофона. Адрес сохранится только после подтверждения. Возможность и стоимость доставки проверяются при оформлении заказа.';
 
   @override
   String get addressTypeHome => 'Дом';
@@ -198,7 +325,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get appUpdateOpenFailed =>
-      'Не удалось открыть Google Play. Попробуйте ещё раз или обновите приложение позже.';
+      'Не удалось открыть магазин приложений. Попробуйте ещё раз или обновите приложение позже.';
 
   @override
   String get checkoutAddressActionHint => 'Выберите, куда доставить заказ';
@@ -313,26 +440,50 @@ class AppLocalizationsRu extends AppLocalizations {
   String get commonNo => 'Нет';
 
   @override
-  String get offlineBanner => 'Офлайн режим';
+  String get offlineBanner => 'Нет интернета';
 
   @override
-  String get connectionServerUnavailable => 'Не удалось подключиться к серверу';
+  String get connectionServerUnavailable => 'Пока не удалось подключиться';
 
   @override
-  String get offlineStaleData => 'устаревшие данные';
+  String get offlineStaleData => 'Сохранённые данные';
+
+  @override
+  String offlineMenuSaving(int done, int total) {
+    return 'Сохраняем меню: $done/$total';
+  }
+
+  @override
+  String get offlineMenuReady =>
+      'Меню сохранено на телефоне · Доступно без интернета';
+
+  @override
+  String get offlineMenuPartial =>
+      'Меню сохранено не полностью. Загрузка продолжится при подключении к интернету.';
+
+  @override
+  String get offlineMenuWaiting =>
+      'Меню сохранится на телефоне при подключении к интернету.';
 
   @override
   String get errorNetwork =>
-      'Нет подключения к интернету. Проверьте соединение.';
+      'Не удалось подключиться к интернету. Проверьте соединение и попробуйте ещё раз.';
 
   @override
-  String get errorServer => 'Ошибка сервера. Попробуйте позже.';
+  String get errorNetworkSlow =>
+      'Загрузка заняла слишком много времени. Проверьте интернет и попробуйте ещё раз.';
 
   @override
-  String get errorUnknown => 'Произошла непредвиденная ошибка.';
+  String get errorServer =>
+      'Пока не удалось выполнить действие. Попробуйте ещё раз немного позже.';
 
   @override
-  String get errorSessionExpired => 'Сессия истекла. Войдите заново.';
+  String get errorUnknown =>
+      'Не удалось выполнить действие. Попробуйте ещё раз.';
+
+  @override
+  String get errorSessionExpired =>
+      'Чтобы продолжить, войдите в приложение снова.';
 
   @override
   String get errorThrottled => 'Слишком много попыток. Подождите немного.';
@@ -513,6 +664,13 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get shashlikQuantity => 'Количество';
+
+  @override
+  String get shashlikQuantityHint =>
+      'Прокрутите для выбора или нажмите число для ввода';
+
+  @override
+  String get shashlikQuantityInvalid => 'Введите целое число от 1 до 999 999';
 
   @override
   String get shashlikAddToCart => 'Добавить в корзину';
@@ -831,6 +989,12 @@ class AppLocalizationsRu extends AppLocalizations {
   String get catalogCategoryFilter => 'Категории';
 
   @override
+  String get householdSearchHint => 'Поиск в Xozmak';
+
+  @override
+  String get householdCategorySearchHint => 'Поиск категории';
+
+  @override
   String get householdSectionHomeTools => 'Дом, ремонт и инструменты';
 
   @override
@@ -883,6 +1047,16 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get productSoldOutDetail => 'Это блюдо сейчас закончилось.';
+
+  @override
+  String get paymeAwaitingPayment => 'Ожидаем оплату';
+
+  @override
+  String get paymePaymentRefundPending =>
+      'Заказ отменён. Ожидается возврат денег.';
+
+  @override
+  String get paymePaymentRefunded => 'Деньги возвращены';
 
   @override
   String get paymePayButton => 'Оплатить через Payme';
@@ -1184,6 +1358,17 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get orderCancelConfirm => 'Отменить заказ?';
+
+  @override
+  String get orderCancelCallCourier =>
+      'Курьер забрал заказ и уже в пути. Для отмены позвоните курьеру.';
+
+  @override
+  String get orderCancelCallAction => 'Позвонить курьеру';
+
+  @override
+  String get orderCourierPhoneUnavailable =>
+      'Номер телефона курьера пока недоступен.';
 
   @override
   String get unsupportedStoreTitle => 'Неизвестный магазин';
@@ -1707,11 +1892,11 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get checkoutMapTilesUnavailable =>
-      'Карта не загрузилась. Метки и радиус доступны.';
+      'Не загрузились изображения карты. Метки адресов работают.';
 
   @override
   String get checkoutMapCoverageUnavailable =>
-      'Не удалось загрузить зону доставки.';
+      'Не удалось показать филиал на карте. Вы можете выбрать сохранённый адрес.';
 
   @override
   String checkoutCoverageRadius(String radius) {
@@ -1725,9 +1910,42 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get checkoutTariffUnavailable =>
-      'Для этого расстояния не настроен тариф доставки.';
+      'Пока не удалось определить стоимость доставки по этому адресу.';
 
   @override
   String get checkoutMapPreviewHint =>
       'Это предварительный просмотр зоны филиала. Выберите адрес доставки для заказа.';
+
+  @override
+  String get cartUnavailable =>
+      'Этот товар сейчас недоступен для заказа. Удалите его из корзины.';
+
+  @override
+  String get cartVariantUnavailable =>
+      'Выбранный вариант недоступен. Выберите товар заново.';
+
+  @override
+  String get cartAddonsUnavailable =>
+      'Выбранные дополнения недоступны. Выберите товар заново.';
+
+  @override
+  String get orderCancellationUnavailable =>
+      'Этот заказ уже нельзя отменить. Обновите статус заказа.';
+
+  @override
+  String get errorValidation => 'Проверьте данные и попробуйте снова.';
+
+  @override
+  String get checkoutResumePending =>
+      'Нужно проверить результат предыдущего заказа. Продолжите.';
+
+  @override
+  String get catalogSwipeProducts => 'Листайте вбок';
+
+  @override
+  String get storeSwitchTitle => 'Сменить магазин';
+
+  @override
+  String get storeSwitchKeepsCart =>
+      'Корзина и выбранные параметры каждого магазина сохранятся.';
 }

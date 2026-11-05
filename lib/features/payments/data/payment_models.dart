@@ -35,6 +35,8 @@ enum PaymentStatus {
   paid('paid'),
   failed('failed'),
   cancelled('cancelled'),
+  refundPending('refund_pending'),
+  refunded('refunded'),
   unknown('');
 
   const PaymentStatus(this.wire);
@@ -42,6 +44,7 @@ enum PaymentStatus {
   final String wire;
 
   static PaymentStatus fromWire(String? value) {
+    if (value == 'unpaid') return PaymentStatus.pending;
     for (final status in PaymentStatus.values) {
       if (status != PaymentStatus.unknown && status.wire == value) {
         return status;
@@ -61,13 +64,20 @@ class PaymePaymentCreateResult {
 
   factory PaymePaymentCreateResult.fromJson(Map<String, dynamic> json) {
     final paymentUrl = JsonRead.string(json['payment_url']);
-    if (paymentUrl.isEmpty) {
+    final status = PaymentStatus.fromWire(JsonRead.string(json['status']));
+    if (paymentUrl.isEmpty &&
+        !const {
+          PaymentStatus.paid,
+          PaymentStatus.cancelled,
+          PaymentStatus.refundPending,
+          PaymentStatus.refunded,
+        }.contains(status)) {
       throw const UnknownFailure.malformed("Payme javobida payment_url yo'q");
     }
     return PaymePaymentCreateResult(
       paymentId: JsonRead.string(json['payment_id']),
       paymentUrl: paymentUrl,
-      status: PaymentStatus.fromWire(JsonRead.string(json['status'])),
+      status: status,
     );
   }
 

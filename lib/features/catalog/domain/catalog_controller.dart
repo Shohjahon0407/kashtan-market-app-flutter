@@ -17,6 +17,7 @@ import '../data/catalog_api.dart';
 import '../data/catalog_product_images.dart';
 import '../data/product_models.dart';
 import '../data/product_review_models.dart';
+import '../data/restaurant_offline_repository.dart';
 
 final catalogApiProvider = Provider<CatalogApi>(
   (ref) => CatalogApi(
@@ -25,6 +26,7 @@ final catalogApiProvider = Provider<CatalogApi>(
     cacheKeySuffix: ref.watch(cacheKeySuffixProvider),
     sessionSeed: ref.watch(catalogSessionSeedProvider),
     recoSession: () => ref.read(catalogRecoSessionProvider),
+    offline: ref.watch(restaurantOfflineRepositoryProvider),
   ),
 );
 
@@ -166,6 +168,13 @@ class CatalogController extends AsyncNotifier<CatalogState> {
     // chaqirish rebuild siklini keltirib chiqaradi) — shuning uchun API
     // await'lardan OLDIN olinadi.
     final api = ref.watch(catalogApiProvider);
+    if (storeType == StoreType.restaurant) {
+      ref.listen(restaurantOfflineRevisionProvider, (previous, next) {
+        if (previous != next && !state.isLoading) {
+          unawaited(refresh(resetDisclosure: false));
+        }
+      });
+    }
 
     final memoryKey = _memoryKey(categoryId: initialCategoryId);
     final memory = ref.read(catalogMemoryCacheProvider).read(memoryKey);
@@ -219,6 +228,14 @@ class CatalogController extends AsyncNotifier<CatalogState> {
   /// mavjud bo'lmasa ham (test muhiti, disk yo'q) ilova ishlayveradi.
   Future<CatalogState?> _cachedState({String? categoryId}) async {
     try {
+      if (storeType == StoreType.restaurant) {
+        final saved = await ref
+            .read(restaurantOfflineRepositoryProvider)
+            .products(categoryId: categoryId);
+        if (saved != null) {
+          return CatalogState(items: saved.items, categoryId: categoryId);
+        }
+      }
       final suffix = ref.read(cacheKeySuffixProvider)();
       final cacheKey = categoryId == null
           ? catalogCacheKey(storeType.wire, suffix)
@@ -487,3 +504,31 @@ final productReviewsProvider = FutureProvider.autoDispose
       final page = await ref.watch(catalogApiProvider).fetchReviews(productId);
       return page.items;
     });
+
+/// Native offline snapshots are read before networking, including after a
+/// process restart. The menu sync owns freshness; swiping never polls.
+final restaurantProductDetailProvider = StreamProvider.autoDispose
+    .family<ProductDetail, String>((ref, id) async* {
+      ref.watch(restaurantOfflineRevisionProvider);
+      final repo = ref.watch(restaurantOfflineRepositoryProvider);
+      final saved = await repo.detail(id);
+      if (saved != null) {
+        yield saved;
+        return;
+      }
+      final api = ref.read(catalogApiProvider);
+      yield await api.fetchDetail(id);
+    }, retry: (_, _) => null);
+
+final restaurantProductReviewsProvider = StreamProvider.autoDispose
+    .family<List<ProductReview>, String>((ref, id) async* {
+      ref.watch(restaurantOfflineRevisionProvider);
+      final repo = ref.watch(restaurantOfflineRepositoryProvider);
+      final saved = await repo.reviews(id);
+      if (saved != null) {
+        yield saved.items;
+        return;
+      }
+      final page = await ref.read(catalogApiProvider).fetchReviews(id);
+      yield page.items;
+    }, retry: (_, _) => null);

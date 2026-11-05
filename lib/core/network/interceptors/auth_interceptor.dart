@@ -66,7 +66,13 @@ class AuthInterceptor extends QueuedInterceptor {
     RequestInterceptorHandler handler,
   ) async {
     if (!_isExempt(options.path)) {
-      options.extra[authOwnerKey] = _sessionOwner?.call();
+      options.extra.putIfAbsent(authOwnerKey, () => _sessionOwner?.call());
+      if (!_isCurrent(options)) {
+        handler.reject(
+          DioException(requestOptions: options, type: DioExceptionType.cancel),
+        );
+        return;
+      }
       final access = await _tokens.readAccess();
       if (!_isCurrent(options)) {
         handler.reject(

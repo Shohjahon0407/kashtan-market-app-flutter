@@ -7,6 +7,7 @@ import 'package:latlong2/latlong.dart';
 
 import '../../../core/localization/failure_l10n.dart';
 import '../../../core/network/api_failure.dart';
+import '../../../core/routing/back_navigation.dart';
 import '../../../core/routing/routes.dart';
 import '../../../core/store_scope/store_type.dart';
 import '../../../core/ui/formatters/uzs.dart';
@@ -15,8 +16,10 @@ import '../../cart/domain/cart_controller.dart';
 import '../../store/presentation/widgets/store_state_views.dart';
 import '../data/checkout_models.dart';
 import '../domain/addresses_controller.dart';
+import '../domain/checkout_rules.dart';
 import '../domain/delivery_address_selection.dart';
 import '../domain/device_location.dart';
+import '../domain/order_draft_controller.dart';
 import 'address_display.dart';
 import 'address_form_screen.dart';
 import 'widgets/checkout_delivery_map.dart';
@@ -346,7 +349,7 @@ class _DeliveryAddressScreenState extends ConsumerState<DeliveryAddressScreen>
     final deliveryPoint = selected != null && hasDeliveryCoordinates(selected)
         ? LatLng(selected.latitude!, selected.longitude!)
         : null;
-    final branch = estimate?.branch?.hasCoverage == true
+    final branch = estimate?.branch?.hasCoordinates == true
         ? estimate!.branch
         : selectCoveragePreview(coverage.value ?? const [], deliveryPoint);
 
@@ -640,7 +643,7 @@ class _DeliveryAddressScreenState extends ConsumerState<DeliveryAddressScreen>
       selected: selected,
       inMutuallyExclusiveGroup: true,
       child: Material(
-        color: selected ? const Color(0xFFF1FBF6) : Colors.white,
+        color: Colors.white,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(18),
           side: BorderSide(
@@ -663,7 +666,7 @@ class _DeliveryAddressScreenState extends ConsumerState<DeliveryAddressScreen>
                     Container(
                       padding: const EdgeInsets.all(9),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFE7F6EE),
+                        color: const Color(0xFFF1F3F5),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Icon(
@@ -761,6 +764,29 @@ class _DeliveryAddressScreenState extends ConsumerState<DeliveryAddressScreen>
     DeliveryEstimate? estimate,
     bool ready,
   ) {
+    final cart = ref
+        .watch(cartControllerProvider(widget.storeType))
+        .value
+        ?.cart;
+    final ids = cart == null
+        ? <String>{}
+        : CheckoutRules.physicalStoreIds(cart);
+    final unavailable =
+        !_estimating &&
+        (_failure != null ||
+            (estimate != null &&
+                (!estimate.available || estimate.deliveryPrice == null)));
+    final branches = unavailable && ids.length == 1
+        ? ref.watch(storeBranchesProvider(ids.single))
+        : const AsyncData<List<StoreBranch>>([]);
+    final canPickup =
+        cart != null &&
+        CheckoutRules.pickupAllowed(cart) &&
+        !branches.isLoading &&
+        !branches.hasError &&
+        (branches.value ?? const []).any(
+          (branch) => branch.isActive && branch.isPickupAvailable,
+        );
     return SafeArea(
       top: false,
       child: Material(
@@ -807,6 +833,34 @@ class _DeliveryAddressScreenState extends ConsumerState<DeliveryAddressScreen>
                             child: Text(l10n.commonRetry),
                           ),
                         ),
+                        if (canPickup)
+                          TextButton.icon(
+                            key: const ValueKey('delivery-address-use-pickup'),
+                            icon: const Icon(Icons.storefront_outlined),
+                            label: Text(l10n.checkoutPickup),
+                            onPressed: _editing
+                                ? null
+                                : () {
+                                    ref
+                                        .read(
+                                          orderDraftProvider(
+                                            widget.storeType,
+                                          ).notifier,
+                                        )
+                                        .setFulfillment(FulfillmentType.pickup);
+                                    final router = GoRouter.maybeOf(context);
+                                    if (router != null) {
+                                      AppBackCoordinator.of(router).go(
+                                        Routes.storeCartFor(
+                                          widget.storeType.wire,
+                                          focus: 'fulfillment',
+                                        ),
+                                      );
+                                    } else {
+                                      Navigator.of(context).maybePop();
+                                    }
+                                  },
+                          ),
                       ] else if (estimate?.available == true &&
                           estimate?.deliveryPrice != null) ...[
                         Text(
@@ -874,9 +928,9 @@ class _DeliveryAddressScreenState extends ConsumerState<DeliveryAddressScreen>
   }
 
   String _estimateMessage(DeliveryEstimate estimate, AppLocalizations l10n) {
-    final radius = estimate.coverageRadiusKm ?? estimate.branch?.radiusKm;
-    if (estimate.reasonCode == 'outside_delivery_radius' && radius != null) {
-      return l10n.checkoutOutsideRadius(deliveryRadiusLabel(radius));
+    if (estimate.reasonCode == 'outside_delivery_radius') {
+      // Compatibility with an older backend; never draw an obsolete limit.
+      return l10n.cartDeliveryNotAvailable;
     }
     if (estimate.reasonCode == 'delivery_tariff_unavailable') {
       return l10n.checkoutTariffUnavailable;

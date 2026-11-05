@@ -158,6 +158,7 @@ void main() {
     List<UserAddress> addresses = const [_defaultAddress],
     Brightness brightness = Brightness.light,
     List<StoreVideo> videos = const [],
+    double textScale = 1,
   }) async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await PrefsStore.load();
@@ -195,6 +196,12 @@ void main() {
       UncontrolledProviderScope(
         container: container,
         child: MaterialApp(
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: TextScaler.linear(textScale)),
+            child: child!,
+          ),
           locale: const Locale('uz'),
           supportedLocales: const [Locale('uz')],
           localizationsDelegates: const [
@@ -209,6 +216,43 @@ void main() {
       ),
     );
     return container;
+  }
+
+  for (final width in [320.0, 360.0, 430.0]) {
+    for (final scale in [1.0, 2.0]) {
+      testWidgets('home toolbar fits $width px at $scale scale', (
+        tester,
+      ) async {
+        await tester.binding.setSurfaceSize(Size(width, 850));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        await pumpHome(
+          tester,
+          fetch: () async => const HomeData(banners: [], storeHub: _hub),
+          textScale: scale,
+        );
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        expect(
+          find.byKey(const ValueKey('home-main-cart-button')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const ValueKey('home-language-button')),
+          findsOneWidget,
+        );
+        final cartRect = tester.getRect(
+          find.byKey(const ValueKey('home-main-cart-button')),
+        );
+        expect(cartRect.size, const Size(48, 48));
+        if (scale == 1) {
+          final titleRect = tester.getRect(find.text('Besh Kashtan'));
+          // Normal phone widths must not push the icons onto a second row.
+          expect(cartRect.top, lessThanOrEqualTo(titleRect.bottom));
+          expect(cartRect.bottom, greaterThan(titleRect.top));
+          expect(titleRect.right, lessThanOrEqualTo(cartRect.left));
+        }
+      });
+    }
   }
 
   testWidgets('reference tartibi va backend do‘kon matnlari chiziladi', (
@@ -440,8 +484,12 @@ void main() {
     // 1-reeldan yuqoriga: Home kontentiga tabiiy qaytish.
     await tester.fling(scroll, const Offset(0, 300), 2500);
     await settle(tester);
-    expect(tester.getTopLeft(first).dy, greaterThan(400));
-    expect(find.text('Besh Kashtan'), findsOneWidget);
+    // A taller responsive header can put the first reel outside the lazy
+    // viewport entirely. Both cases mean the user has returned to Home.
+    if (first.evaluate().isNotEmpty) {
+      expect(tester.getTopLeft(first).dy, greaterThan(400));
+    }
+    expect(find.text('Besh Kashtan').hitTestable(), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

@@ -89,6 +89,25 @@ o‘chadi. Chrome’da notification permission user tomonidan berilishi shart;
 brauzer yopiq va permission bloklangan bo‘lsa OS banner kafolatlanmaydi, ammo
 event notification history’da REST sync orqali tiklanadi.
 
+## Restoran menyusini internetsiz ko‘rish
+
+Android/iOS’da restoran sahifasi ochilganda to‘liq menyu fonda yuklanadi:
+barcha katalog sahifalari, taom tafsilotlari, variant/qo‘shimchalar, narxlar,
+baho/izoh sahifalari hamda asosiy va qo‘shimcha rasmlar. Holat menyu tepasida
+ko‘rinadi; “Menyu telefonga saqlandi” yozuvi to‘liq yuklanishni bildiradi.
+Uzilgan yuklash keyingi ulanishda yoki qayta urinish orqali davom etadi.
+
+JSON va rasmlar ilovaning ichki Application Support xotirasida saqlanadi,
+galereyaga yoki OS vaqtinchalik kesh papkasiga yozilmaydi. Ilovani yopib qayta
+ochish va oddiy kesh tozalash bu fayllarni o‘chirmaydi; ilova ma’lumotlarini
+tozalash yoki ilovani o‘chirish esa ularni ham o‘chiradi. Birinchi to‘liq
+yuklash uchun internet va yetarli bo‘sh xotira kerak.
+
+Oflaynda oxirgi saqlangan menyu ko‘rsatiladi; internet qaytganda yangilanadi.
+Til/yozuv va akkaunt snapshotlari ajratilgan. Buyurtma, amaldagi narx va
+mavjudlikni yakuniy tasdiqlash internet orqali bajariladi. Web’da telefonning
+ichki fayl xotirasiga yuklash yoqilmaydi; mavjud brauzer oqimi saqlanadi.
+
 ## Tekshiruv va build
 
 ```bash

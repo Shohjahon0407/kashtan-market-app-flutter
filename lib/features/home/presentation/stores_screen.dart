@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/localization/failure_l10n.dart';
 import '../../../core/network/api_failure.dart';
 import '../../../core/routing/auth_gate.dart';
+import '../../../core/routing/back_navigation.dart';
 import '../../../core/routing/routes.dart';
 import '../../../core/ui/theme/app_dimens.dart';
 import '../../../generated/l10n/app_localizations.dart';
@@ -20,7 +21,10 @@ class StoresScreen extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     final home = ref.watch(homeControllerProvider);
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.homeStoresTitle)),
+      appBar: AppBar(
+        leading: const AppBackButton(),
+        title: Text(l10n.homeStoresTitle),
+      ),
       body: RefreshIndicator(
         onRefresh: () => ref.read(homeControllerProvider.notifier).refresh(),
         child: ListView(

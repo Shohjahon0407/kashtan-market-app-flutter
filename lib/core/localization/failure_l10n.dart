@@ -1,27 +1,19 @@
-import 'package:flutter/foundation.dart' show kDebugMode;
-
 import '../../generated/l10n/app_localizations.dart';
 import '../network/api_failure.dart';
 
 /// [ApiFailure] → foydalanuvchiga ko'rsatiladigan matn.
 ///
-/// Server xatolari FAQAT o'zbek lotinida keladi — rus va kirill
-/// foydalanuvchilari uchun har bir ma'lum xato o'z ARB kalitiga map qilinadi.
-/// Faqat nomalum holatda server matni fallback bo'ladi (kirill
-/// foydalanuvchisi uchun uni javob transformatori allaqachon o'girgan).
+/// Texnik sabablar va xom javoblar hech qaysi build'da customer UI'ga
+/// chiqarilmaydi. Ular [ApiFailure.message] va diagnostika loglarida qoladi.
+/// Ma'lum sabablar tarjima qilinadi, noma'lumlari xavfsiz umumiy matn oladi.
 extension ApiFailureL10n on ApiFailure {
   /// Foydalanuvchiga ko'rsatiladigan matn.
   ///
-  /// Debug build'da oxiriga texnik sabab qo'shiladi — qurilmada
-  /// diagnostika qilishni ancha osonlashtiradi. Release'da faqat
-  /// tarjima qilingan matn chiqadi.
-  String localize(AppLocalizations l10n) {
-    final text = _localize(l10n);
-    if (!kDebugMode || message.isEmpty || message == text) return text;
-    return '$text\n[debug] $message';
-  }
+  /// Debug hamda release'da bir xil, faqat foydalanuvchi uchun matn.
+  String localize(AppLocalizations l10n) => _localize(l10n);
 
   String _localize(AppLocalizations l10n) => switch (this) {
+    NetworkFailure(isTimeout: true) => l10n.errorNetworkSlow,
     NetworkFailure() => l10n.errorNetwork,
     CancelledFailure() => '',
     UnauthorizedFailure() => l10n.errorSessionExpired,
@@ -52,12 +44,23 @@ extension ApiFailureL10n on ApiFailure {
     AppLocalizations l10n,
     Map<String, List<String>> fields,
   ) {
-    // Ma'lum maydonlar o'z l10n matniga ega; qolganlari server matni bilan.
+    // Ma'lum sabablar tarjima qilinadi, qolganlari xavfsiz umumiy matn oladi.
     if (fields.containsKey('phone_number')) return l10n.authErrorInvalidPhone;
     if (fields.containsKey('otp_code')) return l10n.authErrorOtpInvalid;
-    return _fallback(l10n);
+    final codes = fields['reason_code'] ?? const <String>[];
+    return switch (codes.isEmpty ? '' : codes.first) {
+      'store_unavailable' || 'product_unavailable' => l10n.cartUnavailable,
+      'variant_unavailable' ||
+      'variant_required' => l10n.cartVariantUnavailable,
+      'addons_unavailable' => l10n.cartAddonsUnavailable,
+      'cart_changed' => l10n.checkoutCartChanged,
+      'cart_empty' => l10n.checkoutAddProducts,
+      'invalid_address' => l10n.checkoutSelectAddress,
+      'order_cannot_cancel' => l10n.orderCancellationUnavailable,
+      'payme_unavailable' => l10n.paymeUnavailable,
+      _ => l10n.errorValidation,
+    };
   }
 
-  String _fallback(AppLocalizations l10n) =>
-      message.isNotEmpty ? message : l10n.errorUnknown;
+  String _fallback(AppLocalizations l10n) => l10n.errorUnknown;
 }

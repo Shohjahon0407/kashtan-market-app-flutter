@@ -158,6 +158,7 @@ class OrderData {
     this.address,
     this.pickupBranch,
     this.distanceKm,
+    this.serverCanCancel,
   });
 
   factory OrderData.fromJson(Map<String, dynamic> json) {
@@ -200,6 +201,9 @@ class OrderData {
       courierAcceptedAt: _dateTime(json['courier_accepted_at']),
       deliveryDeadlineAt: _dateTime(json['delivery_deadline_at']),
       pickedUpAt: _dateTime(json['picked_up_at']),
+      serverCanCancel: json['can_cancel'] is bool
+          ? json['can_cancel'] as bool
+          : null,
       deliveredAt: _dateTime(json['delivered_at']),
       courierLocation: location == null
           ? null
@@ -241,7 +245,25 @@ class OrderData {
   final String customerPhone;
   final String createdAt;
 
-  bool get canCancel => status == 'pending' || status == 'accepted';
+  final bool? serverCanCancel;
+
+  bool get canCancel =>
+      serverCanCancel != false &&
+      const {
+        'pending',
+        'accepted',
+        'preparing',
+        'ready_for_pickup',
+      }.contains(status) &&
+      !cancellationRequiresCall;
+
+  bool get cancellationRequiresCall =>
+      isDelivery &&
+      !const {'cancelled', 'delivered', 'completed'}.contains(status) &&
+      (status == 'out_for_delivery' ||
+          userStatus == 'on_way' ||
+          userStatus == 'out_for_delivery' ||
+          pickedUpAt != null);
 
   /// Kuryer ETA'sidan 10 daqiqalik oyna — faqat shu kunlik, qabul qilingan
   /// (tayyorlanmoqda / yo'lda) buyurtmada. 1–2 kunlik buyurtmada `null`
@@ -264,6 +286,7 @@ class OrderData {
 
   OrderData copyWith({
     String? status,
+    String? paymentStatus,
     String? userStatus,
     String? statusLabel,
     String? courierName,
@@ -277,6 +300,7 @@ class OrderData {
     DateTime? pickedUpAt,
     DateTime? deliveredAt,
     CourierLocation? courierLocation,
+    bool? serverCanCancel,
   }) => OrderData(
     id: id,
     orderNumber: orderNumber,
@@ -286,7 +310,7 @@ class OrderData {
     userStatus: userStatus ?? this.userStatus,
     statusLabel: statusLabel ?? this.statusLabel,
     paymentMethod: paymentMethod,
-    paymentStatus: paymentStatus,
+    paymentStatus: paymentStatus ?? this.paymentStatus,
     subtotal: subtotal,
     deliveryFee: deliveryFee,
     total: total,
@@ -307,6 +331,9 @@ class OrderData {
     address: address,
     pickupBranch: pickupBranch,
     distanceKm: distanceKm,
+    serverCanCancel:
+        serverCanCancel ??
+        (status != null && status != this.status ? null : this.serverCanCancel),
   );
 
   CustomerOrderStage get customerStage {
@@ -426,6 +453,9 @@ class OrderData {
           ? null
           : tracking.deliveryDeadlineAt ?? deliveryDeadlineAt,
       pickedUpAt: tracking.pickedUpAt ?? pickedUpAt,
+      serverCanCancel:
+          tracking.serverCanCancel ??
+          (tracking.status.isEmpty ? serverCanCancel : null),
       deliveredAt: tracking.deliveredAt ?? deliveredAt,
       // Eng yangi nuqta g'olib — tracking javobi detail'dan keyin kelsa ham,
       // oldin kelsa ham to'g'ri.
@@ -560,6 +590,7 @@ class OrderTrackingData {
     this.courierLocation,
     this.address,
     this.pickupBranch,
+    this.serverCanCancel,
   });
 
   factory OrderTrackingData.fromJson(Map<String, dynamic> json) {
@@ -594,6 +625,9 @@ class OrderTrackingData {
       courierAcceptedAt: _dateTime(json['courier_accepted_at']),
       deliveryDeadlineAt: _dateTime(json['delivery_deadline_at']),
       pickedUpAt: _dateTime(json['picked_up_at']),
+      serverCanCancel: json['can_cancel'] is bool
+          ? json['can_cancel'] as bool
+          : null,
       deliveredAt: _dateTime(json['delivered_at']),
       courierLocation: location == null
           ? null
@@ -622,6 +656,8 @@ class OrderTrackingData {
   final CourierLocation? courierLocation;
   final UserAddress? address;
   final OrderPickupBranch? pickupBranch;
+
+  final bool? serverCanCancel;
 
   Duration get refreshInterval => switch (userStatus) {
     'reviewing' || 'pending' => const Duration(seconds: 10),

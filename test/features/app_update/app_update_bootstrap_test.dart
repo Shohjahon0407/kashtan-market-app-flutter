@@ -167,7 +167,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Yuklab olish'));
       await tester.pumpAndSettle();
-      expect(find.textContaining('Google Play’ni ochib'), findsOneWidget);
+      expect(find.textContaining('Ilovalar do‘konini ochib'), findsOneWidget);
       await tester.tap(find.text('Qayta urinish'));
       await tester.pumpAndSettle();
       expect(calls, 3);

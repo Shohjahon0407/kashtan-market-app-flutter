@@ -110,6 +110,10 @@ void main() {
         tester.element(find.byType(OfflineBanner)),
       );
       expect(find.text(l10n.connectionServerUnavailable), findsOneWidget);
+      expect(
+        l10n.connectionServerUnavailable,
+        isNot(matches(RegExp(r'server|сервер|debug', caseSensitive: false))),
+      );
       expect(tester.takeException(), isNull);
       final pending = Completer<ProbeResult>();
       probe.run = () => pending.future;

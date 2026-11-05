@@ -1,4 +1,71 @@
 {
+  "shashlikCartUpdated": "Сават янгиланди",
+  "shashlikSaveQuantity": "Миқдорни сақлаш",
+  "shashlikChooseQuantity": "Миқдорни танлаш",
+  "shashlikPieceUnit": "дона",
+  "shashlikKilogramUnit": "килограмм",
+  "cartItemsInCartTitle": "{count} та товар саватда",
+  "@cartItemsInCartTitle": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "cartCheckoutAction": "Расмийлаштириш",
+  "cartOrderSummaryTitle": "Буюртмангиз",
+  "cartItemsLine": "{count} та товар",
+  "@cartItemsLine": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "cartDiscount": "Чегирма",
+  "cartPerUnit": "{price}/dona",
+  "@cartPerUnit": {
+    "placeholders": {
+      "price": {
+        "type": "String"
+      }
+    }
+  },
+  "deliveryEstimateTitle": "Тахминий етказиш вақти",
+  "deliveryEstimateAvailabilityHint": "Маҳсулот мавжудлигига қараб аниқлаштирилади",
+  "cartMinimumHint": "Етказиш учун минимал буюртма — яна {amount}",
+  "@cartMinimumHint": {
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "checkoutReceiveMethod": "Олиш усули",
+  "checkoutCourier": "Курер",
+  "checkoutPickupFree": "бепул",
+  "checkoutChooseAddressHint": "манзил танланг",
+  "checkoutChangeOther": "Бошқасини танлаш",
+  "checkoutChooseAddressAction": "Манзил танлаш",
+  "checkoutDeliveryAddressLabel": "Етказиб бериш манзили",
+  "checkoutPickupStoreLabel": "Дўкондан олиб кетиш",
+  "checkoutQuoteCalculating": "Етказиш нархи ҳисобланмоқда…",
+  "checkoutRecipient": "Олувчи",
+  "checkoutRecipientName": "Исм",
+  "checkoutRecipientPhone": "Телефон рақами",
+  "checkoutRecipientSave": "Сақлаш",
+  "checkoutRecipientReset": "Ўзимга",
+  "checkoutRecipientPhoneInvalid": "Телефон рақамини тўғри киритинг",
+  "checkoutPickupReadyHint": "Тайёр бўлгач хабар берамиз",
+  "checkoutPaymentType": "Тўлов тури",
+  "checkoutOrderSummary": "Сизнинг буюртмангиз",
+  "checkoutPayOnReceive": "Олинганда тўланади",
+  "checkoutPayOnReceiveCaption": "Курерга ёки дўконда нақд пул билан",
+  "checkoutPayOnlineCaption": "Пайме — УЗКАРД, HUMO, Виса, Мастеркард",
+  "checkoutPayWithPayme": "Пайме орқали тўлаш",
+  "checkoutDeliveryFree": "Бепул",
+  "checkoutTotal": "Жами",
+  "checkoutMinimumTitle": "Минимал буюртма суммасига етмади",
   "cartContinueOrder": "Буюртмани давом эттириш",
   "cartSelectDeliveryAddress": "Етказиш манзилини танлаш",
   "cartMinimumRecommendations": "Минимумни тўлдириш учун",
@@ -14,9 +81,15 @@
   "checkoutReviewTitle": "Буюртмани текширинг",
   "checkoutProductsSummary": "{count} та маҳсулот",
   "checkoutEditCart": "Саватни таҳрирлаш",
-  "checkoutCartChanged": "Сават ёки етказиш шартлари ўзгарди. Давом этишдан олдин қайта текширинг.",
+  "checkoutCartChanged": "Сават ўзгарди. Таркиби ва суммасини текшириб, қайта тасдиқланг.",
   "checkoutReceiptOpen": "Маҳсулотларни кўриш",
-  "@checkoutProductsSummary": {"placeholders": {"count": {"type": "int"}}},
+  "@checkoutProductsSummary": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "deliveryAddressTitle": "Етказиб бериш манзили",
   "deliveryAddressSubtitle": "Буюртма қаерга етказилсин?",
   "deliveryAddressSavedHint": "Буюртма учун сақланган манзилни танланг.",
@@ -30,18 +103,18 @@
   "deliveryAddressGpsHint": "GPS бўлмаса ҳам сақланган манзилни танлашингиз мумкин.",
   "checkoutMinimumIncludesDelivery": "Маҳсулотлар ва етказиш нархи бирга ҳисобланади.",
   "checkoutMinimumNeedsAddress": "Етказиш нархини ҳисоблаш учун манзилни танланг.",
-  "addressCoverageLoading": "Етказиш ҳудуди юкланмоқда…",
+  "addressCoverageLoading": "Харита маълумотлари юкланмоқда…",
   "addressRadiusLimit": "Нуқтани яшил доира ичида танланг. Ҳудуддан ташқаридаги манзилни тасдиқлаб бўлмайди.",
   "addressAddTitle": "Янги манзил қўшиш",
   "addressEditTitle": "Манзилни таҳрирлаш",
   "addressSelectPoint": "Етказиш нуқтасини белгиланг",
   "addressMapHelp": "Манзилни қандай танлаш мумкин?",
-  "addressMapHelpBody": "GPS тугмасини босинг ёки харитани суриб аниқ нуқтани белгиланг. Уй ёки ишхонани танлаб, курьер учун кириш йўли ва эшик кодини ёзишингиз мумкин. Нуқта фақат тасдиқлаганингиздан кейин сақланади. Радиус филиал ҳудудининг кўриниши; етказиш имконияти ва нархи checkout’да текширилади.",
+  "addressMapHelpBody": "GPS тугмасини босинг ёки харитани суриб исталган жойдаги нуқтани белгиланг. Уй ёки ишхонани танлаб, курьер учун кириш йўли ва эшик кодини ёзишингиз мумкин. Манзил фақат тасдиқлаганингиздан кейин сақланади. Етказиш имконияти ва нархи буюртмани расмийлаштиришда текширилади.",
   "addressTypeHome": "Уй",
   "addressTypeWork": "Ишхона",
   "addressTypeOther": "Бошқа",
-  "addressTypeLabel": "МАНЗИЛ ТУРИ",
-  "addressCourierNote": "Курьер учун мўлжал ёки изоҳ (ихтиёрий)",
+  "addressTypeLabel": "МАНЗИЛ TURI",
+  "addressCourierNote": "Курер учун мўлжал ёки изоҳ (ихтиёрий)",
   "addressCourierNoteHint": "Масалан: магазин орқасидаги дарвоза, домофон коди 124",
   "addressConfirmPoint": "Ушбу манзилни тасдиқлаш",
   "addressMapRetry": "Харита юкланмади. Қайта юклаш",
@@ -52,13 +125,26 @@
   "categorySearchFallback": "Бу категорияда топилмади. Хозмакнинг бошқа категорияларидаги натижалар:",
   "appUpdateTitle": "Янгиланиш мавжуд",
   "appUpdateBody": "Илованинг {version} версияси чиқди. Янги имкониятлар ва яхшиланишлардан фойдаланиш учун янгиланг.",
+  "@appUpdateBody": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
   "appUpdateDownload": "Юклаб олиш",
   "appUpdateLater": "Кейинроқ",
-  "appUpdateOpenFailed": "Google Play’ни очиб бўлмади. Қайта уриниб кўринг ёки кейинроқ янгиланг.",
+  "appUpdateOpenFailed": "Иловалар дўконини очиб бўлмади. Қайта уриниб кўринг ёки кейинроқ янгиланг.",
   "checkoutAddressActionHint": "Буюртма қаерга етказилишини танланг",
   "checkoutReceiptTitle": "Маҳсулотлар чеки",
   "checkoutCartCount": "{count} та маҳсулот",
-  "@checkoutCartCount": {"placeholders": {"count": {"type": "int"}}},
+  "@checkoutCartCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "checkoutOptional": "Ихтиёрий",
   "checkoutPaymentHint": "Қулай усулни танланг",
   "checkoutPayOnline": "Онлайн тўлов",
@@ -95,16 +181,31 @@
   "commonEmpty": "Ҳозирча бўш",
   "commonYes": "Ҳа",
   "commonNo": "Йўқ",
-  "offlineBanner": "Оффлине режим",
-  "connectionServerUnavailable": "Серверга уланиб бўлмади",
-  "offlineStaleData": "эски маълумотлар",
-  "errorNetwork": "Интернет алоқаси йўқ. Уланишни текширинг.",
+  "offlineBanner": "Интернет йўқ",
+  "connectionServerUnavailable": "Ҳозир уланиб бўлмади",
+  "offlineStaleData": "Сақланган маълумотлар",
+  "offlineMenuSaving": "Меню сақланмоқда: {done}/{total}",
+  "@offlineMenuSaving": {
+    "placeholders": {
+      "done": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "offlineMenuReady": "Меню телефонга сақланди · Интернециз кўриш мумкин",
+  "offlineMenuPartial": "Меню ҳали тўлиқ сақланмаган. Интернетга уланганда давом этади.",
+  "offlineMenuWaiting": "Меню интернет борида телефонга сақланади.",
+  "errorNetwork": "Интернетга уланиб бўлмади. Уланишни текшириб, қайта уриниб кўринг.",
+  "errorNetworkSlow": "Юклаш чўзилиб кетди. Интернетни текшириб, қайта уриниб кўринг.",
   "@errorNetwork": {
     "description": "Tarmoq xatosi"
   },
-  "errorServer": "Серверда хатолик юз берди. Бироздан сўнг уриниб кўринг.",
-  "errorUnknown": "Кутилмаган хатолик юз берди.",
-  "errorSessionExpired": "Сессия муддати тугади. Қайтадан киринг.",
+  "errorServer": "Ҳозирча амалга ошириб бўлмади. Бироздан сўнг қайта уриниб кўринг.",
+  "errorUnknown": "Амални бажариб бўлмади. Қайта уриниб кўринг.",
+  "errorSessionExpired": "Давом этиш учун иловага қайтадан киринг.",
   "errorThrottled": "Жуда кўп уриниш. Бироз кутинг.",
   "errorNotFound": "Топилмади.",
   "errorForbidden": "Бу амалга рухсат йўқ.",
@@ -183,6 +284,8 @@
   "shashlikOptionKiloMince": "Килолик қийма",
   "shashlikChooseProduct": "Маҳсулот турини ва миқдорини танланг",
   "shashlikQuantity": "Миқдор",
+  "shashlikQuantityHint": "Миқдорни суриб танланг ёки рақамни босиб киритинг",
+  "shashlikQuantityInvalid": "1 дан 999 999 гача бутун сон киритинг",
   "shashlikAddToCart": "Саватга қўшиш",
   "shashlikPriceFrom": "{price} дан",
   "@shashlikPriceFrom": {
@@ -230,7 +333,21 @@
   "cartRecommendationsTitle": "Керак бўлиб қолиши мумкин",
   "mapAttributionTitle": "Харита манбалари",
   "checkoutDeliveryMinimum": "Етказиш учун минимал буюртма: {amount}",
+  "@checkoutDeliveryMinimum": {
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
   "checkoutMinimumRemaining": "Минимал буюртмагача яна {amount}",
+  "@checkoutMinimumRemaining": {
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
   "checkoutMinimumReached": "Минимал буюртма суммаси тўпланди",
   "checkoutAddProducts": "Маҳсулот қўшиш",
   "cartEmptyStore": "сават бўш",
@@ -347,6 +464,8 @@
   "catalogEmpty": "Бу дўконда ҳозирча маҳсулот йўқ",
   "catalogSearchHint": "Шу дўкондан қидиринг",
   "catalogCategoryFilter": "Категориялар",
+  "householdSearchHint": "Хозмакдан қидириш",
+  "householdCategorySearchHint": "Категория қидириш",
   "householdSectionHomeTools": "Уй, қурилиш ва устачилик",
   "householdSectionTechTransport": "Техника ва транспорт",
   "householdSectionKitchenLiving": "Ошхона ва рўзғор",
@@ -475,6 +594,9 @@
   "orderCourier": "Курер",
   "orderCancel": "Буюртмани бекор қилиш",
   "orderCancelConfirm": "Буюртмани бекор қилмоқчимисиз?",
+  "orderCancelCallCourier": "Курер буюртмангизни олиб йўлга чиқди. Бекор қилиш учун курерга қўнғироқ қилинг.",
+  "orderCancelCallAction": "Курерга қўнғироқ қилиш",
+  "orderCourierPhoneUnavailable": "Курер телефон рақами ҳозирча мавжуд эмас.",
   "unsupportedStoreTitle": "Номаълум дўкон",
   "unsupportedStoreMessage": "Бу дўкон тури илова томонидан қўлланмайди.",
   "unsupportedStoreBack": "Бош саҳифага қайтиш",
@@ -654,13 +776,13 @@
   "checkoutGpsDisabled": "GPS ўчиқ. Уни ёқинг ёки манзилни қўлда танланг.",
   "checkoutGpsTimeout": "GPS жавоби кечикди. Қайта уриниб кўринг ёки манзилни қўлда танланг.",
   "checkoutGpsStale": "GPS нуқтаси эскирган. Жойлашувни қайта аниқланг ёки манзилни қўлда танланг.",
-  "checkoutGpsApproximate": "Жойлашув тахминий. Телефонингизда аниқ локацияни ёқинг ёки GPS’ни қайта текширинг.",
+  "checkoutGpsApproximate": "Жойлашув тахминий. Телефонингизда аниқ локацияни ёқинг ёки ГПСъни қайта текширинг.",
   "checkoutGpsSettings": "Созламаларни очиш",
-  "checkoutMapTilesUnavailable": "Харита расмлари юкланмади. Маркерлар ва радиус ишлайди.",
-  "checkoutMapCoverageUnavailable": "Етказиш ҳудудини юклаб бўлмади.",
+  "checkoutMapTilesUnavailable": "Харита расмлари юкланмади. Манзил белгилари ишлайди.",
+  "checkoutMapCoverageUnavailable": "Филиални харитада кўрсатиб бўлмади. Сақланган манзилни танлашингиз мумкин.",
   "checkoutCoverageRadius": "Етказиш радиуси: {radius} км",
   "checkoutOutsideRadius": "Манзил {radius} км етказиш радиусидан ташқарида. Бошқа манзил ёки олиб кетишни танланг.",
-  "checkoutTariffUnavailable": "Бу масофа учун етказиш тарифи созланмаган.",
+  "checkoutTariffUnavailable": "Бу манзил учун етказиш нархи ҳозирча аниқланмади.",
   "checkoutMapPreviewHint": "Бу филиал ҳудуди кўриниши. Буюртма учун етказиш манзилини танланг.",
   "@checkoutCoverageRadius": {
     "placeholders": {
@@ -675,5 +797,17 @@
         "type": "String"
       }
     }
-  }
+  },
+  "cartUnavailable": "Бу маҳсулот ҳозир буюртма учун мавжуд эмас. Уни саватдан олиб ташланг.",
+  "cartVariantUnavailable": "Танланган вариант мавжуд эмас. Маҳсулотни қайта танланг.",
+  "cartAddonsUnavailable": "Танланган қўшимчалар мавжуд эмас. Маҳсулотни қайта танланг.",
+  "orderCancellationUnavailable": "Бу буюртмани энди бекор қилиб бўлмайди. Буюртма ҳолатини янгиланг.",
+  "errorValidation": "Маълумотларни текшириб, қайта уриниб кўринг.",
+  "checkoutResumePending": "Олдинги буюртма натижасини текшириш керак. Давом этинг.",
+  "catalogSwipeProducts": "Ёнга суринг",
+  "paymeAwaitingPayment": "Тўлов кутилмоқда",
+  "paymePaymentRefundPending": "Буюртма бекор қилинди. Пул қайтарилиши кутилмоқда.",
+  "paymePaymentRefunded": "Пул қайтарилди",
+  "storeSwitchTitle": "Дўконни алмаштириш",
+  "storeSwitchKeepsCart": "Ҳар бир дўкондаги саватингиз ва танловларингиз сақланади."
 }

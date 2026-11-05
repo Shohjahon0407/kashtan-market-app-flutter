@@ -158,8 +158,17 @@ void main() {
           find.byKey(const ValueKey('checkout-map-gps-pin')),
           findsOneWidget,
         );
-        // GPS accuracy must not look like a second delivery radius.
+        // Neither delivery radius nor GPS accuracy is a coverage boundary.
         expect(find.byType(CircleLayer), findsNothing);
+        expect(
+          find.byWidgetPredicate(
+            (widget) =>
+                widget is CustomPaint &&
+                widget.painter is DeliveryCoveragePainter,
+          ),
+          findsNothing,
+        );
+        expect(find.textContaining('8 km'), findsNothing);
         expect(
           find.byKey(const ValueKey('checkout-map-gps-accuracy')),
           findsNothing,
@@ -219,7 +228,7 @@ void main() {
           tester
               .widgetList<CustomPaint>(find.byType(CustomPaint))
               .where((widget) => widget.painter is DeliveryCoveragePainter),
-          hasLength(2),
+          isEmpty,
         );
         final expanded = tester.widget<FlutterMap>(
           find.byType(FlutterMap).last,

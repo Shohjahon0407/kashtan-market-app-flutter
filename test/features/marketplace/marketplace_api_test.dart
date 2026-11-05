@@ -198,6 +198,7 @@ void main() {
                   'name': '1-TAOMLAR',
                   'store_type': 'restaurant',
                   'product_count': 2,
+                  'preview_images': ['/media/old-photo.webp'],
                 },
               ],
               'stores': <Object>[],
@@ -237,6 +238,16 @@ void main() {
       final landing = await api.fetchLanding('restaurant');
 
       expect(landing.categories.single.previewImageUrls, hasLength(2));
+      expect(landing.categories.single.previewProducts, hasLength(2));
+      expect(landing.categories.single.previewProducts.first.id, 'meal-1');
+      expect(
+        landing.categories.single.previewProducts.first.name,
+        _product(storeType: 'restaurant')['name'],
+      );
+      expect(
+        landing.categories.single.previewProducts.first.price,
+        _product(storeType: 'restaurant')['price'],
+      );
       expect(adapter.requests, hasLength(2));
       expect(adapter.requests.last.path, endsWith('/catalog/products/'));
       expect(adapter.requests.last.query['page_size'], 100);
@@ -263,6 +274,14 @@ void main() {
                 'store_type': 'restaurant',
                 'product_count': 2,
                 'preview_images': ['/media/meal.webp'],
+                'preview_products': [
+                  {
+                    'id': 'meal',
+                    'name': 'Osh',
+                    'price': '45000.00',
+                    'image': '/media/meal.webp',
+                  },
+                ],
               },
             ],
             'stores': <Object>[],
@@ -278,6 +297,71 @@ void main() {
       expect(adapter.requests, hasLength(1));
     },
   );
+
+  for (final fail in [false, true]) {
+    test(
+      'legacy preview pagination/dedup and failure preserves images fail=$fail',
+      () async {
+        final api = StoreApi(
+          client((options, body) {
+            if (options.path.endsWith('/landing/')) {
+              return _json({
+                'categories': [
+                  {
+                    'id': 'c',
+                    'name': 'Oshlar',
+                    'product_count': 8,
+                    'preview_images': ['/old.webp'],
+                  },
+                ],
+              });
+            }
+            if (fail) return _json({'detail': 'offline'}, 503);
+            final second = options.uri.queryParameters['cursor'] == 'second';
+            return _json({
+              'next': second
+                  ? null
+                  : 'https://api.beshkashtan.uz/api/user/catalog/products/?cursor=second',
+              'results': [
+                for (
+                  var index = second ? 1 : 0;
+                  index < (second ? 9 : 2);
+                  index++
+                )
+                  {
+                    'id': 'meal-$index',
+                    'name': 'Osh $index',
+                    'price': index == 0 ? null : '45000.00',
+                    'image': '/meal-$index.webp',
+                    'category': {'id': 'c'},
+                  },
+              ],
+            });
+          }),
+        );
+        final category = (await api.fetchLanding(
+          'restaurant',
+        )).categories.single;
+        if (fail) {
+          expect(category.previewProducts, isEmpty);
+          expect(category.previewImageUrls.single, endsWith('/old.webp'));
+        } else {
+          expect(category.previewProducts, hasLength(6));
+          expect(
+            category.previewProducts.map((p) => p.id).toSet(),
+            hasLength(6),
+          );
+          expect(category.previewProducts.first.price, isNull);
+          expect(category.previewProducts[1].name, 'Osh 1');
+          expect(
+            category.previewProducts[1].imageUrl,
+            endsWith('/meal-1.webp'),
+          );
+          expect(adapter.requests, hasLength(3));
+        }
+      },
+    );
+  }
 
   test(
     'go‘sht katalogi barcha cursor sahifalarini deduplicate qilib oladi',

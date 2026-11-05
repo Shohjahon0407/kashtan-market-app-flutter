@@ -149,25 +149,24 @@ void main() {
     expect(reveals, 0);
   });
 
-  testWidgets(
-    'short blank list and 320 px large text reveal only by pull',
-    (tester) async {
-      tester.view.physicalSize = const Size(320, 640);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-      var reveals = 0;
-      await mount(tester, () => reveals++, height: 0, scale: 2);
-      expect(tester.takeException(), isNull);
-      expect(find.byKey(const ValueKey('imageless-reveal-button')), findsNothing);
-      expect(find.textContaining('Rasmsiz'), findsNothing);
-      final gesture = await tester.startGesture(const Offset(280, 550));
-      await gesture.moveBy(const Offset(0, -120));
-      await gesture.up();
-      await tester.pumpAndSettle();
-      expect(reveals, 1);
-    },
-  );
+  testWidgets('short blank list and 320 px large text reveal only by pull', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 640);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    var reveals = 0;
+    await mount(tester, () => reveals++, height: 0, scale: 2);
+    expect(tester.takeException(), isNull);
+    expect(find.byKey(const ValueKey('imageless-reveal-button')), findsNothing);
+    expect(find.textContaining('Rasmsiz'), findsNothing);
+    final gesture = await tester.startGesture(const Offset(280, 550));
+    await gesture.moveBy(const Offset(0, -120));
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(reveals, 1);
+  });
 
   testWidgets('disabled boundary never arms', (tester) async {
     var reveals = 0;

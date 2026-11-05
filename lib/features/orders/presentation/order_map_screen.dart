@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../../core/routing/auth_gate.dart';
+import '../../../core/routing/back_navigation.dart';
 import '../../../core/routing/routes.dart';
 import '../../../core/store_scope/store_type.dart';
 import '../../../core/ui/theme/app_dimens.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../../store/presentation/widgets/store_state_views.dart';
+import '../domain/orders_controller.dart';
 import 'order_view.dart';
 import 'widgets/order_tracking_map.dart';
 
@@ -56,7 +57,10 @@ class OrderMapScreen extends ConsumerWidget {
           else if (view.hasError)
             StoreErrorView(
               message: l10n.errorUnknown,
-              onRetry: () => context.pop(),
+              onRetry: () {
+                ref.invalidate(orderDetailProvider(orderId));
+                ref.invalidate(orderTrackingControllerProvider(orderId));
+              },
             )
           else
             const Center(child: CircularProgressIndicator()),
@@ -66,7 +70,7 @@ class OrderMapScreen extends ConsumerWidget {
             child: MapRoundButton(
               icon: Icons.arrow_back_rounded,
               tooltip: MaterialLocalizations.of(context).backButtonTooltip,
-              onPressed: () => context.pop(),
+              onPressed: () => appBack(context),
             ),
           ),
           Positioned(
@@ -87,7 +91,7 @@ class OrderMapScreen extends ConsumerWidget {
             bottom: bottom + AppSpacing.lg,
             child: FilledButton(
               key: const ValueKey('order-map-back'),
-              onPressed: () => context.pop(),
+              onPressed: () => appBack(context),
               child: Text(l10n.orderBackToOrder),
             ),
           ),

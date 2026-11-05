@@ -44,8 +44,12 @@ class PrefsStore {
   // MAXFIY ma'lumot uchun EMAS — tokenlar SecureTokenStore da.
 
   String? getString(String key) => _prefs.getString(key);
-  Future<void> setString(String key, String value) =>
-      _prefs.setString(key, value);
+  Future<void> setString(String key, String value) async {
+    if (!await _prefs.setString(key, value)) {
+      throw StateError('Could not persist $key');
+    }
+  }
+
   Future<void> remove(String key) async {
     await _prefs.remove(key);
   }

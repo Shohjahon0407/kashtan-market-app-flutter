@@ -117,6 +117,8 @@ class AuthController extends Notifier<AuthState> {
       checkingTimer?.cancel();
       if (!ref.mounted || revision != _sessionRevision) return;
       await _saveCachedUser(user);
+      if (!ref.mounted || revision != _sessionRevision) return;
+      state = AuthState.authenticated(user);
       try {
         await ref.read(onAfterLoginProvider)();
       } on Object {
@@ -125,7 +127,6 @@ class AuthController extends Notifier<AuthState> {
         // Token saqlanadi va startup/resume/checkout oldidan qayta uriniladi.
       }
       if (!ref.mounted || revision != _sessionRevision) return;
-      state = AuthState.authenticated(user);
     } on UnauthorizedFailure {
       if (!ref.mounted || revision != _sessionRevision) return;
       // Transient refresh endi NetworkFailure/ServerFailure sifatida keladi.
@@ -210,7 +211,7 @@ class AuthController extends Notifier<AuthState> {
   }
 
   Future<void> verifyCode(String code) async {
-    _sessionRevision++;
+    final revision = ++_sessionRevision;
     final phone = state.phone;
     if (!UzbekPhone.isNormalized(phone) ||
         code.length != OtpPolicy.codeLength) {
@@ -220,16 +221,20 @@ class AuthController extends Notifier<AuthState> {
     state = state.withStatus(AuthStatus.verifying);
     try {
       final result = await _api.verifyOtp(normalizedPhone: phone!, code: code);
+      if (!ref.mounted || revision != _sessionRevision) return;
       await _tokens.save(access: result.access, refresh: result.refresh);
       await _saveCachedUser(result.user);
+      if (!ref.mounted || revision != _sessionRevision) return;
+      // Merge and queue ownership must see the authenticated account.
+      state = AuthState.authenticated(result.user);
       try {
         await ref.read(onAfterLoginProvider)();
       } on Object {
         // Auth muvaffaqiyatli. Guest token saqlanadi va checkout/startupda
         // merge coordinator qayta urinadi.
       }
-      state = AuthState.authenticated(result.user);
     } on ApiFailure catch (failure) {
+      if (!ref.mounted || revision != _sessionRevision) return;
       state = state.withStatus(AuthStatus.codeSent, failure: failure);
     }
   }
@@ -303,6 +308,7 @@ class AuthController extends Notifier<AuthState> {
     await ref.read(guestCartTokenStoreProvider).clearGuestCartToken();
     await ref.read(prefsStoreProvider).clearSessionScoped();
     await ref.read(jsonDiskCacheProvider).clear();
+    await ref.read(restaurantOfflineCacheProvider).clear();
     state = const AuthState.unauthenticated();
   }
 

@@ -1,7 +1,9 @@
 import 'package:beshkashtan_customer/core/localization/locale_controller.dart';
 import 'package:beshkashtan_customer/core/storage/account_scope.dart';
+import 'package:beshkashtan_customer/core/storage/prefs_store.dart';
 import 'package:beshkashtan_customer/core/store_scope/store_type.dart';
 import 'package:beshkashtan_customer/core/ui/formatters/uzs.dart';
+import 'package:beshkashtan_customer/core/ui/theme/app_colors.dart';
 import 'package:beshkashtan_customer/core/ui/theme/app_theme.dart';
 import 'package:beshkashtan_customer/features/cart/data/cart_models.dart';
 import 'package:beshkashtan_customer/features/cart/domain/cart_controller.dart';
@@ -19,6 +21,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../helpers/review_draft.dart';
 
@@ -101,6 +104,7 @@ Future<void> _pump(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        prefsStoreProvider.overrideWithValue(_reliabilityPrefs),
         apiLangProvider.overrideWithValue(locale.languageCode),
         accountScopeProvider.overrideWithValue('user_test'),
         checkoutApiProvider.overrideWithValue(api),
@@ -190,17 +194,119 @@ Future<void> _openReceipt(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
+late PrefsStore _reliabilityPrefs;
+
 void main() {
+  setUp(() async {
+    SharedPreferences.setMockInitialValues({});
+    _reliabilityPrefs = await PrefsStore.load();
+  });
+  for (final fulfillment in FulfillmentType.values) {
+    testWidgets('receive method is clearly selected: ${fulfillment.wire}', (
+      tester,
+    ) async {
+      await _pump(tester, fulfillment: fulfillment);
+      final selector = tester.widget<SegmentedButton<FulfillmentType>>(
+        find.byKey(const ValueKey('checkout-fulfillment')),
+      );
+      expect(selector.selected, {fulfillment});
+      expect(selector.showSelectedIcon, isTrue);
+      for (final states in [
+        {WidgetState.selected},
+        {WidgetState.selected, WidgetState.disabled},
+      ]) {
+        expect(
+          selector.style!.backgroundColor!.resolve(states),
+          AppColors.primary,
+        );
+        expect(selector.style!.foregroundColor!.resolve(states), Colors.white);
+      }
+      expect(selector.style!.backgroundColor!.resolve({}), Colors.white);
+      expect(
+        (selector.style!.shape!.resolve({})! as RoundedRectangleBorder)
+            .borderRadius,
+        BorderRadius.circular(8),
+      );
+      for (final segment in selector.segments) {
+        final labels = (segment.label! as Column).children.whereType<Text>();
+        for (final label in labels) {
+          expect(
+            label.style!.color,
+            segment.value == fulfillment ? Colors.white : isNot(Colors.white),
+          );
+        }
+      }
+      final change = tester.widget<OutlinedButton>(
+        find.byKey(const ValueKey('checkout-change-location')),
+      );
+      expect(change.style!.backgroundColor!.resolve({}), Colors.white);
+      expect(change.style!.foregroundColor!.resolve({}), AppColors.primary);
+      expect(tester.takeException(), isNull);
+    });
+  }
+  for (final locale in AppLocalizations.supportedLocales) {
+    testWidgets('delivery timing makes no invented promise: $locale', (
+      tester,
+    ) async {
+      await _pump(tester, locale: locale);
+      await _scrollTo(tester, 'checkout-delivery-time');
+      final panel = find.byKey(const ValueKey('checkout-delivery-time'));
+      final l10n = AppLocalizations.of(tester.element(panel));
+      expect(find.text(l10n.deliveryEstimateTitle), findsOneWidget);
+      expect(find.text(l10n.deliveryEstimateAvailabilityHint), findsOneWidget);
+      final texts = tester
+          .widgetList<Text>(
+            find.descendant(of: panel, matching: find.byType(Text)),
+          )
+          .map((text) => text.data ?? '')
+          .join(' ');
+      expect(
+        texts.toLowerCase(),
+        isNot(matches(r'bugun|бугун|сегодня|40.?60')),
+      );
+      final decoration =
+          tester
+                  .widget<Container>(
+                    find
+                        .descendant(of: panel, matching: find.byType(Container))
+                        .first,
+                  )
+                  .decoration!
+              as BoxDecoration;
+      expect(decoration.borderRadius, BorderRadius.circular(12));
+      expect(tester.takeException(), isNull);
+    });
+  }
   for (final store in StoreType.values) {
     testWidgets(
-      'compact review for ${store.wire} omits map and cart controls',
+      'checkout for ${store.wire}: courier by default, no map, receipt closed',
       (tester) async {
         await _pump(tester, store: store);
         expect(
           find.byKey(const ValueKey('checkout-delivery-map')),
           findsNothing,
         );
-        expect(find.byType(SegmentedButton<FulfillmentType>), findsNothing);
+        if (store == StoreType.shashlik || store == StoreType.meat) {
+          expect(find.byType(SegmentedButton<FulfillmentType>), findsNothing);
+          expect(
+            find.byKey(ValueKey('${store.wire}-checkout-edit-address')),
+            findsOneWidget,
+          );
+          expect(
+            find.byKey(const ValueKey('checkout-payment-cash')),
+            findsNothing,
+          );
+        } else {
+          expect(
+            tester
+                .widget<SegmentedButton<FulfillmentType>>(
+                  find.byType(SegmentedButton<FulfillmentType>),
+                )
+                .selected,
+            {FulfillmentType.delivery},
+          );
+          expect(find.text('Boshqasini tanlash'), findsOneWidget);
+        }
         expect(
           find.byKey(const ValueKey('delivery-address-confirm')),
           findsNothing,
@@ -225,6 +331,104 @@ void main() {
         expect(tester.takeException(), isNull);
       },
     );
+  }
+
+  testWidgets('selected payment is white with a crisp brand border', (
+    tester,
+  ) async {
+    await _pump(tester);
+    await _scrollTo(tester, 'checkout-payment-cash');
+    final material = tester.widget<Material>(
+      find
+          .descendant(
+            of: find.byKey(const ValueKey('checkout-payment-cash')),
+            matching: find.byType(Material),
+          )
+          .first,
+    );
+    expect(material.color, Colors.white);
+    expect(
+      (material.shape! as RoundedRectangleBorder).side.color,
+      AppColors.primary,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  for (final locale in AppLocalizations.supportedLocales) {
+    for (final size in const [Size(320, 640), Size(430, 850), Size(800, 360)]) {
+      testWidgets('shashlik compact review fits $locale $size at 200%', (
+        tester,
+      ) async {
+        tester.view.physicalSize = size;
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        await _pump(
+          tester,
+          store: StoreType.shashlik,
+          locale: locale,
+          scale: 2,
+        );
+        expect(
+          find.byKey(const ValueKey('shashlik-checkout-content')),
+          findsOneWidget,
+        );
+        expect(find.byType(SegmentedButton<FulfillmentType>), findsNothing);
+        expect(
+          find.byKey(const ValueKey('checkout-payment-cash')),
+          findsNothing,
+        );
+        expect(
+          tester
+              .widget<FilledButton>(
+                find.byKey(const ValueKey('checkout-submit')),
+              )
+              .onPressed,
+          isNotNull,
+        );
+        expect(
+          tester.getRect(find.byKey(const ValueKey('checkout-submit'))).bottom,
+          lessThanOrEqualTo(size.height - 64),
+        );
+        expect(tester.takeException(), isNull);
+      });
+    }
+  }
+
+  for (final locale in AppLocalizations.supportedLocales) {
+    for (final size in const [Size(320, 640), Size(430, 850), Size(800, 360)]) {
+      testWidgets('meat compact review fits $locale $size at 200%', (
+        tester,
+      ) async {
+        tester.view.physicalSize = size;
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        await _pump(tester, store: StoreType.meat, locale: locale, scale: 2);
+        expect(
+          find.byKey(const ValueKey('meat-checkout-content')),
+          findsOneWidget,
+        );
+        expect(find.byType(SegmentedButton<FulfillmentType>), findsNothing);
+        expect(
+          find.byKey(const ValueKey('checkout-payment-cash')),
+          findsNothing,
+        );
+        expect(
+          tester
+              .widget<FilledButton>(
+                find.byKey(const ValueKey('checkout-submit')),
+              )
+              .onPressed,
+          isNotNull,
+        );
+        expect(
+          tester.getRect(find.byKey(const ValueKey('checkout-submit'))).bottom,
+          lessThanOrEqualTo(size.height - 64),
+        );
+        expect(tester.takeException(), isNull);
+      });
+    }
   }
 
   testWidgets(
@@ -268,7 +472,8 @@ void main() {
           lessThanOrEqualTo(size.height - 64),
         );
         for (final key in [
-          'checkout-products-panel',
+          'checkout-recipient',
+          'checkout-delivery-time',
           'checkout-payment-panel',
           'checkout-note',
           'checkout-summary',

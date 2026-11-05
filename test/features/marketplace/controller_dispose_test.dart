@@ -186,6 +186,7 @@ void main() {
     () async {
       final cartApi = _MockCartApi();
       final ordersApi = _MockOrdersApi();
+      when(() => ordersApi.byCheckoutKey(any())).thenAnswer((_) async => null);
       when(
         () => cartApi.fetch('household'),
       ).thenAnswer((_) async => CartData.empty('household'));
@@ -232,6 +233,7 @@ void main() {
     () async {
       final cartApi = _MockCartApi();
       final ordersApi = _MockOrdersApi();
+      when(() => ordersApi.byCheckoutKey(any())).thenAnswer((_) async => null);
       when(
         () => cartApi.fetch('household'),
       ).thenAnswer((_) async => CartData.empty('household'));
@@ -263,6 +265,9 @@ void main() {
 
       Future<OrderData?> attempt(String note) async {
         final sub = container.listen(provider, (_, _) {});
+        await Future<void>.delayed(
+          Duration.zero,
+        ); // Let pending-key lookup finish.
         try {
           return await container
               .read(provider.notifier)
@@ -290,7 +295,10 @@ void main() {
         reason: 'timeout + izoh o\'zgarishi = ayni kalit',
       );
 
-      // Muvaffaqiyatdan keyin yangi buyurtma yangi kalit oladi.
+      // Handoff acknowledges success before another purchase starts.
+      await container
+          .read(checkoutIdempotencyStoreProvider)
+          .acknowledge(StoreType.household);
       await attempt('yangi');
       expect(keys.last, isNot(keys.first));
     },
@@ -299,6 +307,7 @@ void main() {
   test('payme: startPayment dispose\'dan keyin jim tugaydi', () async {
     final paymentsApi = _MockPaymentsApi();
     final ordersApi = _MockOrdersApi();
+    when(() => ordersApi.byCheckoutKey(any())).thenAnswer((_) async => null);
     final creating = Completer<PaymePaymentCreateResult>();
     when(
       () => paymentsApi.createPaymePayment('order-1'),
@@ -334,6 +343,7 @@ void main() {
     'tracking: poll javobi dispose\'dan keyin jim tugaydi, taymer qolmaydi',
     () async {
       final ordersApi = _MockOrdersApi();
+      when(() => ordersApi.byCheckoutKey(any())).thenAnswer((_) async => null);
       var calls = 0;
       final pending = Completer<OrderTrackingData>();
       when(() => ordersApi.tracking('order-1')).thenAnswer((_) {

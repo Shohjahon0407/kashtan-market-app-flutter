@@ -43,6 +43,7 @@ void main() {
         storeType: any(named: 'storeType'),
         configuration: any(named: 'configuration'),
         quantity: any(named: 'quantity'),
+        idempotencyKey: any(named: 'idempotencyKey'),
       ),
     ).thenThrow(const NotFoundFailure());
     when(() => api.deleteItem('item-9')).thenAnswer((_) async {});
@@ -52,7 +53,7 @@ void main() {
       configuration: const CartConfiguration(productId: 'deleted'),
       quantity: 1,
     );
-    await queue.enqueueRemove('item-9');
+    await queue.enqueueRemove('item-9', storeType: 'household');
 
     await queue.flush();
 
@@ -68,6 +69,7 @@ void main() {
         storeType: any(named: 'storeType'),
         configuration: any(named: 'configuration'),
         quantity: any(named: 'quantity'),
+        idempotencyKey: any(named: 'idempotencyKey'),
       ),
     ).thenThrow(const ValidationFailure('sotuvda yo\'q', {}));
 
@@ -81,28 +83,35 @@ void main() {
     expect(queue.isEmpty, isTrue);
   });
 
-  test('5xx bir necha urinishdan keyin navbatni bo\'shatadi', () async {
-    final (container, api) = await setup();
-    final queue = container.read(offlineCartQueueProvider);
-    when(
-      () => api.updateQuantity('item', 2),
-    ).thenThrow(const ServerFailure('', 503));
-    when(() => api.deleteItem('other')).thenAnswer((_) async {});
+  test(
+    '5xx noaniq natijani tashlamaydi; clear eskirgan setni almashtiradi',
+    () async {
+      final (container, api) = await setup();
+      final queue = container.read(offlineCartQueueProvider);
+      when(
+        () => api.updateQuantity('item', 2),
+      ).thenThrow(const ServerFailure('', 503));
+      when(() => api.deleteItem('other')).thenAnswer((_) async {});
 
-    await queue.enqueueSetQuantity('item', 2);
-    await queue.enqueueRemove('other');
+      await queue.enqueueSetQuantity('item', 2, storeType: 'household');
+      await queue.enqueueRemove('other', storeType: 'household');
 
-    // Dastlabki urinishlarda niyat saqlanadi (vaqtinchalik xato bo'lishi mumkin).
-    for (var i = 0; i < 4; i++) {
+      // Dastlabki urinishlarda niyat saqlanadi (vaqtinchalik xato bo'lishi mumkin).
+      for (var i = 0; i < 4; i++) {
+        await queue.flush();
+        expect(queue.isEmpty, isFalse);
+        verifyNever(() => api.deleteItem('other'));
+      }
       await queue.flush();
       expect(queue.isEmpty, isFalse);
+      when(() => api.clear('household')).thenAnswer((_) async {});
+      await queue.enqueueClear('household');
+      await queue.flush();
+      expect(queue.isEmpty, isTrue);
       verifyNever(() => api.deleteItem('other'));
-    }
-    // Chegaraga yetgach zaharli amal tashlanadi va qolgani ketadi.
-    await queue.flush();
-    expect(queue.isEmpty, isTrue);
-    verify(() => api.deleteItem('other')).called(1);
-  });
+      verify(() => api.clear('household')).called(1);
+    },
+  );
 
   test(
     'tarmoq xatosi urinish hisoblanmaydi — navbat to\'liq saqlanadi',
@@ -112,7 +121,7 @@ void main() {
       when(
         () => api.updateQuantity('item', 2),
       ).thenThrow(const NetworkFailure());
-      await queue.enqueueSetQuantity('item', 2);
+      await queue.enqueueSetQuantity('item', 2, storeType: 'household');
       for (var i = 0; i < 10; i++) {
         await queue.flush();
       }

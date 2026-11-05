@@ -108,6 +108,7 @@ class StoreHubItem {
     required this.imageUrl,
     required this.accentColor,
     required this.sortOrder,
+    this.isEnabled = true,
   });
 
   factory StoreHubItem.fromJson(Map<String, dynamic> json) {
@@ -128,6 +129,7 @@ class StoreHubItem {
       imageUrl: _firstUrl([json['image'] as String?]),
       accentColor: HexColor.tryParse(s['accent_color'] as String?),
       sortOrder: (json['sort_order'] as num?)?.toInt() ?? 0,
+      isEnabled: json['is_enabled'] != false,
     );
   }
 
@@ -136,6 +138,7 @@ class StoreHubItem {
   final StoreType? storeType;
   final String storeTypeWire;
   final String label;
+  final bool isEnabled;
   final String subtitle;
   final String? imageUrl;
 

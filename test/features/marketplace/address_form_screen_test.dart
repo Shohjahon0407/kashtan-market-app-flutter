@@ -5,11 +5,9 @@ import 'package:beshkashtan_customer/core/store_scope/store_type.dart';
 import 'package:beshkashtan_customer/core/ui/maps/neutral_map_widgets.dart';
 import 'package:beshkashtan_customer/core/ui/theme/app_theme.dart';
 import 'package:beshkashtan_customer/features/checkout/data/checkout_models.dart';
-import 'package:beshkashtan_customer/features/checkout/domain/address_delivery_boundary.dart';
 import 'package:beshkashtan_customer/features/checkout/domain/addresses_controller.dart';
 import 'package:beshkashtan_customer/features/checkout/domain/device_location.dart';
 import 'package:beshkashtan_customer/features/checkout/presentation/address_form_screen.dart';
-import 'package:beshkashtan_customer/features/checkout/presentation/widgets/checkout_delivery_map.dart';
 import 'package:beshkashtan_customer/generated/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -21,10 +19,12 @@ import 'package:latlong2/latlong.dart';
 class _Addresses extends AddressesController {
   static List<UserAddress> items = [];
   static List<UserAddress> saved = [];
+  static ApiFailure? failure;
   @override
   Future<List<UserAddress>> build() async => items;
   @override
   Future<UserAddress> save(UserAddress address) async {
+    if (failure != null) throw failure!;
     saved.add(address);
     return UserAddress(
       id: address.id.isEmpty ? 'created-id' : address.id,
@@ -158,6 +158,7 @@ void main() {
   setUp(() {
     _Addresses.items = [];
     _Addresses.saved = [];
+    _Addresses.failure = null;
   });
 
   const smallCircle = DeliveryCoverageBranch(
@@ -169,7 +170,7 @@ void main() {
   );
 
   testWidgets(
-    'pin moves during loading; late coverage reveals full green circle without replacing selection',
+    'late coverage never blocks saving or changes the selected point/camera',
     (tester) async {
       final coverage = Completer<List<DeliveryCoverageBranch>>();
       final gps = Completer<Position>();
@@ -178,107 +179,100 @@ void main() {
         coverage: () => coverage.future,
         location: () => gps.future,
       );
-      _select(tester, const LatLng(41.01, 69.01));
+      _select(tester, const LatLng(42, 70));
       await tester.pump();
-      expect(
-        tester.widget<MarkerLayer>(find.byType(MarkerLayer)).markers.last.point,
-        const LatLng(41.01, 69.01),
-      );
-      expect(_confirm(tester).onPressed, isNull);
+      expect(_confirm(tester).onPressed, isNotNull);
+      final before = tester
+          .widget<FlutterMap>(find.byType(FlutterMap))
+          .mapController!
+          .camera
+          .center;
       coverage.complete(const [smallCircle]);
       await tester.pump();
       await tester.pump();
+      expect(find.byType(CircleLayer), findsNothing);
+      expect(
+        tester.widget<MarkerLayer>(find.byType(MarkerLayer)).markers.last.point,
+        const LatLng(42, 70),
+      );
       expect(
         tester
-            .widget<CircleLayer>(find.byType(CircleLayer))
-            .circles
-            .single
-            .borderColor,
-        const Color(0xFF006B53),
+            .widget<FlutterMap>(find.byType(FlutterMap))
+            .mapController!
+            .camera
+            .center,
+        before,
       );
-      final camera = tester
-          .widget<FlutterMap>(find.byType(FlutterMap))
-          .mapController!
-          .camera;
-      for (final point in deliveryRadiusPoints(const LatLng(41, 69), 8)) {
-        expect(camera.visibleBounds.contains(point), isTrue);
-      }
-      gps.complete(_position(lat: 42, lon: 70));
+      gps.complete(_position(lat: 43, lon: 71));
       await tester.pump();
       expect(
         tester.widget<MarkerLayer>(find.byType(MarkerLayer)).markers.last.point,
-        const LatLng(41.01, 69.01),
+        const LatLng(42, 70),
       );
       expect(_confirm(tester).onPressed, isNotNull);
     },
   );
 
-  testWidgets('pin still moves after coverage error but cannot be confirmed', (
+  testWidgets('coverage error does not block selecting and saving a point', (
     tester,
   ) async {
     await _mount(tester, coverage: () async => throw const NetworkFailure());
-    _select(tester, const LatLng(41.02, 69.02));
+    _select(tester, const LatLng(42, 70));
     await tester.pump();
-    expect(
-      tester.widget<MarkerLayer>(find.byType(MarkerLayer)).markers.last.point,
-      const LatLng(41.02, 69.02),
-    );
-    expect(_confirm(tester).onPressed, isNull);
+    expect(_confirm(tester).onPressed, isNotNull);
+    await tester.tap(find.byKey(const ValueKey('address-confirm')));
+    await tester.pump();
+    expect(_Addresses.saved.single.latitude, 42);
+    expect(_Addresses.saved.single.longitude, 70);
     expect(find.text('Yetkazish hududi yuklanmoqda…'), findsNothing);
   });
 
-  testWidgets('manual tap and camera cannot leave largest circle', (
-    tester,
-  ) async {
+  testWidgets('manual tap and camera can leave the old circle', (tester) async {
     await _mount(tester, coverage: () async => const [smallCircle]);
     _select(tester, const LatLng(42, 70));
     await tester.pump();
-    final marker = tester
-        .widget<MarkerLayer>(find.byType(MarkerLayer))
-        .markers
-        .last
-        .point;
-    const boundary = AddressDeliveryBoundary(smallCircle);
-    expect(boundary.contains(marker), isTrue);
+    expect(
+      tester.widget<MarkerLayer>(find.byType(MarkerLayer)).markers.last.point,
+      const LatLng(42, 70),
+    );
     final controller = tester
         .widget<FlutterMap>(find.byType(FlutterMap))
         .mapController!;
     controller.move(const LatLng(0, 0), 10);
     await tester.pump();
-    expect(boundary.contains(controller.camera.center), isTrue);
+    expect(controller.camera.center, const LatLng(0, 0));
     expect(_confirm(tester).onPressed, isNotNull);
+    expect(find.byType(CircleLayer), findsNothing);
   });
 
-  testWidgets('GPS outside region cannot be confirmed or saved', (
-    tester,
-  ) async {
+  testWidgets('GPS outside the old region can be saved', (tester) async {
     await _mount(
       tester,
       coverage: () async => const [smallCircle],
       location: () async => _position(lat: 42, lon: 70),
     );
-    expect(_confirm(tester).onPressed, isNull);
-    expect(_Addresses.saved, isEmpty);
-    _select(tester, const LatLng(41.01, 69.01));
-    await tester.pump();
     expect(_confirm(tester).onPressed, isNotNull);
+    await tester.tap(find.byKey(const ValueKey('address-confirm')));
+    await tester.pump();
+    expect(_Addresses.saved.single.latitude, 42);
+    expect(_Addresses.saved.single.longitude, 70);
   });
 
-  testWidgets('no coverage does not allow unbounded address saving', (
-    tester,
-  ) async {
+  testWidgets('no coverage allows saving a valid address', (tester) async {
     await _mount(
       tester,
       coverage: () async => [],
       location: () async => _position(),
     );
-    expect(_confirm(tester).onPressed, isNull);
-    _select(tester, const LatLng(41, 69));
+    expect(_confirm(tester).onPressed, isNotNull);
+    await tester.tap(find.byKey(const ValueKey('address-confirm')));
     await tester.pump();
-    expect(_confirm(tester).onPressed, isNull);
+    expect(_Addresses.saved, hasLength(1));
   });
 
-  testWidgets('latest smaller admin radius blocks save', (tester) async {
+  testWidgets('save does not refresh or enforce a legacy radius', (
+    tester,
+  ) async {
     var requests = 0;
     await _mount(
       tester,
@@ -287,7 +281,7 @@ void main() {
         return [
           DeliveryCoverageBranch(
             id: 'b',
-            name: 'Do‘kon',
+            name: 'Store',
             latitude: 41,
             longitude: 69,
             radiusKm: requests == 1 ? 8 : 1,
@@ -297,13 +291,89 @@ void main() {
     );
     _select(tester, const LatLng(41.04, 69));
     await tester.pump();
-    expect(_confirm(tester).onPressed, isNotNull);
     await tester.tap(find.byKey(const ValueKey('address-confirm')));
     await tester.pump();
     await tester.pump();
-    expect(requests, 2);
+    expect(requests, 1);
+    expect(_Addresses.saved.single.latitude, 41.04);
+  });
+
+  for (final store in StoreType.values) {
+    testWidgets('far address is saved without a radius gate for $store', (
+      tester,
+    ) async {
+      await _mount(
+        tester,
+        store: store,
+        location: () async => _position(lat: 55, lon: 37),
+      );
+      expect(_confirm(tester).onPressed, isNotNull);
+      expect(find.byType(CircleLayer), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('address-confirm')));
+      await tester.pump();
+      expect(_Addresses.saved.single.latitude, 55);
+      expect(_Addresses.saved.single.longitude, 37);
+    });
+  }
+
+  testWidgets('failed save retains point and allows retry without coverage', (
+    tester,
+  ) async {
+    await _mount(
+      tester,
+      coverage: () async => [],
+      location: () async => _position(lat: 55, lon: 37),
+    );
+    _Addresses.failure = const NetworkFailure();
+    await tester.tap(find.byKey(const ValueKey('address-confirm')));
+    await tester.pumpAndSettle();
+    expect(find.byType(AddressFormScreen), findsOneWidget);
     expect(_Addresses.saved, isEmpty);
-    expect(_confirm(tester).onPressed, isNull);
+    expect(_confirm(tester).onPressed, isNotNull);
+    _Addresses.failure = null;
+    await tester.tap(find.byKey(const ValueKey('address-confirm')));
+    await tester.pumpAndSettle();
+    expect(_Addresses.saved.single.latitude, 55);
+  });
+
+  for (final size in [const Size(320, 640), const Size(800, 360)]) {
+    testWidgets('save error never covers confirm at 200% $size', (
+      tester,
+    ) async {
+      tester.view.physicalSize = size;
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await _mount(
+        tester,
+        locale: const Locale('ru'),
+        scale: 2,
+        location: () async => _position(),
+      );
+      _Addresses.failure = const NetworkFailure();
+      await tester.tap(find.byKey(const ValueKey('address-confirm')));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(find.byType(MaterialBanner), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('address-confirm')).hitTestable(),
+        findsOneWidget,
+      );
+      expect(_Addresses.saved, isEmpty);
+    });
+  }
+
+  testWidgets('invalid coordinates are not selected or saved', (tester) async {
+    await _mount(tester);
+    for (final point in [
+      const LatLng(91, 69),
+      const LatLng(41, 181),
+      const LatLng(double.nan, 69),
+    ]) {
+      _select(tester, point);
+      await tester.pump();
+      expect(_confirm(tester).onPressed, isNull);
+    }
+    expect(_Addresses.saved, isEmpty);
   });
 
   testWidgets(
@@ -375,7 +445,7 @@ void main() {
           .mapController!
           .camera
           .zoom,
-      lessThan(16),
+      16,
     );
     expect(find.text('41.311081, 69.240562'), findsOneWidget);
     expect(_Addresses.saved, isEmpty);
@@ -486,7 +556,7 @@ void main() {
     },
   );
 
-  testWidgets('store and radius are real checkout coverage, never invented', (
+  testWidgets('optional store marker has no radius label or circle', (
     tester,
   ) async {
     await _mount(
@@ -494,77 +564,51 @@ void main() {
       store: StoreType.household,
       location: () async => _position(),
     );
-    expect(
-      tester
-          .widget<CircleLayer>(find.byType(CircleLayer))
-          .circles
-          .single
-          .radius,
-      2000,
-    );
-    expect(
-      tester
-          .widget<CircleLayer>(find.byType(CircleLayer))
-          .circles
-          .single
-          .borderColor,
-      const Color(0xFF006B53),
-    );
+    expect(find.byType(CircleLayer), findsNothing);
     expect(
       tester.widget<MarkerLayer>(find.byType(MarkerLayer)).markers,
       hasLength(2),
     );
     expect(find.textContaining('8 km'), findsNothing);
-    expect(find.textContaining('2 km'), findsOneWidget);
+    expect(find.textContaining('2 km'), findsNothing);
   });
 
-  testWidgets(
-    'store coverage error never falls back to the global 8 km circle',
-    (tester) async {
-      await _mount(
-        tester,
-        store: StoreType.household,
-        location: () async => _position(),
-        storeCoverage: () async => throw const NetworkFailure(),
-      );
-      expect(find.textContaining('8 km'), findsNothing);
-      expect(find.byType(CircleLayer), findsNothing);
-      expect(
-        tester
-            .widget<FilledButton>(find.byKey(const ValueKey('address-confirm')))
-            .onPressed,
-        isNull,
-      );
-    },
-  );
+  testWidgets('store coverage error never blocks a valid address', (
+    tester,
+  ) async {
+    await _mount(
+      tester,
+      store: StoreType.household,
+      location: () async => _position(),
+      storeCoverage: () async => throw const NetworkFailure(),
+    );
+    expect(find.byType(CircleLayer), findsNothing);
+    expect(_confirm(tester).onPressed, isNotNull);
+  });
 
-  testWidgets(
-    'save revalidates store radius rather than global address maximum',
-    (tester) async {
-      var calls = 0;
-      await _mount(
-        tester,
-        store: StoreType.household,
-        storeCoverage: () async => [
-          DeliveryCoverageBranch(
-            id: 'xozmak',
-            name: 'Xozmak',
-            latitude: 41.31,
-            longitude: 69.24,
-            radiusKm: ++calls == 1 ? 8 : 1,
-          ),
-        ],
-      );
-      _select(tester, const LatLng(41.34, 69.24));
-      await tester.pump();
-      expect(_confirm(tester).onPressed, isNotNull);
-      await tester.tap(find.byKey(const ValueKey('address-confirm')));
-      await tester.pumpAndSettle();
-      expect(calls, 2);
-      expect(_Addresses.saved, isEmpty);
-      expect(_confirm(tester).onPressed, isNull);
-    },
-  );
+  testWidgets('saving never revalidates store or global radii', (tester) async {
+    var calls = 0;
+    await _mount(
+      tester,
+      store: StoreType.household,
+      storeCoverage: () async => [
+        DeliveryCoverageBranch(
+          id: 'xozmak',
+          name: 'Xozmak',
+          latitude: 41.31,
+          longitude: 69.24,
+          radiusKm: ++calls == 1 ? 8 : 1,
+        ),
+      ],
+    );
+    _select(tester, const LatLng(43, 71));
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('address-confirm')));
+    await tester.pumpAndSettle();
+    expect(calls, 1);
+    expect(_Addresses.saved.single.latitude, 43);
+    expect(_Addresses.saved.single.longitude, 71);
+  });
 
   for (final locale in [
     const Locale('uz'),

@@ -1,11 +1,14 @@
 import 'package:beshkashtan_customer/core/localization/locale_controller.dart';
 import 'package:beshkashtan_customer/core/network/api_failure.dart';
+import 'package:beshkashtan_customer/core/storage/prefs_store.dart';
 import 'package:beshkashtan_customer/core/store_scope/store_type.dart';
 import 'package:beshkashtan_customer/features/cart/data/cart_api.dart';
 import 'package:beshkashtan_customer/features/cart/data/cart_models.dart';
 import 'package:beshkashtan_customer/features/cart/domain/cart_controller.dart';
 import 'package:beshkashtan_customer/features/catalog/data/product_models.dart';
 import 'package:beshkashtan_customer/features/catalog/presentation/widgets/product_card.dart';
+import 'package:beshkashtan_customer/features/catalog/presentation/widgets/product_image.dart';
+import 'package:beshkashtan_customer/features/catalog/presentation/widgets/product_image_magnifier.dart';
 import 'package:beshkashtan_customer/features/favorites/data/favorite_models.dart';
 import 'package:beshkashtan_customer/features/favorites/data/favorites_api.dart';
 import 'package:beshkashtan_customer/features/favorites/domain/favorites_controller.dart';
@@ -15,6 +18,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class _MockCartApi extends Mock implements CartApi {}
 
@@ -66,7 +70,13 @@ CartData _cart(int quantity) => CartData(
   subtotal: '${15000 * quantity}.00',
 );
 
+late PrefsStore _reliabilityPrefs;
+
 void main() {
+  setUp(() async {
+    SharedPreferences.setMockInitialValues({});
+    _reliabilityPrefs = await PrefsStore.load();
+  });
   setUpAll(() {
     registerFallbackValue(
       const CartConfiguration(productId: 'fallback-product'),
@@ -79,6 +89,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          prefsStoreProvider.overrideWithValue(_reliabilityPrefs),
           apiLangProvider.overrideWithValue('uz'),
           cartApiProvider.overrideWithValue(cartApi),
           favoritesApiProvider.overrideWithValue(favoritesApi),
@@ -143,6 +154,7 @@ void main() {
         storeType: any(named: 'storeType'),
         configuration: any(named: 'configuration'),
         quantity: any(named: 'quantity'),
+        idempotencyKey: any(named: 'idempotencyKey'),
       ),
     ).thenAnswer((_) async => quantity = 1);
 
@@ -151,6 +163,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          prefsStoreProvider.overrideWithValue(_reliabilityPrefs),
           apiLangProvider.overrideWithValue('uz'),
           cartApiProvider.overrideWithValue(cartApi),
           favoritesApiProvider.overrideWithValue(favoritesApi),
@@ -167,11 +180,12 @@ void main() {
           home: Scaffold(
             body: Center(
               child: SizedBox(
-                width: 180,
-                height: 310,
+                width: 320,
+                height: 480,
                 child: ProductCard(
                   product: _restaurantProduct,
                   storeType: StoreType.restaurant,
+                  restaurantListStyle: true,
                   catalogStyle: true,
                 ),
               ),
@@ -192,6 +206,7 @@ void main() {
         storeType: 'restaurant',
         configuration: any(named: 'configuration'),
         quantity: 1,
+        idempotencyKey: any(named: 'idempotencyKey'),
       ),
     ).called(1);
     expect(
@@ -213,6 +228,7 @@ void main() {
         storeType: any(named: 'storeType'),
         configuration: any(named: 'configuration'),
         quantity: any(named: 'quantity'),
+        idempotencyKey: any(named: 'idempotencyKey'),
       ),
     ).thenAnswer((_) async => quantity = 1);
     when(() => cartApi.updateQuantity('line-1', any())).thenAnswer((
@@ -227,6 +243,15 @@ void main() {
     await pumpCard(tester, cartApi: cartApi);
 
     expect(find.text('Xarid qilish'), findsOneWidget);
+    final photo = tester.widget<ProductImageView>(find.byType(ProductImageView));
+    expect(photo.fit, BoxFit.contain);
+    // The custom magnifier builder renders the actual image, so its fit must
+    // match too (setting only CachedNetworkImage.fit would not fix cropping).
+    final magnifier = photo.imageBuilder!(
+      tester.element(find.byType(ProductImageView)),
+      const AssetImage('test-product.png'),
+    ) as ProductImageMagnifier;
+    expect((magnifier.child as Image).fit, BoxFit.contain);
     expect(find.text('dona'), findsNothing);
     expect(
       find.byKey(const ValueKey('product-card-image-count-product-1')),
@@ -248,6 +273,7 @@ void main() {
         storeType: 'household',
         configuration: any(named: 'configuration'),
         quantity: 1,
+        idempotencyKey: any(named: 'idempotencyKey'),
       ),
     ).called(1);
 
@@ -282,6 +308,7 @@ void main() {
         storeType: any(named: 'storeType'),
         configuration: any(named: 'configuration'),
         quantity: any(named: 'quantity'),
+        idempotencyKey: any(named: 'idempotencyKey'),
       ),
     ).thenThrow(const ServerFailure('server yiqildi', 500));
 

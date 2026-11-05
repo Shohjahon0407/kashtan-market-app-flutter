@@ -21,6 +21,8 @@ class OrderLifecyclePatch {
     this.deliveryDeadlineAt,
     this.pickedUpAt,
     this.deliveredAt,
+    this.serverCanCancel,
+    this.paymentStatus = '',
   });
 
   factory OrderLifecyclePatch.fromEvent(
@@ -31,6 +33,7 @@ class OrderLifecyclePatch {
     final label = event['status_label_$language'] ?? event['status_label'];
     return OrderLifecyclePatch(
       status: JsonRead.string(event['status']),
+      paymentStatus: JsonRead.string(event['payment_status']),
       userStatus: JsonRead.string(event['user_status']),
       statusLabel: JsonRead.string(label),
       courierName: JsonRead.string(
@@ -49,10 +52,14 @@ class OrderLifecyclePatch {
       deliveryDeadlineAt: parseOrderDateTime(event['delivery_deadline_at']),
       pickedUpAt: parseOrderDateTime(event['picked_up_at']),
       deliveredAt: parseOrderDateTime(event['delivered_at']),
+      serverCanCancel: event['can_cancel'] is bool
+          ? event['can_cancel'] as bool
+          : null,
     );
   }
 
   final String status;
+  final String paymentStatus;
   final String userStatus;
   final String statusLabel;
   final String courierName;
@@ -65,6 +72,7 @@ class OrderLifecyclePatch {
   final DateTime? deliveryDeadlineAt;
   final DateTime? pickedUpAt;
   final DateTime? deliveredAt;
+  final bool? serverCanCancel;
 
   bool get isSearching => userStatus == 'reviewing' || userStatus == 'pending';
 }
@@ -163,6 +171,8 @@ OrderData applyOrderLive(OrderData order, OrderLiveState live) {
       deliveryDeadlineAt: patch.deliveryDeadlineAt,
       pickedUpAt: patch.pickedUpAt,
       deliveredAt: patch.deliveredAt,
+      serverCanCancel: patch.serverCanCancel,
+      paymentStatus: _orNull(patch.paymentStatus),
     );
   }
   final location = newerLocation(result.courierLocation, live.location);

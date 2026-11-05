@@ -1,9 +1,12 @@
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/localization/locale_controller.dart';
 import '../../../core/network/api_failure.dart';
 import '../../../core/storage/account_scope.dart';
+import '../../../core/storage/prefs_store.dart';
 import '../../../core/store_scope/store_type.dart';
 import '../../cart/domain/cart_controller.dart';
 import '../../orders/data/order_models.dart';
@@ -19,21 +22,50 @@ class CheckoutSubmissionState {
   final OrderData? lastOrder;
 }
 
-/// Buyurtma yaratish idempotency kalitlari — checkout controller'idan TASHQARIDA.
-///
-/// Controller autoDispose: timeout'dan keyin foydalanuvchi savatga qaytib,
-/// checkout'ga qayta kirsa yangi instance qurilardi va kalit yo'qolardi —
-/// server javobi yo'qolgan (lekin buyurtma yaratilgan) holatda qayta
-/// yuborish IKKINCHI buyurtma ochardi. Kalit shu yerda, do'kon bo'yicha,
-/// muvaffaqiyat yoki qat'iy 400 gacha saqlanadi; akkaunt almashsa tozalanadi.
+/// Pending checkout is persisted before POST and scoped to the account/store.
+/// An uncertain attempt retains its original payload/revision across restarts.
+/// Only a definitive rejection or handoff to the resulting order clears it.
 final checkoutIdempotencyStoreProvider = Provider<CheckoutIdempotencyStore>((
   ref,
 ) {
-  ref.watch(accountScopeProvider);
-  return CheckoutIdempotencyStore();
+  return CheckoutIdempotencyStore(
+    ref.watch(prefsStoreProvider),
+    ref.watch(accountScopeProvider),
+  );
 });
 
 class CheckoutIdempotencyStore {
+  CheckoutIdempotencyStore([this.prefs, this.owner = 'test']);
+  final PrefsStore? prefs;
+  final String owner;
+  String _diskKey(StoreType store) =>
+      'checkout.pending.v1.$owner.${store.wire}';
+  Map<String, dynamic>? pending(StoreType store) {
+    final raw = prefs?.getString(_diskKey(store));
+    return raw == null
+        ? null
+        : Map<String, dynamic>.from(jsonDecode(raw) as Map);
+  }
+
+  Future<Map<String, dynamic>> prepare(
+    StoreType store,
+    Map<String, dynamic> payload,
+  ) async {
+    final existing = pending(store);
+    if (existing != null) return existing;
+    final entry = {
+      'key': keyFor(store, jsonEncode(payload)),
+      'payload': payload,
+    };
+    await prefs?.setString(_diskKey(store), jsonEncode(entry));
+    return entry;
+  }
+
+  Future<void> acknowledge(StoreType store) async {
+    await prefs?.remove(_diskKey(store));
+    clear(store);
+  }
+
   final _entries = <StoreType, ({String signature, String key})>{};
 
   /// Ayni imzo uchun mavjud kalitni qaytaradi, aks holda yangisini yaratadi.
@@ -75,7 +107,51 @@ class CheckoutController extends Notifier<CheckoutSubmissionState> {
   final StoreType storeType;
 
   @override
-  CheckoutSubmissionState build() => const CheckoutSubmissionState();
+  CheckoutSubmissionState build() {
+    ref.watch(accountScopeProvider);
+    final pending = ref
+        .read(checkoutIdempotencyStoreProvider)
+        .pending(storeType);
+    if (pending != null) Future.microtask(_recover);
+    return CheckoutSubmissionState(isSubmitting: pending != null);
+  }
+
+  Future<void> _recover() async {
+    if (!ref.mounted) return;
+    final owner = ref.read(accountScopeProvider);
+    final entry = ref.read(checkoutIdempotencyStoreProvider).pending(storeType);
+    if (entry == null) return;
+    try {
+      final order = await ref
+          .read(ordersApiProvider)
+          .byCheckoutKey(entry['key'] as String);
+      if (ref.mounted && ref.read(accountScopeProvider) == owner) {
+        state = CheckoutSubmissionState(lastOrder: order);
+      }
+    } on ApiFailure {
+      if (ref.mounted && ref.read(accountScopeProvider) == owner) {
+        state = const CheckoutSubmissionState();
+      }
+      // Keep the intent. Submit retries the original payload and revision.
+    }
+  }
+
+  Future<OrderData?> retryPending() {
+    final entry = ref.read(checkoutIdempotencyStoreProvider).pending(storeType);
+    if (entry == null) return Future.value(null);
+    final payload = Map<String, dynamic>.from(entry['payload'] as Map);
+    return submit(
+      fulfillmentType: payload['fulfillment'] == 'pickup'
+          ? FulfillmentType.pickup
+          : FulfillmentType.delivery,
+      paymentMethod: PaymentMethod.cash,
+      addressId: payload['address'] as String?,
+      pickupBranchId: payload['branch'] as String?,
+      note: payload['note'] as String,
+      recipientName: payload['recipient_name'] as String?,
+      recipientPhone: payload['recipient_phone'] as String?,
+    );
+  }
 
   Future<OrderData?> submit({
     required FulfillmentType fulfillmentType,
@@ -83,42 +159,73 @@ class CheckoutController extends Notifier<CheckoutSubmissionState> {
     String? addressId,
     String? pickupBranchId,
     String note = '',
+    String? recipientName,
+    String? recipientPhone,
   }) async {
     if (state.isSubmitting) return null;
-    final enabledMethod = ref.read(paymeEnabledProvider)
-        ? paymentMethod
-        : PaymentMethod.cash;
-    final paymentWire = enabledMethod.wireFor(fulfillmentType);
-    // Izoh imzoga KIRMAYDI: bitta belgi o'zgarsa yangi kalit — ayni
-    // buyurtma niyati uchun takroriy buyurtma bo'lardi.
-    final signature = [
-      storeType.wire,
-      fulfillmentType.wire,
-      paymentWire,
-      addressId ?? '',
-      pickupBranchId ?? '',
-    ].join('|');
+    final paymentWire = paymentMethod.wireFor(fulfillmentType);
     final keys = ref.read(checkoutIdempotencyStoreProvider);
-    final idempotencyKey = keys.keyFor(storeType, signature);
+    final api = ref.read(ordersApiProvider);
+    final owner = ref.read(accountScopeProvider);
     state = const CheckoutSubmissionState(isSubmitting: true);
     try {
-      final order = await ref
-          .read(ordersApiProvider)
-          .create(
+      final cart = ref.read(cartControllerProvider(storeType)).value?.cart;
+      if (keys.pending(storeType) == null && cart?.isOrderable == false) {
+        throw const ValidationFailure('', {
+          'reason_code': ['product_unavailable'],
+        });
+      }
+      final recovering = keys.pending(storeType) != null;
+      if (paymentMethod == PaymentMethod.payme && !recovering) {
+        final enabled = ref.read(paymeEnabledProvider);
+        final capabilities = enabled
+            ? await ref.read(paymentCapabilitiesProvider.future)
+            : const <String, bool>{};
+        if (!ref.mounted || ref.read(accountScopeProvider) != owner) {
+          return null;
+        }
+        if (storeType != StoreType.household ||
+            capabilities[storeType.wire] != true) {
+          throw const ValidationFailure('Payme hozircha mavjud emas.', {
+            'reason_code': ['payme_unavailable'],
+          });
+        }
+      }
+      final entry = await keys.prepare(storeType, {
+        'fulfillment': fulfillmentType.wire,
+        'payment': paymentWire,
+        'address': addressId,
+        'branch': pickupBranchId,
+        'note': note,
+        'revision': cart?.revision,
+        'recipient_name': ?recipientName,
+        'recipient_phone': ?recipientPhone,
+      });
+      if (!ref.mounted || ref.read(accountScopeProvider) != owner) return null;
+      final key = entry['key'] as String;
+      final payload = Map<String, dynamic>.from(entry['payload'] as Map);
+      final recovered = recovering ? await api.byCheckoutKey(key) : null;
+      if (!ref.mounted || ref.read(accountScopeProvider) != owner) return null;
+      final order =
+          recovered ??
+          await api.create(
             storeType: storeType.wire,
-            fulfillmentType: fulfillmentType,
-            paymentMethod: paymentWire,
-            addressId: addressId,
-            pickupBranchId: pickupBranchId,
-            note: note,
-            idempotencyKey: idempotencyKey,
+            fulfillmentType: payload['fulfillment'] == 'pickup'
+                ? FulfillmentType.pickup
+                : FulfillmentType.delivery,
+            paymentMethod: payload['payment'] as String,
+            addressId: payload['address'] as String?,
+            pickupBranchId: payload['branch'] as String?,
+            note: payload['note'] as String,
+            recipientName: payload['recipient_name'] as String?,
+            recipientPhone: payload['recipient_phone'] as String?,
+            idempotencyKey: key,
+            expectedCartRevision: payload['revision'] as int?,
           );
-      // Buyurtma yaratildi — kalit ishini tugatdi (store keepAlive, shuning
-      // uchun ekran yopilgan bo'lsa ham tozalanadi).
-      keys.clear(storeType);
       // Ekran yopilgan bo'lsa provider dispose bo'lgan: `ref`/`state` ga
       // tegib bo'lmaydi, buyurtma esa baribir mavjud.
       if (!ref.mounted) return order;
+      if (ref.read(accountScopeProvider) != owner) return null;
       for (final query in orderQueriesAffectedBy(storeType)) {
         ref.invalidate(ordersControllerProvider(query));
       }
@@ -131,13 +238,13 @@ class CheckoutController extends Notifier<CheckoutSubmissionState> {
         // A failed cleanup cannot turn an already-created order into a failed
         // submission and invite another POST. Cart keeps its own retry state.
       }
-      if (!ref.mounted) return order;
+      if (!ref.mounted || ref.read(accountScopeProvider) != owner) return null;
       state = CheckoutSubmissionState(lastOrder: order);
       return order;
     } on ValidationFailure {
       // Definitive 400: shu payload qayta yuborilganda yangi checkout urinish
       // hisoblanadi. Network/timeout uchun esa ayni UUID saqlanadi.
-      keys.clear(storeType);
+      await keys.acknowledge(storeType);
       if (ref.mounted) state = const CheckoutSubmissionState();
       rethrow;
     } on Object {
@@ -146,3 +253,21 @@ class CheckoutController extends Notifier<CheckoutSubmissionState> {
     }
   }
 }
+
+final pendingCheckoutProvider = FutureProvider.autoDispose<StoreType?>((
+  ref,
+) async {
+  final keys = ref.watch(checkoutIdempotencyStoreProvider);
+  for (final type in StoreType.values) {
+    final entry = keys.pending(type);
+    if (entry == null) continue;
+    // Check at startup, without creating a new purchase in the background.
+    try {
+      await ref.read(ordersApiProvider).byCheckoutKey(entry['key'] as String);
+    } on ApiFailure {
+      /* The user can retry from checkout when online. */
+    }
+    return type;
+  }
+  return null;
+});

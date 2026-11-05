@@ -13,7 +13,10 @@ class UnsupportedStoreScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.unsupportedStoreTitle)),
+      appBar: AppBar(
+        leading: const AppBackButton(),
+        title: Text(l10n.unsupportedStoreTitle),
+      ),
       body: StoreEmptyView(
         icon: Icons.store_mall_directory_outlined,
         title: l10n.unsupportedStoreTitle,

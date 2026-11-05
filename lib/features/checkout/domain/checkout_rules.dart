@@ -51,27 +51,29 @@ abstract final class CheckoutRules {
     required String? pickupBranchId,
     required bool pickupAllowed,
     CartData? cart,
-  }) => switch (fulfillmentType) {
-    FulfillmentType.delivery =>
-      (cart?.meetsDeliveryMinimumIncluding(
-                !isEstimating && estimate?.available == true
-                    ? estimate?.deliveryPrice
-                    : null,
-              ) ??
-              true) &&
-          addressId != null &&
-          addressId.isNotEmpty &&
-          estimate?.available == true &&
-          estimate?.deliveryPrice != null &&
-          displayTotal(
-                subtotal: cart?.subtotal ?? '0',
-                fulfillment: fulfillmentType,
-                estimate: estimate,
-                estimating: isEstimating,
-              ) !=
-              null &&
-          !isEstimating,
-    FulfillmentType.pickup =>
-      pickupAllowed && pickupBranchId != null && pickupBranchId.isNotEmpty,
-  };
+  }) =>
+      (cart?.isOrderable ?? true) &&
+      switch (fulfillmentType) {
+        FulfillmentType.delivery =>
+          (cart?.meetsDeliveryMinimumIncluding(
+                    !isEstimating && estimate?.available == true
+                        ? estimate?.deliveryPrice
+                        : null,
+                  ) ??
+                  true) &&
+              addressId != null &&
+              addressId.isNotEmpty &&
+              estimate?.available == true &&
+              estimate?.deliveryPrice != null &&
+              displayTotal(
+                    subtotal: cart?.subtotal ?? '0',
+                    fulfillment: fulfillmentType,
+                    estimate: estimate,
+                    estimating: isEstimating,
+                  ) !=
+                  null &&
+              !isEstimating,
+        FulfillmentType.pickup =>
+          pickupAllowed && pickupBranchId != null && pickupBranchId.isNotEmpty,
+      };
 }

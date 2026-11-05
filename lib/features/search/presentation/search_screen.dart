@@ -46,7 +46,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   void _maybeLoadMore() {
     if (_scroll.position.pixels > _scroll.position.maxScrollExtent - 400) {
-      ref.read(searchControllerProvider.notifier).loadMore();
+      if (ref.read(searchControllerProvider).paginationFailure == null) {
+        ref.read(searchControllerProvider.notifier).loadMore();
+      }
     }
   }
 
@@ -173,9 +175,23 @@ class _SearchBody extends ConsumerWidget {
       );
     }
     if (state.failure != null) {
-      return _CenteredHint(
-        icon: Icons.error_outline,
-        text: state.failure!.localize(l10n),
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _CenteredHint(
+              icon: Icons.error_outline,
+              text: state.failure!.localize(l10n),
+              compact: true,
+            ),
+            TextButton(
+              onPressed: () => ref
+                  .read(searchControllerProvider.notifier)
+                  .search(state.query),
+              child: Text(l10n.commonRetry),
+            ),
+          ],
+        ),
       );
     }
     if (!state.searched) {
@@ -239,6 +255,19 @@ class _SearchBody extends ConsumerWidget {
               itemBuilder: (context, index) =>
                   _SearchProductTile(product: products[index]),
               separatorBuilder: (_, _) => const SizedBox(height: 2),
+            ),
+          ),
+        if (state.paginationFailure != null)
+          SliverToBoxAdapter(
+            child: Column(
+              children: [
+                Text(state.paginationFailure!.localize(l10n)),
+                TextButton(
+                  onPressed: () =>
+                      ref.read(searchControllerProvider.notifier).loadMore(),
+                  child: Text(l10n.commonRetry),
+                ),
+              ],
             ),
           ),
         if (state.isLoadingMore)

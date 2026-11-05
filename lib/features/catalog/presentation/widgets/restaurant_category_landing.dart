@@ -1,9 +1,13 @@
 import 'dart:async';
+import 'dart:math' as math;
+import 'dart:ui' show PointerDeviceKind;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
+import '../../../../core/storage/product_image_cache.dart';
+import '../../../../core/ui/formatters/uzs.dart';
 import '../../../../core/ui/theme/app_dimens.dart';
 import '../../../../generated/l10n/app_localizations.dart';
 import '../../data/product_models.dart';
@@ -63,15 +67,106 @@ List<PhotoCategoryItem> buildRestaurantCategoryItems(
   return items.map((entry) => entry.item).toList(growable: false);
 }
 
+const ofiyatGreen = Color(0xFF15803D);
+
+class OfiyatBrandTitle extends StatelessWidget {
+  const OfiyatBrandTitle({super.key});
+  @override
+  Widget build(BuildContext context) => Semantics(
+    label: 'Ofiyat milliy taomlari',
+    excludeSemantics: true,
+    child: const Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Ofiyat',
+          style: TextStyle(
+            color: ofiyatGreen,
+            fontSize: 24,
+            height: 1.05,
+            fontWeight: FontWeight.w900,
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        SizedBox(height: 2),
+        Text(
+          'milliy taomlari',
+          style: TextStyle(
+            color: ofiyatGreen,
+            fontSize: 14,
+            height: 1.1,
+            fontWeight: FontWeight.w600,
+          ),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ],
+    ),
+  );
+}
+
+const _dishNameStyle = TextStyle(
+  fontSize: 16,
+  fontWeight: FontWeight.w700,
+  height: 1.25,
+  color: Color(0xFF171717),
+);
+const _dishPriceStyle = TextStyle(
+  fontSize: 16,
+  height: 1.25,
+  fontWeight: FontWeight.w700,
+  color: ofiyatGreen,
+);
+
+double _cardHeight(BuildContext context, double width, {List<_Slide>? slides}) {
+  final scaler = MediaQuery.textScalerOf(context);
+  if (slides == null) {
+    return width / 2 + 12 + scaler.scale(16) * 3.75;
+  }
+  double measure(String text, TextStyle style, {int? maxLines}) {
+    final painter = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: DefaultTextStyle.of(context).style.merge(style),
+      ),
+      textScaler: scaler,
+      textDirection: Directionality.of(context),
+      locale: Localizations.maybeLocaleOf(context),
+      maxLines: maxLines,
+    )..layout(maxWidth: width);
+    final height = painter.height.ceilToDouble();
+    painter.dispose();
+    return height;
+  }
+
+  var metadataHeight = 0.0;
+  for (final slide in slides) {
+    final price = Uzs.format(slide.price);
+    if (slide.name.isEmpty && price.isEmpty) continue;
+    final height =
+        8 +
+        (slide.name.isEmpty
+            ? 0
+            : measure(slide.name, _dishNameStyle, maxLines: 2)) +
+        (slide.name.isEmpty || price.isEmpty ? 0 : 4) +
+        (price.isEmpty ? 0 : measure(price, _dishPriceStyle));
+    metadataHeight = math.max(metadataHeight, height + 2);
+  }
+  return width / 2 + metadataHeight;
+}
+
 class RestaurantCategoryLandingSliver extends StatelessWidget {
   const RestaurantCategoryLandingSliver({
     required this.categories,
     required this.onCategoryTap,
+    this.onProductTap,
     super.key,
   });
-
   final List<ProductCategory> categories;
   final ValueChanged<ProductCategory> onCategoryTap;
+  final void Function(ProductCategory category, String productId)? onProductTap;
 
   @override
   Widget build(BuildContext context) {
@@ -83,26 +178,17 @@ class RestaurantCategoryLandingSliver extends StatelessWidget {
       );
     }
     return SliverPadding(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.screenH,
-        AppSpacing.md,
-        AppSpacing.screenH,
-        AppSpacing.xxxl,
-      ),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
       sliver: SliverList.separated(
         itemCount: items.length,
-        separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.md),
-        itemBuilder: (context, index) => LayoutBuilder(
-          builder: (context, constraints) {
-            final compact = constraints.maxWidth < 358;
-            return _RestaurantCategoryCard(
-              key: ValueKey('restaurant-category-${items[index].category.id}'),
-              item: items[index],
-              height: compact ? 118 : 128,
-              visibleImageCount: compact ? 2 : 3,
-              onTap: () => onCategoryTap(items[index].category),
-            );
-          },
+        separatorBuilder: (_, _) => const SizedBox(height: 24),
+        itemBuilder: (context, index) => _RestaurantCategoryCard(
+          key: ValueKey('restaurant-category-${items[index].category.id}'),
+          item: items[index],
+          onTap: () => onCategoryTap(items[index].category),
+          onProductTap: (id) => onProductTap == null
+              ? onCategoryTap(items[index].category)
+              : onProductTap!(items[index].category, id),
         ),
       ),
     );
@@ -111,28 +197,33 @@ class RestaurantCategoryLandingSliver extends StatelessWidget {
 
 class RestaurantCategoryLandingSkeleton extends StatelessWidget {
   const RestaurantCategoryLandingSkeleton({super.key});
-
   @override
   Widget build(BuildContext context) {
     final color = Theme.of(context).colorScheme.surfaceContainerHighest;
     return SliverPadding(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.screenH,
-        AppSpacing.md,
-        AppSpacing.screenH,
-        AppSpacing.xxxl,
-      ),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
       sliver: SliverList.separated(
         itemCount: 6,
-        separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.md),
+        separatorBuilder: (_, _) => const SizedBox(height: 24),
         itemBuilder: (context, index) => LayoutBuilder(
-          builder: (context, constraints) => Container(
-            key: ValueKey('restaurant-category-skeleton-$index'),
-            height: constraints.maxWidth < 358 ? 118 : 128,
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(AppRadius.xl),
-            ),
+          builder: (context, constraints) => Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                height: MediaQuery.textScalerOf(context).scale(22),
+                width: 160,
+                color: color,
+              ),
+              const SizedBox(height: 8),
+              Container(
+                key: ValueKey('restaurant-category-skeleton-$index'),
+                height: _cardHeight(context, constraints.maxWidth),
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(24),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -140,20 +231,43 @@ class RestaurantCategoryLandingSkeleton extends StatelessWidget {
   }
 }
 
+class _Slide {
+  const _Slide(this.image, {this.name = '', this.price, this.productId});
+  final String? image, price;
+  final String? productId;
+  final String name;
+}
+
+List<_Slide> _slides(ProductCategory category) {
+  final seen = <String>{};
+  final products = [
+    for (final product in category.previewProducts)
+      if (product.id.isNotEmpty &&
+          product.imageUrl?.isNotEmpty == true &&
+          seen.add(product.id))
+        _Slide(
+          product.imageUrl,
+          name: product.name,
+          price: product.price,
+          productId: product.id,
+        ),
+  ];
+  if (products.isNotEmpty) return products.take(6).toList(growable: false);
+  // Old cache/API has no reliable product metadata. Never zip photos with
+  // unrelated names/prices, nor label the category name as a dish.
+  return [for (final image in category.previewImageUrls.take(1)) _Slide(image)];
+}
+
 class _RestaurantCategoryCard extends StatefulWidget {
   const _RestaurantCategoryCard({
     required this.item,
-    required this.height,
-    required this.visibleImageCount,
     required this.onTap,
+    required this.onProductTap,
     super.key,
   });
-
   final PhotoCategoryItem item;
-  final double height;
-  final int visibleImageCount;
   final VoidCallback onTap;
-
+  final ValueChanged<String> onProductTap;
   @override
   State<_RestaurantCategoryCard> createState() =>
       _RestaurantCategoryCardState();
@@ -161,48 +275,63 @@ class _RestaurantCategoryCard extends StatefulWidget {
 
 class _RestaurantCategoryCardState extends State<_RestaurantCategoryCard>
     with WidgetsBindingObserver {
-  static const _slideInterval = Duration(seconds: 4);
-  static const _slideDuration = Duration(milliseconds: 1200);
-
-  late PageController _controller;
+  static const _interval = Duration(seconds: 3);
+  static const _duration = Duration(milliseconds: 600);
+  PageController? _controller;
+  late int _page;
+  bool _restored = false;
   Timer? _timer;
-  bool _visible = false;
-  bool _foreground = true;
-  bool _userScrolling = false;
-
-  List<String> get _images => widget.item.category.previewImageUrls;
-  bool get _canSlide => _images.length > 1;
-  int get _initialPage => _images.isEmpty ? 0 : _images.length * 1000;
+  bool _visible = false,
+      _foreground = true,
+      _userScrolling = false,
+      _touching = false;
+  List<_Slide> get slides => _slides(widget.item.category);
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _controller = _newController();
+    _foreground =
+        WidgetsBinding.instance.lifecycleState == null ||
+        WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
+    _page = slides.length * 1000;
   }
-
-  PageController _newController() => PageController(
-    initialPage: _initialPage,
-    viewportFraction: 1 / widget.visibleImageCount,
-  );
 
   @override
   void didUpdateWidget(covariant _RestaurantCategoryCard oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.visibleImageCount != widget.visibleImageCount ||
-        oldWidget.item.category.previewImageUrls !=
-            widget.item.category.previewImageUrls) {
-      _timer?.cancel();
-      _controller.dispose();
-      _controller = _newController();
-      _syncTimer();
-    }
+    _syncTimer();
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    if (!_restored) {
+      final saved = PageStorage.maybeOf(context)?.readState(
+        context,
+        identifier: 'ofiyat-carousel-${widget.item.category.id}',
+      );
+      if (saved is int) _page = saved;
+      _restored = true;
+    }
     _syncTimer();
+  }
+
+  PageController _controllerFor(double fraction) {
+    final old = _controller;
+    if (old == null || (old.viewportFraction - fraction).abs() > .0001) {
+      _controller = PageController(
+        initialPage: _page,
+        viewportFraction: fraction,
+        keepPage: false,
+      );
+      // The old PageView detaches during this frame, before its controller
+      // is disposed. Keep the selected page when rotating/resizing.
+      if (old != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => old.dispose());
+      }
+    }
+    return _controller!;
   }
 
   @override
@@ -211,26 +340,40 @@ class _RestaurantCategoryCardState extends State<_RestaurantCategoryCard>
     _syncTimer();
   }
 
-  bool get _motionDisabled =>
-      MediaQuery.maybeOf(context)?.disableAnimations ?? false;
-
   void _syncTimer() {
     _timer?.cancel();
     _timer = null;
-    if (!_canSlide || !_visible || !_foreground || _motionDisabled) return;
-    _timer = Timer.periodic(_slideInterval, (_) => _showNextImage());
+    if (!mounted) return;
+    final media = MediaQuery.maybeOf(context);
+    if (slides.length <= 1 ||
+        !_visible ||
+        !_foreground ||
+        _userScrolling ||
+        _touching ||
+        media?.disableAnimations == true ||
+        media?.accessibleNavigation == true ||
+        !TickerMode.valuesOf(context).enabled ||
+        !(ModalRoute.of(context)?.isCurrent ?? true)) {
+      return;
+    }
+    _timer = Timer.periodic(_interval, (_) => unawaited(_next()));
   }
 
-  Future<void> _showNextImage() async {
-    if (!mounted || !_controller.hasClients || _userScrolling) return;
-    if (!(ModalRoute.of(context)?.isCurrent ?? true) ||
+  Future<void> _next() async {
+    final controller = _controller;
+    if (!mounted ||
+        controller == null ||
+        !controller.hasClients ||
+        _userScrolling ||
+        _touching ||
+        !(ModalRoute.of(context)?.isCurrent ?? true) ||
         !TickerMode.valuesOf(context).enabled) {
       return;
     }
-    final current = _controller.page?.round() ?? _initialPage;
-    await _controller.animateToPage(
-      current + 1,
-      duration: _slideDuration,
+    final page = controller.page?.round() ?? controller.initialPage;
+    await controller.animateToPage(
+      page + 1,
+      duration: _duration,
       curve: Curves.easeInOutCubic,
     );
   }
@@ -239,114 +382,243 @@ class _RestaurantCategoryCardState extends State<_RestaurantCategoryCard>
   void dispose() {
     _timer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
-    _controller.dispose();
+    _controller?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    final card = Semantics(
-      button: true,
-      label: widget.item.category.name,
-      child: Material(
-        key: ValueKey('photo-category-card-${widget.item.category.id}'),
-        color: colors.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(AppRadius.xl),
-        clipBehavior: Clip.antiAlias,
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: widget.onTap,
-          child: SizedBox(
-            height: widget.height,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                RepaintBoundary(child: _buildImages()),
-                const IgnorePointer(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        stops: [.38, 1],
-                        colors: [Colors.transparent, Color(0xA8000000)],
-                      ),
+    final data = slides;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: InkWell(
+                onTap: widget.onTap,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Text(
+                    widget.item.category.name,
+                    key: ValueKey(
+                      'restaurant-category-heading-${widget.item.category.id}',
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    semanticsLabel: widget.item.category.name,
+                    style: const TextStyle(
+                      fontFamily: 'RobotoCondensed',
+                      fontSize: 24,
+                      height: 1.15,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF171717),
                     ),
                   ),
                 ),
-                Align(
-                  alignment: Alignment.bottomLeft,
-                  child: Padding(
-                    padding: const EdgeInsets.all(AppSpacing.md),
-                    child: Text(
-                      widget.item.category.name,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w900,
-                        height: 1.08,
-                        shadows: const [
-                          Shadow(color: Colors.black54, blurRadius: 8),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
-          ),
+            const SizedBox(width: 8),
+            TextButton(
+              key: ValueKey(
+                'restaurant-category-all-${widget.item.category.id}',
+              ),
+              onPressed: widget.onTap,
+              style: TextButton.styleFrom(
+                foregroundColor: const Color(0xFF171717),
+                backgroundColor: const Color(0xFFF5F5F4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                minimumSize: const Size(48, 48),
+                shape: const StadiumBorder(),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    AppLocalizations.of(context).commonAll,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(width: 2),
+                  const Icon(Icons.chevron_right, size: 18),
+                ],
+              ),
+            ),
+          ],
         ),
-      ),
-    );
-    if (!_canSlide) return card;
-    return VisibilityDetector(
-      key: ValueKey(
-        'restaurant-category-visibility-${widget.item.category.id}',
-      ),
-      onVisibilityChanged: (info) {
-        final nextVisible = info.visibleFraction >= .15;
-        if (_visible == nextVisible) return;
-        _visible = nextVisible;
-        _syncTimer();
-      },
-      child: card,
+        const SizedBox(height: 10),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final multiple = data.length > 1;
+            final width = math.min(
+              constraints.maxWidth * (multiple ? .82 : 1),
+              380.0,
+            );
+            Widget dish(_Slide slide, int index) => _DishSlide(
+              key: ValueKey(
+                'restaurant-dish-${widget.item.category.id}-$index',
+              ),
+              imageKey: ValueKey(
+                'restaurant-dish-image-${widget.item.category.id}-$index',
+              ),
+              slide: slide,
+              asset: widget.item.assetPath,
+              onTap: slide.productId == null
+                  ? widget.onTap
+                  : () => widget.onProductTap(slide.productId!),
+            );
+            final card = SizedBox(
+              key: ValueKey('photo-category-card-${widget.item.category.id}'),
+              height: _cardHeight(context, width, slides: data),
+              child: Listener(
+                onPointerDown: (_) {
+                  _touching = true;
+                  _syncTimer();
+                },
+                onPointerUp: (_) {
+                  _touching = false;
+                  _syncTimer();
+                },
+                onPointerCancel: (_) {
+                  _touching = false;
+                  _syncTimer();
+                },
+                child: !multiple
+                    ? Align(
+                        alignment: Alignment.topLeft,
+                        child: SizedBox(
+                          width: width,
+                          child: dish(
+                            data.firstOrNull ?? const _Slide(null),
+                            0,
+                          ),
+                        ),
+                      )
+                    : NotificationListener<ScrollNotification>(
+                        onNotification: (event) {
+                          if (event is ScrollStartNotification &&
+                              event.dragDetails != null) {
+                            _userScrolling = true;
+                            _syncTimer();
+                          } else if (event is ScrollEndNotification &&
+                              _userScrolling) {
+                            _userScrolling = false;
+                            _syncTimer();
+                          }
+                          return false;
+                        },
+                        child: ScrollConfiguration(
+                          behavior: ScrollConfiguration.of(context).copyWith(
+                            dragDevices: {
+                              ...ScrollConfiguration.of(context).dragDevices,
+                              PointerDeviceKind.mouse,
+                            },
+                          ),
+                          child: PageView.builder(
+                            key: ValueKey(
+                              'restaurant-category-carousel-${widget.item.category.id}',
+                            ),
+                            controller: _controllerFor(
+                              (width + 12) / constraints.maxWidth,
+                            ),
+                            padEnds: false,
+                            onPageChanged: (page) {
+                              _page = page;
+                              PageStorage.maybeOf(context)?.writeState(
+                                context,
+                                page,
+                                identifier:
+                                    'ofiyat-carousel-${widget.item.category.id}',
+                              );
+                            },
+                            itemBuilder: (context, index) => Padding(
+                              padding: const EdgeInsets.only(right: 12),
+                              child: dish(data[index % data.length], index),
+                            ),
+                          ),
+                        ),
+                      ),
+              ),
+            );
+            if (data.length <= 1) return card;
+            return VisibilityDetector(
+              key: ValueKey(
+                'restaurant-category-visibility-${widget.item.category.id}',
+              ),
+              onVisibilityChanged: (info) {
+                if (!mounted) return;
+                final visible = info.visibleFraction >= .5;
+                if (_visible != visible) {
+                  _visible = visible;
+                  _syncTimer();
+                }
+              },
+              child: card,
+            );
+          },
+        ),
+      ],
     );
   }
+}
 
-  Widget _buildImages() {
-    if (_images.isEmpty) {
-      return _CategoryImageTile(assetPath: widget.item.assetPath);
-    }
-    if (_images.length == 1) {
-      return _CategoryImageTile(
-        imageUrl: _images.first,
-        assetPath: widget.item.assetPath,
-      );
-    }
-    return NotificationListener<ScrollNotification>(
-      onNotification: (notification) {
-        if (notification is ScrollStartNotification &&
-            notification.dragDetails != null) {
-          _userScrolling = true;
-        } else if (notification is ScrollEndNotification) {
-          _userScrolling = false;
-        }
-        return false;
-      },
-      child: PageView.builder(
-        key: ValueKey(
-          'restaurant-category-carousel-${widget.item.category.id}',
-        ),
-        controller: _controller,
-        padEnds: false,
-        itemBuilder: (context, index) => Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 1.5),
-          child: _CategoryImageTile(
-            imageUrl: _images[index % _images.length],
-            assetPath: widget.item.assetPath,
-          ),
+class _DishSlide extends StatelessWidget {
+  const _DishSlide({
+    required this.slide,
+    required this.onTap,
+    required this.imageKey,
+    this.asset,
+    super.key,
+  });
+  final _Slide slide;
+  final String? asset;
+  final VoidCallback onTap;
+  final Key imageKey;
+  @override
+  Widget build(BuildContext context) {
+    final price = Uzs.format(slide.price);
+    return Material(
+      color: Colors.white,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppRadius.xl),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            AspectRatio(
+              aspectRatio: 2,
+              child: ClipRRect(
+                key: imageKey,
+                borderRadius: BorderRadius.circular(AppRadius.xl),
+                child: ExcludeSemantics(
+                  child: RepaintBoundary(
+                    child: _CategoryImageTile(
+                      imageUrl: slide.image,
+                      assetPath: asset,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            if (slide.name.isNotEmpty || price.isNotEmpty)
+              const SizedBox(height: 8),
+            if (slide.name.isNotEmpty)
+              Text(
+                slide.name,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                semanticsLabel: slide.name,
+                style: _dishNameStyle,
+              ),
+            if (slide.name.isNotEmpty && price.isNotEmpty)
+              const SizedBox(height: 4),
+            if (price.isNotEmpty) Text(price, style: _dishPriceStyle),
+          ],
         ),
       ),
     );
@@ -361,13 +633,23 @@ class _CategoryImageTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fallback = _fallback(context);
     final url = imageUrl?.trim();
+    final fallback = url == null || url.isEmpty
+        ? _fallback(context)
+        : _placeholder(context);
     if (url == null || url.isEmpty) return fallback;
     return CachedNetworkImage(
+      cacheManager: ProductImageCache.persistentManager,
       imageUrl: url,
       fit: BoxFit.cover,
-      memCacheWidth: 420,
+      fadeInDuration: Duration.zero,
+      fadeOutDuration: Duration.zero,
+      placeholderFadeInDuration: Duration.zero,
+      memCacheWidth:
+          (MediaQuery.sizeOf(context).width *
+                  MediaQuery.devicePixelRatioOf(context))
+              .round()
+              .clamp(320, 1280),
       placeholder: (_, _) => fallback,
       errorWidget: (_, _, _) => fallback,
     );

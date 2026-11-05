@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:beshkashtan_customer/core/network/api_failure.dart';
 import 'package:beshkashtan_customer/core/network/interceptors/error_interceptor.dart';
 import 'package:dio/dio.dart';
@@ -8,11 +10,13 @@ DioException _err({
   Object? body,
   DioExceptionType type = DioExceptionType.badResponse,
   Map<String, List<String>> headers = const {},
+  Object? cause,
 }) {
   final options = RequestOptions(path: '/x/');
   return DioException(
     requestOptions: options,
     type: type,
+    error: cause,
     response: status == null
         ? null
         : Response<dynamic>(
@@ -47,6 +51,44 @@ void main() {
         isA<CancelledFailure>(),
       );
     });
+
+    test(
+      'timeout is distinct from disconnection without parsing raw strings',
+      () {
+        for (final type in [
+          DioExceptionType.connectionTimeout,
+          DioExceptionType.receiveTimeout,
+          DioExceptionType.sendTimeout,
+        ]) {
+          final failure =
+              ErrorInterceptor.mapToFailure(_err(type: type)) as NetworkFailure;
+          expect(failure.isTimeout, isTrue);
+          expect(failure.message, contains(type.name));
+        }
+        final disconnected =
+            ErrorInterceptor.mapToFailure(
+                  _err(type: DioExceptionType.connectionError),
+                )
+                as NetworkFailure;
+        expect(disconnected.isTimeout, isFalse);
+        final timeout =
+            ErrorInterceptor.mapToFailure(
+                  _err(
+                    type: DioExceptionType.unknown,
+                    cause: TimeoutException('private diagnostic'),
+                  ),
+                )
+                as NetworkFailure;
+        expect(timeout.isTimeout, isTrue);
+        const propagated = NetworkFailure.timeout('retained diagnostic');
+        expect(
+          ErrorInterceptor.mapToFailure(
+            _err(type: DioExceptionType.unknown, cause: propagated),
+          ),
+          same(propagated),
+        );
+      },
+    );
   });
 
   group('auth konverti status tekshiruvidan OLDIN keladi', () {

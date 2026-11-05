@@ -9,6 +9,16 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// Valyuta qo'shimchasi tilga mos: rus/kirill foydalanuvchi lotin "so'm"
 /// ko'rmasligi kerak.
 void main() {
+  test('quantity totals use exact minor units and preserve unknown prices', () {
+    expect(Uzs.multiply('14000.00', 10), '140000.00');
+    expect(Uzs.multiply('0.29', 3), '0.87');
+    expect(Uzs.multiply('21000.05', 999999), '21000028999.95');
+    expect(Uzs.multiply('14000', 2), '28000.00');
+    expect(Uzs.multiply('', 1), isNull);
+    expect(Uzs.multiply('unknown', 1), isNull);
+    expect(Uzs.multiply('-100', 1), isNull);
+    expect(Uzs.multiply('100', 0), isNull);
+  });
   tearDown(() => Uzs.suffix = Uzs.suffixFor(AppLocale.uz));
 
   test('har til uchun o\'z qo\'shimchasi', () {

@@ -3,12 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/localization/failure_l10n.dart';
 import '../../../core/network/api_failure.dart';
+import '../../../core/routing/back_navigation.dart';
 import '../../../core/store_scope/store_type.dart';
 import '../../../core/ui/theme/app_dimens.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../../catalog/presentation/widgets/catalog_loading_skeleton.dart';
 import '../../catalog/presentation/widgets/product_card.dart';
 import '../../store/presentation/widgets/store_state_views.dart';
+import '../../store/presentation/widgets/store_switch_button.dart';
 import '../domain/favorites_controller.dart';
 
 class FavoritesScreen extends ConsumerWidget {
@@ -21,7 +23,11 @@ class FavoritesScreen extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     final favorites = ref.watch(favoritesControllerProvider);
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.favoritesTitle)),
+      appBar: AppBar(
+        leading: const AppBackButton(),
+        title: Text(l10n.favoritesTitle),
+        actions: [StoreSwitchButton(storeType: storeType)],
+      ),
       body: RefreshIndicator(
         onRefresh: () =>
             ref.read(favoritesControllerProvider.notifier).refresh(),

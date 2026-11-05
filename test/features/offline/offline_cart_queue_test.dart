@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:beshkashtan_customer/core/localization/locale_controller.dart';
 import 'package:beshkashtan_customer/core/network/api_failure.dart';
@@ -43,6 +44,31 @@ const _configuration = CartConfiguration(productId: 'p1', note: 'tez');
 
 void main() {
   test(
+    'durable operation IDs are web-safe UUIDs before any HTTP request',
+    () async {
+      final (container, _, prefs) = await _setup();
+      final queue = container.read(offlineCartQueueProvider);
+      await queue.enqueueAdd(
+        storeType: 'household',
+        configuration: _configuration,
+        quantity: 1,
+      );
+      final raw = prefs.getString('cart.offline_queue.v2.guest')!;
+      final ops = (jsonDecode(raw) as List).cast<Map<String, dynamic>>();
+      final uuid = RegExp(
+        r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+      );
+      expect(ops.single['operation_id'], matches(uuid));
+      expect(ops.single['idempotency_key'], matches(uuid));
+      await queue.enqueueSetQuantity('second', 2, storeType: 'household');
+      final saved =
+          (jsonDecode(prefs.getString('cart.offline_queue.v2.guest')!) as List)
+              .cast<Map<String, dynamic>>();
+      expect(saved.map((op) => op['operation_id']).toSet(), hasLength(2));
+      expect(saved.first['idempotency_key'], ops.first['idempotency_key']);
+    },
+  );
+  test(
     'enqueue during flush is preserved and acknowledged by operation ID',
     () async {
       final (container, api, _) = await _setup();
@@ -54,10 +80,10 @@ void main() {
       when(
         () => api.updateQuantity('second', 3),
       ).thenThrow(const ServerFailure('retry', 503));
-      await queue.enqueueSetQuantity('first', 2);
+      await queue.enqueueSetQuantity('first', 2, storeType: 'household');
       final flushing = queue.flush();
       await Future<void>.delayed(Duration.zero);
-      await queue.enqueueSetQuantity('second', 3);
+      await queue.enqueueSetQuantity('second', 3, storeType: 'household');
       pending.complete();
       await flushing;
       expect(queue.isEmpty, isFalse);
@@ -72,7 +98,7 @@ void main() {
   test('429/500/auth failures retain queued intents', () async {
     final (container, api, _) = await _setup();
     final queue = container.read(offlineCartQueueProvider);
-    await queue.enqueueSetQuantity('item', 2);
+    await queue.enqueueSetQuantity('item', 2, storeType: 'household');
     for (final failure in [
       const ThrottledFailure('retry'),
       const ServerFailure('', 500),
@@ -99,7 +125,7 @@ void main() {
       );
       addTearDown(container.dispose);
       final a = container.read(offlineCartQueueProvider);
-      await a.enqueueSetQuantity('A-item', 2);
+      await a.enqueueSetQuantity('A-item', 2, storeType: 'household');
       container.read(_ownerProvider.notifier).change('user_B');
       await container.pump();
       expect(container.read(offlineCartQueueProvider).isEmpty, isTrue);
@@ -150,6 +176,7 @@ void main() {
         storeType: any(named: 'storeType'),
         configuration: any(named: 'configuration'),
         quantity: any(named: 'quantity'),
+        idempotencyKey: any(named: 'idempotencyKey'),
       ),
     ).thenAnswer((_) async {});
     when(() => api.updateQuantity(any(), any())).thenAnswer((_) async {});
@@ -159,7 +186,7 @@ void main() {
       configuration: _configuration,
       quantity: 2,
     );
-    await queue.enqueueSetQuantity('item-1', 3);
+    await queue.enqueueSetQuantity('item-1', 3, storeType: 'household');
 
     await queue.flush();
 
@@ -168,6 +195,7 @@ void main() {
         storeType: 'grocery',
         configuration: any(named: 'configuration'),
         quantity: 2,
+        idempotencyKey: any(named: 'idempotencyKey'),
       ),
       () => api.updateQuantity('item-1', 3),
     ]);
@@ -183,7 +211,7 @@ void main() {
         () => api.updateQuantity(any(), any()),
       ).thenThrow(const NetworkFailure('offline'));
 
-      await queue.enqueueSetQuantity('item-1', 3);
+      await queue.enqueueSetQuantity('item-1', 3, storeType: 'household');
       await queue.flush();
 
       expect(queue.isEmpty, isFalse, reason: 'amal yo‘qolmasligi kerak');
@@ -201,7 +229,7 @@ void main() {
     final queue = container.read(offlineCartQueueProvider);
     when(() => api.deleteItem(any())).thenThrow(const NotFoundFailure('yo‘q'));
 
-    await queue.enqueueRemove('item-old');
+    await queue.enqueueRemove('item-old', storeType: 'household');
     await queue.flush();
 
     expect(queue.isEmpty, isTrue, reason: 'eskirgan amal navbatni bloklamaydi');
@@ -212,8 +240,8 @@ void main() {
     final queue = container.read(offlineCartQueueProvider);
     when(() => api.updateQuantity(any(), any())).thenAnswer((_) async {});
 
-    await queue.enqueueSetQuantity('item-1', 2);
-    await queue.enqueueSetQuantity('item-1', 5);
+    await queue.enqueueSetQuantity('item-1', 2, storeType: 'household');
+    await queue.enqueueSetQuantity('item-1', 5, storeType: 'household');
     await queue.flush();
 
     verify(() => api.updateQuantity('item-1', 5)).called(1);
@@ -238,6 +266,7 @@ void main() {
         storeType: any(named: 'storeType'),
         configuration: any(named: 'configuration'),
         quantity: any(named: 'quantity'),
+        idempotencyKey: any(named: 'idempotencyKey'),
       ),
     );
     verify(() => api.clear('grocery')).called(1);

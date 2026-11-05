@@ -53,6 +53,7 @@ dependencies:
   cached_network_image: ^3.4.1
   # Video fayl keshi (cached_network_image allaqachon tortib keladi).
   flutter_cache_manager: ^3.4.2
+  file: ^7.0.1
   flutter_svg: ^2.3.0
   shimmer: ^3.0.0
   smooth_page_indicator: ^2.0.1
@@ -108,6 +109,7 @@ flutter:
   generate: true
 
   assets:
+    - assets/fonts/RobotoCondensed-OFL.txt
     - assets/brand/
     - assets/l10n/
     # Do'kon kartochkalari uchun rasmlar (store_type nomi bilan).
@@ -127,3 +129,6 @@ flutter:
     - family: Inter
       fonts:
         - asset: assets/fonts/InterVariable.ttf
+    - family: RobotoCondensed
+      fonts:
+        - asset: assets/fonts/RobotoCondensed-Variable.ttf

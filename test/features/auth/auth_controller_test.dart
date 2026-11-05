@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:beshkashtan_customer/core/localization/locale_controller.dart';
 import 'package:beshkashtan_customer/core/network/api_failure.dart';
 import 'package:beshkashtan_customer/core/network/network_providers.dart';
+import 'package:beshkashtan_customer/core/storage/account_scope.dart';
 import 'package:beshkashtan_customer/core/storage/prefs_store.dart';
 import 'package:beshkashtan_customer/core/storage/secure_token_store.dart';
 import 'package:beshkashtan_customer/features/auth/data/auth_api.dart';
@@ -39,7 +40,9 @@ void main() {
   late InMemoryTokenStore tokens;
   late ProviderContainer container;
 
+  String? hookOwner;
   Future<void> setUpContainer({String? access, String? refresh}) async {
+    hookOwner = null;
     SharedPreferences.setMockInitialValues({});
     final prefs = await PrefsStore.load();
     api = _MockAuthApi();
@@ -49,6 +52,11 @@ void main() {
         prefsStoreProvider.overrideWithValue(prefs),
         tokenStoreProvider.overrideWithValue(tokens),
         authApiProvider.overrideWithValue(api),
+        onAfterLoginProvider.overrideWith(
+          (ref) => () async {
+            hookOwner = ref.read(accountScopeProvider);
+          },
+        ),
       ],
     );
     addTearDown(container.dispose);
@@ -168,6 +176,7 @@ void main() {
 
       expect(state().status, AuthStatus.authenticated);
       expect(state().user?.id, 'u-1');
+      expect(hookOwner, startsWith('user_'));
       expect(await tokens.readAccess(), 'acc');
       expect(await tokens.readRefresh(), 'ref');
     });

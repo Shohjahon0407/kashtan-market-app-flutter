@@ -145,6 +145,7 @@ void main() {
         storeType: any(named: 'storeType'),
         configuration: any(named: 'configuration'),
         quantity: any(named: 'quantity'),
+        idempotencyKey: any(named: 'idempotencyKey'),
       ),
     ).thenAnswer((_) => adding.future);
 
@@ -195,6 +196,7 @@ void main() {
         storeType: any(named: 'storeType'),
         configuration: any(named: 'configuration'),
         quantity: any(named: 'quantity'),
+        idempotencyKey: any(named: 'idempotencyKey'),
       ),
     ).thenAnswer((invocation) {
       final configuration =

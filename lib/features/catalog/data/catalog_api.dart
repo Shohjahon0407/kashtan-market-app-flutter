@@ -7,17 +7,21 @@ import '../../../core/network/paginated.dart';
 import '../../../core/storage/json_disk_cache.dart';
 import 'product_models.dart';
 import 'product_review_models.dart';
+import 'restaurant_offline_repository.dart';
 
 class CatalogApi {
-  const CatalogApi(
+  CatalogApi(
     this._client, {
     this.cache,
     this.cacheKeySuffix,
     this.sessionSeed,
     this.recoSession,
+    this.offline,
   });
 
   final ApiClient _client;
+  final RestaurantOfflineRepository? offline;
+  final Map<String, Future<ProductDetail>> _detailFlights = {};
 
   /// Filtrsiz birinchi sahifa shu keshga yoziladi (oflayn fallback uchun).
   /// Testlarda mock API ishlatilgani uchun kesh umuman aralashmaydi.
@@ -42,6 +46,13 @@ class CatalogApi {
     String? nextUrl,
   }) async {
     final trimmed = query.trim();
+    if (storeType == 'restaurant') {
+      final saved = await offline?.products(
+        categoryId: categoryId,
+        query: trimmed,
+      );
+      if (saved != null) return saved;
+    }
     Object? data = nextUrl != null
         ? await _client.getUrl(nextUrl)
         : await _client.get(
@@ -137,6 +148,20 @@ class CatalogApi {
   }
 
   Future<ProductDetail> fetchDetail(String id) async {
+    final pending = _detailFlights[id];
+    if (pending != null) return pending;
+    final future = _fetchDetail(id);
+    unawaited(
+      _detailFlights[id] = future,
+    ); // also awaited below; concurrent readers reuse it
+    try {
+      return await future;
+    } finally {
+      unawaited(_detailFlights.remove(id));
+    }
+  }
+
+  Future<ProductDetail> _fetchDetail(String id) async {
     final data = await _client.get(Api.product(id));
     if (data is! Map<String, dynamic>) {
       throw const UnknownFailure.malformed('product detail javobi obyekt emas');
@@ -146,7 +171,28 @@ class CatalogApi {
     if (cache != null && suffix != null) {
       unawaited(cache!.writeJson(productCacheKey(id, suffix), data));
     }
-    return ProductDetail.fromJson(data);
+    final detail = ProductDetail.fromJson(data);
+    if (detail.product.storeTypeWire == 'restaurant') {
+      await offline?.saveDetail(id, data);
+    }
+    return detail;
+  }
+
+  /// Explicit refresh path for the background download, bypassing offline
+  /// snapshots. Publish a complete cursor snapshot, never a partial first page.
+  Future<CursorPage<ProductSummary>> downloadRestaurantMenu() async {
+    final first = await _client.get(
+      Api.products,
+      query: {
+        'store_type': 'restaurant',
+        'page_size': 100,
+        'seed': ?sessionSeed,
+      },
+    );
+    final complete = await _collectCursorPages(first);
+    final page = PageDecoder.cursor(complete, ProductSummary.fromJson);
+    await offline?.saveMenu(complete);
+    return page;
   }
 
   /// Mahsulotni "rasmi/kategoriyasi noto'g'ri" deb adminga xabar qiladi.
@@ -160,7 +206,26 @@ class CatalogApi {
       Api.productReviews(productId),
       query: {'page_size': 20},
     );
-    return PageDecoder.offset(data, ProductReview.fromJson);
+    final page = PageDecoder.offset(data, ProductReview.fromJson);
+    if (data is Map<String, dynamic>) {
+      await offline?.saveReviews(productId, data);
+    }
+    return page;
+  }
+
+  /// Offline download includes every review page, not only the first screen.
+  /// A failed later page leaves the previous complete review snapshot intact.
+  Future<OffsetPage<ProductReview>> downloadRestaurantReviews(
+    String productId,
+  ) async {
+    final first = await _client.get(
+      Api.productReviews(productId),
+      query: {'page_size': 100},
+    );
+    final complete = await _collectCursorPages(first);
+    final page = PageDecoder.offset(complete, ProductReview.fromJson);
+    await offline?.saveReviews(productId, complete);
+    return page;
   }
 
   Future<ProductReview> createReview({
@@ -175,6 +240,7 @@ class CatalogApi {
     if (data is! Map<String, dynamic>) {
       throw const UnknownFailure.malformed('product review javobi obyekt emas');
     }
+    await offline?.invalidateProduct(productId);
     return ProductReview.fromJson(data);
   }
 }

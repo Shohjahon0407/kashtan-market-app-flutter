@@ -133,7 +133,7 @@ void main() {
           _client(adapter),
         ).fetchAddressCoverage();
         expect(largestAddressCoverage(result)!.radiusKm, 8);
-        expect(result.map((b) => b.id), ['small', 'large']);
+        expect(result.map((b) => b.id), ['small', 'large', 'missing-radius']);
         expect(adapter.paths, hasLength(4));
       },
     );

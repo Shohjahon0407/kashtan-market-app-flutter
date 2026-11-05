@@ -1,5 +1,3 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -10,15 +8,18 @@ import '../../../../core/routing/routes.dart';
 import '../../../../core/routing/store_navigation.dart';
 import '../../../../core/store_scope/store_type.dart';
 import '../../../../core/ui/formatters/uzs.dart';
+import '../../../../core/ui/theme/app_colors.dart';
 import '../../../../core/ui/theme/app_dimens.dart';
-import '../../../../core/ui/widgets/smooth_press.dart';
 import '../../../../generated/l10n/app_localizations.dart';
 import '../../../cart/data/cart_models.dart';
 import '../../../cart/domain/cart_controller.dart';
 import '../../data/catalog_product_images.dart';
 import '../../data/product_models.dart';
+import 'meat_product_image.dart';
 import 'product_card.dart';
 import 'product_image.dart';
+import 'shashlik_quantity_picker.dart';
+import 'shashlik_variant_ribbon.dart';
 
 enum ShashlikSection { kebabs, charcoal, other }
 
@@ -318,52 +319,43 @@ class _SectionButton extends StatelessWidget {
     required this.selected,
     required this.onTap,
   });
-
   final (ShashlikSection, IconData, String) entry;
   final bool selected;
   final VoidCallback onTap;
-
   @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return Material(
-      color: selected ? colors.primaryContainer : colors.surfaceContainerLow,
-      borderRadius: BorderRadius.circular(AppRadius.md),
-      clipBehavior: Clip.antiAlias,
+  Widget build(BuildContext context) => Semantics(
+    selected: selected,
+    child: Material(
+      color: Colors.white,
       child: InkWell(
         key: ValueKey('shashlik-section-${entry.$1.name}'),
         onTap: onTap,
-        child: SizedBox(
-          height: 58,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  entry.$2,
-                  size: 19,
-                  color: selected ? colors.primary : colors.onSurfaceVariant,
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  entry.$3,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: selected
-                        ? colors.onPrimaryContainer
-                        : colors.onSurfaceVariant,
-                    fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-                  ),
-                ),
-              ],
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 48),
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(
+                width: 3,
+                color: selected ? AppColors.primary : Colors.transparent,
+              ),
+            ),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            entry.$3,
+            maxLines: 2,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+              color: selected ? AppColors.primary : AppColors.lightTextPrimary,
             ),
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
 }
 
 class ShashlikCatalogList extends StatelessWidget {
@@ -419,7 +411,7 @@ class ShashlikCatalogList extends StatelessWidget {
       ),
       physics: const AlwaysScrollableScrollPhysics(),
       itemCount: count + (footer == null ? 0 : 1),
-      separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.md),
+      separatorBuilder: (_, _) => const SizedBox(height: 24),
       itemBuilder: (context, index) => index == count
           ? footer!
           : sortedFamilies.isNotEmpty
@@ -429,152 +421,100 @@ class ShashlikCatalogList extends StatelessWidget {
   }
 }
 
-class ShashlikFamilyCard extends ConsumerWidget {
+class ShashlikFamilyCard extends StatelessWidget {
   const ShashlikFamilyCard({required this.family, super.key});
-
   final ShashlikFamily family;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final colors = Theme.of(context).colorScheme;
-    final measuresByProductId = {
-      for (final product in family.products)
-        product.id: family.measureOf(product),
-    };
-    final quantities = ref.watch(
-      cartControllerProvider(StoreType.shashlik).select((state) {
-        var pieces = 0;
-        var kilograms = 0;
-        for (final item in state.value?.cart.items ?? const <CartItem>[]) {
-          switch (measuresByProductId[item.product.id]) {
-            case ShashlikMeasure.piece:
-              pieces += item.quantity;
-            case ShashlikMeasure.kilogram:
-              kilograms += item.quantity;
-            case null:
-              break;
-          }
-        }
-        return (pieces: pieces, kilograms: kilograms);
-      }),
-    );
-    final pieceProduct = family.productForMeasure(ShashlikMeasure.piece);
-    final kilogramProduct = family.productForMeasure(ShashlikMeasure.kilogram);
-    final primaryProduct = pieceProduct ?? kilogramProduct!;
-    final price = pieceProduct == null
-        ? Uzs.format(primaryProduct.price)
-        : l10n.shashlikPriceFrom(Uzs.format(primaryProduct.price));
-    final cartParts = <String>[
-      if (quantities.pieces > 0)
-        shashlikQuantityLabel(l10n, ShashlikMeasure.piece, quantities.pieces),
-      if (quantities.kilograms > 0)
-        shashlikQuantityLabel(
-          l10n,
-          ShashlikMeasure.kilogram,
-          quantities.kilograms,
-        ),
-    ];
-
-    return Card(
-      margin: EdgeInsets.zero,
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        key: ValueKey('shashlik-family-${family.key.wire}'),
-        onTap: () => context.push(Routes.shashlikFamily(family.key.wire)),
-        child: SizedBox(
-          height: 124,
-          child: Row(
-            children: [
-              SizedBox(
-                width: 132,
-                child: ProductImageView(imageUrl: family.imageUrl),
-              ),
-              Expanded(
+    void open([String? id]) =>
+        context.push(Routes.shashlikFamily(family.key.wire, productId: id));
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(
+              flex: 2,
+              child: InkWell(
+                key: ValueKey('shashlik-family-${family.key.wire}'),
+                onTap: () => open(),
                 child: Padding(
-                  padding: const EdgeInsets.all(AppSpacing.md),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        shashlikFamilyTitle(l10n, family.key),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      const SizedBox(height: AppSpacing.xs),
-                      Text(
-                        price,
-                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                          color: colors.primary,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      if (kilogramProduct != null) ...[
-                        const SizedBox(height: 2),
-                        Text(
-                          l10n.shashlikKilogramPrice(
-                            Uzs.format(kilogramProduct.price),
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.labelSmall
-                              ?.copyWith(color: colors.onSurfaceVariant),
-                        ),
-                      ],
-                      const Spacer(),
-                      Row(
-                        children: [
-                          if (cartParts.isNotEmpty)
-                            Expanded(
-                              child: Text(
-                                cartParts.join(' · '),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.labelSmall
-                                    ?.copyWith(color: colors.onSurfaceVariant),
-                              ),
-                            )
-                          else
-                            const Spacer(),
-                          SizedBox.square(
-                            dimension: 36,
-                            child: SmoothPress(
-                              child: FilledButton(
-                                key: ValueKey(
-                                  'shashlik-family-add-${family.key.wire}',
-                                ),
-                                onPressed: () async {
-                                  final added =
-                                      await showShashlikFamilySelector(
-                                        context,
-                                        family,
-                                      );
-                                  if (added == true && context.mounted) {
-                                    showProductAddedSnackBar(context);
-                                  }
-                                },
-                                style: FilledButton.styleFrom(
-                                  padding: EdgeInsets.zero,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(
-                                      AppRadius.sm,
-                                    ),
-                                  ),
-                                ),
-                                child: const Icon(Icons.add, size: 20),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  child: Text(
+                    shashlikFamilyTitle(l10n, family.key),
+                    style: const TextStyle(
+                      fontFamily: 'RobotoCondensed',
+                      fontSize: 24,
+                      fontWeight: FontWeight.w900,
+                      color: AppColors.lightTextPrimary,
+                    ),
                   ),
                 ),
               ),
-            ],
+            ),
+            const SizedBox(width: 8),
+            Flexible(
+              child: TextButton(
+                onPressed: () => open(),
+                style: TextButton.styleFrom(
+                  backgroundColor: const Color(0xFFF4F5F4),
+                  foregroundColor: AppColors.lightTextPrimary,
+                  shape: const StadiumBorder(),
+                  minimumSize: const Size(48, 48),
+                  textStyle: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                child: Text('${l10n.commonAll} ›'),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        ShashlikVariantRibbon(family: family, onOpen: (p) => open(p.id)),
+      ],
+    );
+  }
+}
+
+class ShashlikProductRow extends StatelessWidget {
+  const ShashlikProductRow({required this.product, this.family, super.key});
+  final ProductSummary product;
+  final ShashlikFamily? family;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return _ShashlikRowCard(
+      cardKey: ValueKey('shashlik-product-${product.id}'),
+      imageUrl: product.imageUrl,
+      title: family == null
+          ? product.name
+          : shashlikOptionTitle(l10n, family!, product),
+      price: Uzs.format(product.price),
+      onTap: () => openStoreProduct(context, StoreType.shashlik, product.id),
+      action: Theme(
+        data: Theme.of(context).copyWith(
+          colorScheme: Theme.of(context).colorScheme.copyWith(
+            primaryContainer: Colors.white,
+            onPrimaryContainer: AppColors.lightTextPrimary,
+          ),
+        ),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            border: Border.all(color: AppColors.lightBorderStrong),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: ProductCartControl(
+            product: product,
+            storeType: StoreType.shashlik,
+            inlineCompact: true,
+            iconOnlyWhenEmpty: true,
+            large: true,
           ),
         ),
       ),
@@ -582,78 +522,88 @@ class ShashlikFamilyCard extends ConsumerWidget {
   }
 }
 
-class ShashlikProductRow extends StatelessWidget {
-  const ShashlikProductRow({required this.product, this.family, super.key});
-
-  final ProductSummary product;
-  final ShashlikFamily? family;
+/// Natural text height keeps the same compact layout usable at 200% scale.
+class _ShashlikRowCard extends StatelessWidget {
+  const _ShashlikRowCard({
+    required this.cardKey,
+    required this.imageUrl,
+    required this.title,
+    required this.price,
+    required this.onTap,
+    required this.action,
+  });
+  final Key cardKey;
+  final String? imageUrl;
+  final String title, price;
+  final VoidCallback onTap;
+  final Widget action;
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    final l10n = AppLocalizations.of(context);
-    final measure = family?.measureOf(product);
-    return Card(
-      margin: EdgeInsets.zero,
+    return Material(
+      color: Colors.white,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: AppColors.lightBorder),
+      ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        key: ValueKey('shashlik-product-${product.id}'),
-        onTap: () => openStoreProduct(context, StoreType.shashlik, product.id),
-        child: SizedBox(
-          height: measure == null ? 104 : 124,
-          child: Row(
-            children: [
-              SizedBox(
-                width: 122,
-                child: ProductImageView(imageUrl: product.imageUrl),
-              ),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.all(AppSpacing.md),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        product.name,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const Spacer(),
-                      Text(
-                        Uzs.format(product.price),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                          color: colors.primary,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: ProductCartControl(
-                          product: product,
-                          storeType: StoreType.shashlik,
-                          inlineCompact: true,
-                          iconOnlyWhenEmpty: true,
-                          quantityLabelBuilder: measure == null
-                              ? null
-                              : (quantity) => shashlikQuantityLabel(
-                                  l10n,
-                                  measure,
-                                  quantity,
-                                ),
-                        ),
-                      ),
-                    ],
+        key: cardKey,
+        onTap: onTap,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final imageWidth = (constraints.maxWidth * .34).clamp(80.0, 124.0);
+            return IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SizedBox(
+                    width: imageWidth,
+                    child: ProductImageView(
+                      imageUrl: imageUrl,
+                      memCacheWidth: 400,
+                    ),
                   ),
-                ),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.lightTextPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 5),
+                          Text(
+                            price,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: action,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            );
+          },
         ),
       ),
     );
@@ -662,41 +612,79 @@ class ShashlikProductRow extends StatelessWidget {
 
 Future<bool?> showShashlikFamilySelector(
   BuildContext context,
-  ShashlikFamily family,
-) => showGeneralDialog<bool>(
+  ShashlikFamily family, {
+  String? initialProductId,
+  CartItem? exactItem,
+  String? title,
+  StoreType storeType = StoreType.shashlik,
+}) => showModalBottomSheet<bool>(
   context: context,
-  barrierDismissible: false,
-  barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
-  barrierColor: Colors.black.withValues(alpha: 0.18),
-  transitionDuration: const Duration(milliseconds: 200),
-  pageBuilder: (dialogContext, _, _) => BackdropFilter(
-    filter: ImageFilter.blur(sigmaX: 9, sigmaY: 9),
-    child: SafeArea(
-      child: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.xl),
-          child: _FamilySelectorDialog(family: family),
-        ),
-      ),
-    ),
+  isScrollControlled: true,
+  useSafeArea: true,
+  isDismissible: false,
+  enableDrag: false,
+  backgroundColor: Colors.white,
+  clipBehavior: Clip.antiAlias,
+  constraints: const BoxConstraints(maxWidth: 560),
+  barrierColor: Colors.black.withValues(alpha: .4),
+  shape: const RoundedRectangleBorder(
+    borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
   ),
-  transitionBuilder: (_, animation, _, child) => FadeTransition(
-    opacity: animation,
-    child: ScaleTransition(
-      scale: Tween<double>(
-        begin: 0.96,
-        end: 1,
-      ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic)),
-      child: child,
-    ),
+  builder: (_) => _FamilySelectorDialog(
+    family: family,
+    initialProductId: initialProductId,
+    exactItem: exactItem,
+    title: title,
+    storeType: storeType,
   ),
 );
 
+/// The same absolute-quantity editor, scoped to the meat cart. No shashlik
+/// variant labels or piece presets are inferred for meat products.
+Future<bool?> showMeatQuantityEditor(
+  BuildContext context,
+  ProductSummary product, {
+  CartItem? exactItem,
+}) => showShashlikFamilySelector(
+  context,
+  ShashlikFamily(key: ShashlikFamilyKey.beefJazz, products: [product]),
+  initialProductId: product.id,
+  exactItem: exactItem,
+  title: product.name,
+  storeType: StoreType.meat,
+);
+
+Future<bool?> showShashlikCartQuantityEditor(
+  BuildContext context,
+  CartItem item,
+) {
+  final groups = ShashlikCatalogGroups.fromProducts([item.product]);
+  return showShashlikFamilySelector(
+    context,
+    groups.families.firstOrNull ??
+        ShashlikFamily(
+          key: ShashlikFamilyKey.beefJazz,
+          products: [item.product],
+        ),
+    initialProductId: item.product.id,
+    exactItem: item,
+    title: item.product.name,
+  );
+}
+
 class _FamilySelectorDialog extends ConsumerStatefulWidget {
-  const _FamilySelectorDialog({required this.family});
-
+  const _FamilySelectorDialog({
+    required this.family,
+    this.initialProductId,
+    this.exactItem,
+    this.title,
+    this.storeType = StoreType.shashlik,
+  });
   final ShashlikFamily family;
-
+  final String? initialProductId;
+  final CartItem? exactItem;
+  final String? title;
+  final StoreType storeType;
   @override
   ConsumerState<_FamilySelectorDialog> createState() =>
       _FamilySelectorDialogState();
@@ -704,35 +692,98 @@ class _FamilySelectorDialog extends ConsumerStatefulWidget {
 
 class _FamilySelectorDialogState extends ConsumerState<_FamilySelectorDialog> {
   late String _selectedId;
-  var _quantity = 1;
-  var _busy = false;
+  final _quantities = <String, int>{};
+  int get _quantity => _quantities[_selectedId] ?? 1;
+  bool _busy = false;
+  bool _quantityValid = true;
+  int _editEpoch = 0;
   String? _error;
 
   @override
   void initState() {
     super.initState();
-    _selectedId = widget.family.products.first.id;
+    _selectedId =
+        widget.family.products.any((p) => p.id == widget.initialProductId)
+        ? widget.initialProductId!
+        : widget.family.products.first.id;
   }
 
   ProductSummary get _selected =>
-      widget.family.products.firstWhere((product) => product.id == _selectedId);
+      widget.family.products.firstWhere((p) => p.id == _selectedId);
+
+  void _select(String id) {
+    if (_busy || id == _selectedId) return;
+    setState(() {
+      _selectedId = id;
+      _quantityValid = true;
+      _error = null;
+    });
+  }
+
+  void _quantityChanged(int value) {
+    if (_busy) return;
+    setState(() {
+      _quantities[_selectedId] = value;
+      _quantityValid = true;
+      _error = null;
+    });
+  }
+
+  CartItem? _lineFor(ProductSummary product, List<CartItem> items) {
+    final exact = widget.exactItem;
+    if (exact != null) {
+      return items
+          .where((i) => i.configurationIdentity == exact.configurationIdentity)
+          .firstOrNull;
+    }
+    return items
+        .where(
+          (i) =>
+              i.product.id == product.id &&
+              i.variant == null &&
+              i.selectedAddons.isEmpty &&
+              i.note.isEmpty,
+        )
+        .firstOrNull;
+  }
 
   Future<void> _add() async {
-    if (_busy) return;
+    final current = ref.read(cartControllerProvider(widget.storeType)).value;
+    if (_busy ||
+        !_quantityValid ||
+        !_selected.isPurchasable ||
+        _selected.inReview ||
+        current == null ||
+        current.hasPendingMutation ||
+        current.unconfirmedKeys.isNotEmpty) {
+      return;
+    }
+    final line = _lineFor(_selected, current.cart.items);
+    if (line?.quantity == _quantity) {
+      Navigator.of(context).pop(false);
+      return;
+    }
+    if (widget.exactItem != null && line == null) {
+      setState(() => _error = AppLocalizations.of(context).cartOrderChanged);
+      return;
+    }
     setState(() {
       _busy = true;
       _error = null;
     });
-    final success = await ref
-        .read(cartControllerProvider(StoreType.shashlik).notifier)
-        .addProduct(_selected, quantity: _quantity);
+    final controller = ref.read(
+      cartControllerProvider(widget.storeType).notifier,
+    );
+    final success = line == null
+        ? await controller.addProduct(_selected, quantity: _quantity)
+        : await controller.setQuantity(line, _quantity);
     if (!mounted) return;
     if (success) {
       Navigator.of(context).pop(true);
       return;
     }
     final failure = ref
-        .read(cartControllerProvider(StoreType.shashlik))
+        .read(cartControllerProvider(widget.storeType))
         .value
         ?.mutationFailure;
     setState(() {
@@ -746,134 +797,329 @@ class _FamilySelectorDialogState extends ConsumerState<_FamilySelectorDialog> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final colors = Theme.of(context).colorScheme;
-    return Material(
-      color: colors.surface,
-      borderRadius: BorderRadius.circular(AppRadius.xl),
-      clipBehavior: Clip.antiAlias,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 440, maxHeight: 650),
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.lg),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
+    final current = ref.watch(cartControllerProvider(widget.storeType)).value;
+    if (current != null) {
+      for (final product in widget.family.products) {
+        _quantities.putIfAbsent(
+          product.id,
+          () => _lineFor(product, current.cart.items)?.quantity ?? 1,
+        );
+      }
+    }
+    final line = _lineFor(_selected, current?.cart.items ?? []);
+    final total = _quantityValid
+        ? Uzs.multiply(line?.unitPrice ?? _selected.price, _quantity)
+        : null;
+    final meat = widget.storeType == StoreType.meat;
+    final measure = widget.family.measureOf(_selected);
+    final presets = !meat && measure == ShashlikMeasure.piece
+        ? const [10, 20, 50, 100, 150, 200]
+        : const [1, 2, 3, 5];
+    final label = meat
+        ? '$_quantity ${_selected.unit}'
+        : shashlikQuantityLabel(l10n, measure, _quantity);
+    return PopScope(
+      canPop: !_busy,
+      child: Material(
+        key: const ValueKey('shashlik-selector-dialog'),
+        color: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        child: SafeArea(
+          top: false,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: 560,
+              maxHeight: MediaQuery.sizeOf(context).height * .9,
+            ),
+            child: Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.viewInsetsOf(context).bottom,
+              ),
+              child: _ShashlikSheetLayout(
                 children: [
-                  Expanded(
-                    child: Text(
-                      shashlikFamilyTitle(l10n, widget.family.key),
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w900,
+                  Center(
+                    child: Container(
+                      width: 32,
+                      height: 4,
+                      margin: const EdgeInsets.only(top: 10),
+                      decoration: BoxDecoration(
+                        color: AppColors.lightBorderStrong,
+                        borderRadius: BorderRadius.circular(4),
                       ),
                     ),
                   ),
-                  IconButton(
-                    tooltip: l10n.commonClose,
-                    onPressed: _busy ? null : () => Navigator.pop(context),
-                    icon: const Icon(Icons.close),
-                  ),
-                ],
-              ),
-              Text(
-                l10n.shashlikChooseProduct,
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              Flexible(
-                child: SingleChildScrollView(
-                  child: Column(
-                    children: [
-                      for (final product in widget.family.products) ...[
-                        _SelectorProductRow(
-                          family: widget.family,
-                          product: product,
-                          selected: product.id == _selectedId,
-                          onSelected: _busy
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 8, 0),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            widget.title ??
+                                shashlikFamilyTitle(l10n, widget.family.key),
+                            style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.lightTextPrimary,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: l10n.commonClose,
+                          onPressed: _busy
                               ? null
-                              : () => setState(() => _selectedId = product.id),
+                              : () => Navigator.pop(context),
+                          icon: const Icon(Icons.close),
                         ),
-                        if (product != widget.family.products.last)
-                          const SizedBox(height: AppSpacing.sm),
                       ],
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              Row(
-                children: [
-                  Text(
-                    l10n.shashlikQuantity,
-                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
                     ),
                   ),
-                  const Spacer(),
-                  SmoothPress(
-                    enabled: !_busy && _quantity > 1,
-                    child: IconButton.filledTonal(
-                      key: const ValueKey('shashlik-selector-minus'),
-                      onPressed: _busy || _quantity <= 1
-                          ? null
-                          : () => setState(() => _quantity--),
-                      icon: const Icon(Icons.remove),
-                    ),
-                  ),
-                  SizedBox(
-                    width: 112,
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Text(
-                        shashlikQuantityLabel(
-                          l10n,
-                          widget.family.measureOf(_selected),
-                          _quantity,
-                        ),
-                        key: const ValueKey('shashlik-selector-quantity'),
-                        textAlign: TextAlign.center,
-                        maxLines: 1,
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w900),
+                  Flexible(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: SizedBox.square(
+                                  dimension: 88,
+                                  child: meat
+                                      ? MeatProductImage(product: _selected)
+                                      : ProductImageView(
+                                          imageUrl:
+                                              _selected.imageUrl ??
+                                              widget.family.imageUrl,
+                                          memCacheWidth: 400,
+                                          keepPreviousImage: true,
+                                        ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      meat
+                                          ? _selected.name
+                                          : shashlikOptionTitle(
+                                              l10n,
+                                              widget.family,
+                                              _selected,
+                                            ),
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w700,
+                                        color: AppColors.lightTextPrimary,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      Uzs.format(_selected.price),
+                                      style: const TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w800,
+                                        color: AppColors.primary,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          if (widget.exactItem == null && !meat)
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                for (final product in widget.family.products)
+                                  ChoiceChip(
+                                    key: ValueKey(
+                                      'shashlik-selector-product-${product.id}',
+                                    ),
+                                    selected: product.id == _selectedId,
+                                    onSelected: _busy
+                                        ? null
+                                        : (_) => _select(product.id),
+                                    showCheckmark: true,
+                                    checkmarkColor: Colors.white,
+                                    selectedColor: AppColors.primary,
+                                    backgroundColor: Colors.white,
+                                    surfaceTintColor: Colors.transparent,
+                                    side: BorderSide(
+                                      color: product.id == _selectedId
+                                          ? AppColors.primary
+                                          : AppColors.lightBorderStrong,
+                                    ),
+                                    labelStyle: TextStyle(
+                                      color: product.id == _selectedId
+                                          ? Colors.white
+                                          : AppColors.lightTextPrimary,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                    materialTapTargetSize:
+                                        MaterialTapTargetSize.padded,
+                                    label: Text(
+                                      shashlikOptionTitle(
+                                        l10n,
+                                        widget.family,
+                                        product,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          const SizedBox(height: 20),
+                          Text(
+                            l10n.shashlikQuantity,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.lightTextPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 4,
+                            children: [
+                              for (final value in presets)
+                                ChoiceChip(
+                                  key: ValueKey('shashlik-preset-$value'),
+                                  label: Text('$value'),
+                                  selected: _quantity == value,
+                                  onSelected: _busy
+                                      ? null
+                                      : (_) {
+                                          setState(() => _editEpoch++);
+                                          _quantityChanged(value);
+                                        },
+                                  showCheckmark: false,
+                                  selectedColor: AppColors.primary,
+                                  backgroundColor: Colors.white,
+                                  surfaceTintColor: Colors.transparent,
+                                  side: BorderSide(
+                                    color: _quantity == value
+                                        ? AppColors.primary
+                                        : AppColors.lightBorderStrong,
+                                  ),
+                                  labelStyle: TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    color: _quantity == value
+                                        ? Colors.white
+                                        : AppColors.lightTextPrimary,
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 8,
+                                  ),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          ShashlikQuantityPicker(
+                            key: ValueKey(
+                              'shashlik-quantity-$_selectedId-$_editEpoch',
+                            ),
+                            quantity: _quantity,
+                            quantityLabel: label,
+                            enabled: !_busy,
+                            horizontal: true,
+                            unitLabel: meat
+                                ? _selected.unit
+                                : measure == ShashlikMeasure.piece
+                                ? l10n.shashlikPieceUnit
+                                : l10n.shashlikKilogramUnit,
+                            onValidityChanged: (valid) =>
+                                setState(() => _quantityValid = valid),
+                            onChanged: _quantityChanged,
+                            onScrollingChanged: (_) {},
+                          ),
+                          if (_error != null) ...[
+                            const SizedBox(height: 12),
+                            Text(
+                              _error!,
+                              key: const ValueKey('shashlik-selector-error'),
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.error,
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                     ),
                   ),
-                  SmoothPress(
-                    enabled: !_busy,
-                    child: IconButton.filledTonal(
-                      key: const ValueKey('shashlik-selector-plus'),
-                      onPressed: _busy
-                          ? null
-                          : () => setState(() => _quantity++),
-                      icon: const Icon(Icons.add),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: const BoxDecoration(
+                      border: Border(
+                        top: BorderSide(color: AppColors.lightBorder),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '${_quantityValid ? label : l10n.shashlikQuantity} · ${total == null ? '—' : Uzs.formatWithFraction(total)}',
+                          key: const ValueKey('shashlik-selector-total'),
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.lightTextPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        FilledButton.icon(
+                          key: const ValueKey('shashlik-selector-submit'),
+                          onPressed:
+                              _busy ||
+                                  !_quantityValid ||
+                                  !_selected.isPurchasable ||
+                                  _selected.inReview ||
+                                  current == null ||
+                                  current.hasPendingMutation ||
+                                  current.unconfirmedKeys.isNotEmpty
+                              ? null
+                              : _add,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: Colors.white,
+                            minimumSize: const Size.fromHeight(52),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 14,
+                            ),
+                          ),
+                          icon: _busy
+                              ? const SizedBox.square(
+                                  dimension: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Icon(Icons.add_shopping_cart_outlined),
+                          label: Text(
+                            line == null
+                                ? l10n.shashlikAddToCart
+                                : l10n.shashlikSaveQuantity,
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
-              if (_error != null) ...[
-                const SizedBox(height: AppSpacing.sm),
-                Text(
-                  _error!,
-                  key: const ValueKey('shashlik-selector-error'),
-                  style: TextStyle(color: colors.error),
-                ),
-              ],
-              const SizedBox(height: AppSpacing.md),
-              FilledButton.icon(
-                key: const ValueKey('shashlik-selector-submit'),
-                onPressed: _busy ? null : _add,
-                icon: _busy
-                    ? const SizedBox.square(
-                        dimension: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.add_shopping_cart),
-                label: Text(l10n.shashlikAddToCart),
-              ),
-            ],
+            ),
           ),
         ),
       ),
@@ -881,87 +1127,27 @@ class _FamilySelectorDialogState extends ConsumerState<_FamilySelectorDialog> {
   }
 }
 
-class _SelectorProductRow extends StatelessWidget {
-  const _SelectorProductRow({
-    required this.family,
-    required this.product,
-    required this.selected,
-    required this.onSelected,
-  });
-
-  final ShashlikFamily family;
-  final ProductSummary product;
-  final bool selected;
-  final VoidCallback? onSelected;
+/// Keep the action pinned on phones; on short/landscape screens allow the
+/// complete sheet to scroll instead of squeezing content or clipping actions.
+class _ShashlikSheetLayout extends StatelessWidget {
+  const _ShashlikSheetLayout({required this.children});
+  final List<Widget> children;
 
   @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    final l10n = AppLocalizations.of(context);
-    return Material(
-      color: selected ? colors.primaryContainer : colors.surfaceContainerLow,
-      borderRadius: BorderRadius.circular(AppRadius.md),
-      child: InkWell(
-        key: ValueKey('shashlik-selector-product-${product.id}'),
-        onTap: onSelected,
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        child: SizedBox(
-          height: 76,
-          child: Row(
-            children: [
-              ClipRRect(
-                borderRadius: const BorderRadius.horizontal(
-                  left: Radius.circular(AppRadius.md),
-                ),
-                child: SizedBox(
-                  width: 82,
-                  height: double.infinity,
-                  child: ProductImageView(imageUrl: product.imageUrl),
-                ),
-              ),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.sm,
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        shashlikOptionTitle(l10n, family, product),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        Uzs.format(product.price),
-                        style: Theme.of(context).textTheme.labelMedium
-                            ?.copyWith(
-                              color: colors.primary,
-                              fontWeight: FontWeight.w900,
-                            ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.only(right: AppSpacing.sm),
-                child: Icon(
-                  selected
-                      ? Icons.radio_button_checked
-                      : Icons.radio_button_unchecked,
-                  color: selected ? colors.primary : colors.outline,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final short =
+          constraints.maxHeight < 480 ||
+          MediaQuery.textScalerOf(context).scale(16) > 22;
+      final column = Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final child in children)
+            if (short && child is Flexible) child.child else child,
+        ],
+      );
+      return short ? SingleChildScrollView(child: column) : column;
+    },
+  );
 }

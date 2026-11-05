@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- shrinkResources yoqilgan: FCM channel/sound nomi orqali (kod havolasisiz)
+     ishlatiladigan bildirishnoma ovozi release build'dan olib tashlanmasin. -->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@raw/order_important" />

@@ -14,6 +14,7 @@ import 'package:beshkashtan_customer/features/checkout/data/checkout_models.dart
 import 'package:beshkashtan_customer/features/checkout/domain/addresses_controller.dart';
 import 'package:beshkashtan_customer/features/checkout/domain/delivery_address_selection.dart';
 import 'package:beshkashtan_customer/features/checkout/domain/device_location.dart';
+import 'package:beshkashtan_customer/features/checkout/domain/order_draft_controller.dart';
 import 'package:beshkashtan_customer/features/checkout/presentation/address_form_screen.dart';
 import 'package:beshkashtan_customer/features/checkout/presentation/delivery_address_navigation.dart';
 import 'package:beshkashtan_customer/features/checkout/presentation/delivery_address_screen.dart';
@@ -129,9 +130,22 @@ Future<void> _mount(
   Future<Position> Function()? resolve,
   Future<void> Function()? status,
   Future<bool> Function({required bool gps})? settings,
+  bool pickupAvailable = true,
 }) async {
   _Addresses.items = addresses;
   api ??= _Api();
+  when(() => api!.fetchBranches(any())).thenAnswer(
+    (_) async => [
+      StoreBranch.fromJson({
+        'id': 'pickup',
+        'name': 'Filial',
+        'address': 'Toshkent',
+        'is_active': true,
+        'is_pickup_available': pickupAvailable,
+        'store': {'id': 'store', 'store_type': 'household'},
+      }),
+    ],
+  );
   when(
     () => api!.fetchCoverage('household'),
   ).thenAnswer((_) async => [_branch]);
@@ -635,6 +649,40 @@ void main() {
       await tester.pumpAndSettle();
       expect(_confirm(tester).onPressed, isNotNull);
       expect(requests, 2);
+    },
+  );
+
+  testWidgets(
+    'missing tariff offers retry and only an available pickup alternative',
+    (tester) async {
+      const missing = DeliveryEstimate(
+        available: false,
+        detail: '',
+        reasonCode: 'delivery_tariff_unavailable',
+      );
+      await _mount(tester, quote: (_) async => missing);
+      expect(
+        find.text('Bu manzil uchun yetkazish narxi hozircha aniqlanmadi.'),
+        findsOneWidget,
+      );
+      expect(_confirm(tester).onPressed, isNull);
+      expect(
+        find.byKey(const ValueKey('delivery-address-quote-retry')),
+        findsOneWidget,
+      );
+      final pickup = find.byKey(const ValueKey('delivery-address-use-pickup'));
+      final container = ProviderScope.containerOf(tester.element(pickup));
+      await tester.ensureVisible(pickup);
+      await tester.tap(pickup);
+      await tester.pumpAndSettle();
+      expect(
+        container.read(orderDraftProvider(StoreType.household)).fulfillment,
+        FulfillmentType.pickup,
+      );
+      await tester.pumpWidget(const SizedBox.shrink());
+      await _mount(tester, quote: (_) async => missing, pickupAvailable: false);
+      expect(pickup, findsNothing);
+      expect(_confirm(tester).onPressed, isNull);
     },
   );
 

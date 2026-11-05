@@ -6,6 +6,7 @@ import 'package:beshkashtan_customer/core/routing/auth_gate.dart';
 import 'package:beshkashtan_customer/core/routing/routes.dart';
 import 'package:beshkashtan_customer/core/storage/prefs_store.dart';
 import 'package:beshkashtan_customer/core/store_scope/store_type.dart';
+import 'package:beshkashtan_customer/core/ui/theme/app_colors.dart';
 import 'package:beshkashtan_customer/core/ui/theme/app_theme.dart';
 import 'package:beshkashtan_customer/features/auth/data/auth_models.dart';
 import 'package:beshkashtan_customer/features/auth/domain/auth_controller.dart';
@@ -209,6 +210,7 @@ class _CartApi extends Fake implements CartApi {
     required String storeType,
     required CartConfiguration configuration,
     required int quantity,
+    String? idempotencyKey,
   }) async {
     extra = true;
   }
@@ -224,6 +226,7 @@ class _Api extends Fake implements CheckoutApi {
   _Api(this.log);
   final List<String> log;
   int requests = 0;
+  Completer<void>? pendingQuote;
   int branchCount = 1;
   DeliveryEstimate response = _quote;
   List<UserAddress> savedAddresses = [_address];
@@ -238,6 +241,7 @@ class _Api extends Fake implements CheckoutApi {
   }) async {
     log.add('quote');
     requests++;
+    if (pendingQuote != null) await pendingQuote!.future;
     return response;
   }
 
@@ -340,6 +344,11 @@ Future<_Harness> _mount(
           initialLocation: Routes.storeCart(type.wire),
           routes: [
             GoRoute(
+              path: '/other',
+              builder: (_, _) =>
+                  const Scaffold(body: Text('Other destination')),
+            ),
+            GoRoute(
               path: Routes.storeCart(type.wire),
               builder: (_, state) => CartScreen(
                 storeType: type,
@@ -408,88 +417,416 @@ Future<void> _show(WidgetTester tester, Finder finder) async {
 }
 
 void main() {
-  for (final edit in ['checkout-edit-location', 'checkout-edit-cart']) {
-    testWidgets(
-      '$edit returns to a usable cart across repeated checkout trips',
-      (tester) async {
-        tester.view.devicePixelRatio = 1;
-        tester.view.physicalSize = const Size(360, 800);
-        addTearDown(tester.view.resetDevicePixelRatio);
-        addTearDown(tester.view.resetPhysicalSize);
-        final h = await _mount(
-          tester,
-          savedAddress: true,
-          unitPrice: 50000,
-          router: true,
-          realCheckout: true,
-        );
-        for (var trip = 0; trip < 2; trip++) {
-          await tester.tap(_primary);
-          await tester.pumpAndSettle();
-          expect(find.byType(CheckoutScreen), findsOneWidget);
-          final button = find.byKey(ValueKey(edit));
-          await _show(tester, button);
-          await tester.tap(button);
-          await tester.pumpAndSettle();
-          expect(find.byType(CartScreen), findsOneWidget);
-          expect(
-            h.container.read(orderDraftProvider(StoreType.household)).preparing,
-            isFalse,
-          );
-          expect(
-            h.container
-                .read(orderDraftProvider(StoreType.household))
-                .estimating,
-            isFalse,
-          );
-          expect(_button(tester).onPressed, isNotNull);
-          expect(
-            find.descendant(
-              of: _primary,
-              matching: find.text('Buyurtmani davom ettirish'),
-            ),
-            findsOneWidget,
-          );
-          expect(
-            tester
-                .widget<SegmentedButton<FulfillmentType>>(
-                  find.byKey(const ValueKey('cart-fulfillment')),
-                )
-                .onSelectionChanged,
-            isNotNull,
-          );
-          expect(
-            h.container.read(orderDraftProvider(StoreType.household)).addressId,
-            'home',
-          );
-        }
-        if (edit == 'checkout-edit-location') {
-          final address = find.byKey(const ValueKey('cart-address'));
-          await _show(tester, address);
-          await tester.tap(address);
-          await tester.pumpAndSettle();
-          expect(find.byType(DeliveryAddressScreen), findsOneWidget);
-          await tester.binding.handlePopRoute();
-          await tester.pumpAndSettle();
-          expect(_button(tester).onPressed, isNotNull);
-        } else {
-          final add = find.descendant(
-            of: find.byType(CartQuantityStepper),
-            matching: find.byIcon(Icons.add),
-          );
-          await _show(tester, add);
-          await tester.tap(add);
-          await tester.pump(const Duration(milliseconds: 300));
-          await tester.pumpAndSettle();
-          expect(h.cart.quantity, 2);
-          expect(_button(tester).onPressed, isNotNull);
-        }
-      },
-    );
-  }
+  testWidgets(
+    'pending preparation disables switch and never navigates from a covered cart',
+    (tester) async {
+      final h = await _mount(
+        tester,
+        type: StoreType.meat,
+        confirmed: true,
+        unitPrice: 50000,
+        router: true,
+      );
+      h.api.pendingQuote = Completer<void>();
+      await tester.tap(_primary);
+      await tester.pump(const Duration(milliseconds: 100));
+      final switcher = tester.widget<IconButton>(
+        find.byKey(const ValueKey('store-switch-button')),
+      );
+      expect(switcher.onPressed, isNull);
+      final router = GoRouter.of(tester.element(find.byType(CartScreen)));
+      unawaited(router.push<void>('/other'));
+      await tester.pump(const Duration(milliseconds: 300));
+      h.api.pendingQuote!.complete();
+      await tester.pumpAndSettle();
+      expect(find.text('Other destination'), findsOneWidget);
+      expect(find.text('Compact checkout'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+  testWidgets(
+    'shashlik guest chooses address only after login and cart merge',
+    (tester) async {
+      final h = await _mount(
+        tester,
+        type: StoreType.shashlik,
+        guest: true,
+        savedAddress: true,
+        unitPrice: 50000,
+        router: true,
+      );
+      expect(h.api.requests, 0);
+      await tester.tap(find.byKey(const ValueKey('shashlik-cart-location')));
+      await tester.pumpAndSettle();
+      expect(h.cart.log, contains('login'));
+      expect(h.cart.log, contains('merge'));
+      expect(find.byType(DeliveryAddressScreen), findsOneWidget);
+      final quoteIndex = h.cart.log.indexOf('quote');
+      expect(
+        h.cart.log.indexOf('login'),
+        lessThan(h.cart.log.indexOf('merge')),
+      );
+      if (quoteIndex >= 0) {
+        expect(h.cart.log.indexOf('merge'), lessThan(quoteIndex));
+      }
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(find.byType(CartScreen), findsOneWidget);
+    },
+  );
+  testWidgets(
+    'shashlik unknown delivery stays in cart and does not invent fee or minimum',
+    (tester) async {
+      final h = await _mount(
+        tester,
+        type: StoreType.shashlik,
+        unitPrice: 40000,
+        router: true,
+      );
+      expect(
+        find.byKey(const ValueKey('shashlik-cart-location')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('cart-order-summary')), findsNothing);
+      expect(find.byKey(const ValueKey('cart-minimum-progress')), findsNothing);
+      expect(
+        find.descendant(of: _primary, matching: find.text('Manzil tanlash')),
+        findsOneWidget,
+      );
+      expect(_button(tester).onPressed, isNotNull);
+      expect(h.api.requests, 0);
+      expect(h.cart.log, isNot(contains('gps')));
+      expect(find.text('Compact checkout'), findsNothing);
+    },
+  );
 
   testWidgets(
-    'guest login restores saved delivery address without GPS or selector',
+    'shashlik confirmed minimum blocks then opens compact checkout when met',
+    (tester) async {
+      final h = await _mount(
+        tester,
+        type: StoreType.shashlik,
+        confirmed: true,
+        router: true,
+        realCheckout: true,
+      );
+      expect(find.textContaining('yana 7 000'), findsWidgets);
+      expect(_button(tester).onPressed, isNull);
+      h.cart.quantity = 2;
+      await h.container
+          .read(cartControllerProvider(StoreType.shashlik).notifier)
+          .refresh();
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('cart-minimum-progress')), findsNothing);
+      expect(_button(tester).onPressed, isNotNull);
+      await tester.tap(_primary);
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('shashlik-checkout-content')),
+        findsOneWidget,
+      );
+      expect(find.byType(SegmentedButton<FulfillmentType>), findsNothing);
+      expect(find.byKey(const ValueKey('checkout-payment-cash')), findsNothing);
+      final draft = h.container.read(orderDraftProvider(StoreType.shashlik));
+      expect(draft.addressId, 'home');
+      await tester.tap(
+        find.byKey(const ValueKey('shashlik-checkout-edit-address')),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(CartScreen), findsOneWidget);
+      expect(
+        h.container.read(orderDraftProvider(StoreType.shashlik)).addressId,
+        'home',
+      );
+      expect(_button(tester).onPressed, isNotNull);
+    },
+  );
+
+  testWidgets(
+    'shashlik pickup is chosen in cart and bypasses delivery minimum',
+    (tester) async {
+      final h = await _mount(
+        tester,
+        type: StoreType.shashlik,
+        router: true,
+        realCheckout: true,
+      );
+      await tester.tap(find.byKey(const ValueKey('shashlik-cart-pickup')));
+      await tester.pumpAndSettle();
+      expect(
+        h.container.read(orderDraftProvider(StoreType.shashlik)).pickupBranchId,
+        'branch-0',
+      );
+      expect(find.byKey(const ValueKey('cart-minimum-progress')), findsNothing);
+      expect(_button(tester).onPressed, isNotNull);
+      await tester.tap(_primary);
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('shashlik-checkout-content')),
+        findsOneWidget,
+      );
+      expect(find.text('Filial 0'), findsOneWidget);
+      expect(find.text('Uy'), findsNothing);
+      expect(h.api.requests, 0);
+    },
+  );
+
+  testWidgets(
+    'meat unknown delivery stays in cart and does not invent fee or minimum',
+    (tester) async {
+      final h = await _mount(
+        tester,
+        type: StoreType.meat,
+        unitPrice: 40000,
+        router: true,
+      );
+      expect(find.byKey(const ValueKey('meat-cart-location')), findsOneWidget);
+      expect(find.byKey(const ValueKey('cart-order-summary')), findsNothing);
+      expect(find.byKey(const ValueKey('cart-minimum-progress')), findsNothing);
+      expect(
+        find.descendant(of: _primary, matching: find.text('Manzil tanlash')),
+        findsOneWidget,
+      );
+      expect(_button(tester).onPressed, isNotNull);
+      expect(h.api.requests, 0);
+      expect(h.cart.log, isNot(contains('gps')));
+      expect(find.text('Compact checkout'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'meat confirmed minimum blocks then opens compact checkout when met',
+    (tester) async {
+      final h = await _mount(
+        tester,
+        type: StoreType.meat,
+        confirmed: true,
+        router: true,
+        realCheckout: true,
+      );
+      expect(find.textContaining('yana 7 000'), findsWidgets);
+      expect(_button(tester).onPressed, isNull);
+      h.cart.quantity = 2;
+      await h.container
+          .read(cartControllerProvider(StoreType.meat).notifier)
+          .refresh();
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('cart-minimum-progress')), findsNothing);
+      expect(_button(tester).onPressed, isNotNull);
+      await tester.tap(_primary);
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('meat-checkout-content')),
+        findsOneWidget,
+      );
+      expect(find.byType(SegmentedButton<FulfillmentType>), findsNothing);
+      expect(find.byKey(const ValueKey('checkout-payment-cash')), findsNothing);
+      final draft = h.container.read(orderDraftProvider(StoreType.meat));
+      expect(draft.addressId, 'home');
+      await tester.tap(
+        find.byKey(const ValueKey('meat-checkout-edit-address')),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(CartScreen), findsOneWidget);
+      expect(
+        h.container.read(orderDraftProvider(StoreType.meat)).addressId,
+        'home',
+      );
+      expect(_button(tester).onPressed, isNotNull);
+    },
+  );
+
+  testWidgets('meat pickup is chosen in cart and bypasses delivery minimum', (
+    tester,
+  ) async {
+    final h = await _mount(
+      tester,
+      type: StoreType.meat,
+      router: true,
+      realCheckout: true,
+    );
+    await tester.tap(find.byKey(const ValueKey('meat-cart-pickup')));
+    await tester.pumpAndSettle();
+    expect(
+      h.container.read(orderDraftProvider(StoreType.meat)).pickupBranchId,
+      'branch-0',
+    );
+    expect(find.byKey(const ValueKey('cart-minimum-progress')), findsNothing);
+    expect(_button(tester).onPressed, isNotNull);
+    await tester.tap(_primary);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('meat-checkout-content')), findsOneWidget);
+    expect(find.text('Filial 0'), findsOneWidget);
+    expect(find.text('Uy'), findsNothing);
+    expect(h.api.requests, 0);
+  });
+
+  testWidgets(
+    'shashlik configured cart line edits its total quantity without losing addons',
+    (tester) async {
+      final h = await _mount(tester, type: StoreType.shashlik, confirmed: true);
+      h.cart.configured = true;
+      h.cart.quantity = 10;
+      await h.container
+          .read(cartControllerProvider(StoreType.shashlik).notifier)
+          .refresh();
+      await tester.pumpAndSettle();
+      final qty = find.text('10 kilogram');
+      await _show(tester, qty);
+      await tester.tap(qty);
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('shashlik-selector-dialog')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('shashlik-selector-product-product')),
+        findsNothing,
+      );
+      final input = find.byKey(const ValueKey('shashlik-quantity-input'));
+      await tester.ensureVisible(input);
+      await tester.enterText(input, '20');
+      await tester.pump();
+      final save = find.byKey(const ValueKey('shashlik-selector-submit'));
+      await tester.ensureVisible(save);
+      await tester.tap(save);
+      await tester.pumpAndSettle();
+      expect(h.cart.quantity, 20);
+      final line = h.container
+          .read(cartControllerProvider(StoreType.shashlik))
+          .value!
+          .cart
+          .items
+          .single;
+      expect(line.variant!.id, 'large');
+      expect(line.selectedAddons.single.id, 'extra-sauce');
+      expect(line.note, 'Achchiq bo‘lmasin');
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('shashlik pending/offline quantity never enables continue', (
+    tester,
+  ) async {
+    final h = await _mount(
+      tester,
+      type: StoreType.shashlik,
+      confirmed: true,
+      unitPrice: 50000,
+    );
+    h.cart.pending = Completer<void>();
+    h.cart.offline = true;
+    final plus = find.descendant(
+      of: find.byType(CartQuantityStepper),
+      matching: find.byIcon(Icons.add),
+    );
+    await _show(tester, plus);
+    await tester.tap(plus);
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(_button(tester).onPressed, isNull);
+    h.cart.pending!.complete();
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(of: _primary, matching: find.text('Qayta urinish')),
+      findsOneWidget,
+    );
+    expect(h.cart.quantity, 1);
+  });
+
+  for (final locale in AppLocalizations.supportedLocales) {
+    for (final size in const [Size(320, 700), Size(430, 850), Size(800, 360)]) {
+      testWidgets('shashlik preparation fits $locale $size at 200%', (
+        tester,
+      ) async {
+        await tester.binding.setSurfaceSize(size);
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        await _mount(
+          tester,
+          type: StoreType.shashlik,
+          confirmed: true,
+          unitPrice: 50000,
+          locale: locale,
+          scale: 2,
+        );
+        expect(tester.takeException(), isNull);
+        await tester.ensureVisible(_primary);
+        await tester.pumpAndSettle();
+        expect(_button(tester).onPressed, isNotNull);
+        expect(tester.takeException(), isNull);
+      });
+    }
+  }
+  for (final locale in AppLocalizations.supportedLocales) {
+    for (final size in const [Size(320, 700), Size(430, 850), Size(800, 360)]) {
+      testWidgets('meat preparation fits $locale $size at 200%', (
+        tester,
+      ) async {
+        await tester.binding.setSurfaceSize(size);
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        await _mount(
+          tester,
+          type: StoreType.meat,
+          confirmed: true,
+          unitPrice: 50000,
+          locale: locale,
+          scale: 2,
+        );
+        expect(tester.takeException(), isNull);
+        await tester.ensureVisible(_primary);
+        await tester.pumpAndSettle();
+        expect(_button(tester).onPressed, isNotNull);
+        expect(tester.takeException(), isNull);
+      });
+    }
+  }
+  testWidgets(
+    'Rasmiylashtirish opens checkout across repeated trips; back keeps cart usable',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(360, 800);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      final h = await _mount(
+        tester,
+        savedAddress: true,
+        unitPrice: 50000,
+        router: true,
+        realCheckout: true,
+      );
+      for (var trip = 0; trip < 2; trip++) {
+        expect(
+          find.descendant(
+            of: _primary,
+            matching: find.text('Buyurtmani davom ettirish'),
+          ),
+          findsOneWidget,
+        );
+        await tester.tap(_primary);
+        await tester.pumpAndSettle();
+        expect(find.byType(CheckoutScreen), findsOneWidget);
+        // Kuryer standart, saqlangan manzil tanlangan.
+        expect(
+          tester
+              .widget<SegmentedButton<FulfillmentType>>(
+                find.byKey(const ValueKey('checkout-fulfillment')),
+              )
+              .selected,
+          {FulfillmentType.delivery},
+        );
+        await tester.binding.handlePopRoute();
+        await tester.pumpAndSettle();
+        expect(find.byType(CartScreen), findsOneWidget);
+        expect(_button(tester).onPressed, isNotNull);
+        expect(
+          h.container.read(orderDraftProvider(StoreType.household)).addressId,
+          'home',
+        );
+      }
+    },
+  );
+
+  testWidgets(
+    'guest login restores saved delivery address and opens checkout in one tap',
     (tester) async {
       final h = await _mount(
         tester,
@@ -506,8 +843,6 @@ void main() {
       );
       expect(find.byType(DeliveryAddressScreen), findsNothing);
       expect(h.cart.log, isNot(contains('gps')));
-      await tester.tap(_primary);
-      await tester.pumpAndSettle();
       expect(find.text('Compact checkout'), findsOneWidget);
     },
   );
@@ -527,7 +862,6 @@ void main() {
       );
       expect(h.api.requests, 1);
       expect(h.cart.log, isNot(contains('gps')));
-      expect(find.text('Yetkazish manzilini tanlash'), findsNothing);
       expect(find.byType(DeliveryAddressScreen), findsNothing);
       await tester.tap(_primary);
       await tester.pumpAndSettle();
@@ -537,42 +871,60 @@ void main() {
   );
 
   testWidgets(
-    'cart entry does not open address or request location; unknown fee is not zero',
+    'cart shows items, summary and recommendations; no address or GPS on entry',
     (tester) async {
-      final h = await _mount(tester);
+      final h = await _mount(tester, recommendations: true);
       expect(find.byType(DeliveryAddressScreen), findsNothing);
+      expect(find.byKey(const ValueKey('cart-fulfillment')), findsNothing);
+      expect(find.byKey(const ValueKey('cart-delivery-promise')), findsNothing);
       expect(
-        find.text('Yetkazish narxi manzil tanlangach hisoblanadi'),
-        findsWidgets,
-      );
-      expect(
-        find.descendant(
-          of: _primary,
-          matching: find.text('Yetkazish manzilini tanlash'),
-        ),
+        find.byKey(const ValueKey('household-cart-location')),
         findsOneWidget,
       );
+      expect(find.textContaining('Bugun'), findsNothing);
+      expect(find.textContaining('40–60'), findsNothing);
+      final stepper = tester.widget<Container>(
+        find
+            .descendant(
+              of: find.byType(CartQuantityStepper).first,
+              matching: find.byType(Container),
+            )
+            .first,
+      );
+      final stepperDecoration = stepper.decoration! as BoxDecoration;
+      expect(stepperDecoration.color, Colors.white);
+      expect(stepperDecoration.borderRadius, BorderRadius.circular(8));
+      expect(find.byKey(const ValueKey('cart-order-summary')), findsNothing);
+      expect(find.text('Buyurtmangiz'), findsNothing);
+      expect(
+        find.byKey(const ValueKey('cart-item-favorite-line')),
+        findsOneWidget,
+      );
+      await _show(
+        tester,
+        find.byKey(const ValueKey('cart-recommendation-recommendation')),
+      );
+      expect(
+        find.descendant(of: _primary, matching: find.text('Manzil tanlash')),
+        findsOneWidget,
+      );
+      expect(_button(tester).onPressed, isNotNull);
       expect(h.api.requests, 0);
       expect(h.cart.log, isNot(contains('gps')));
     },
   );
 
-  testWidgets('confirmed 8k+5k shows 7k remaining and active add action', (
+  testWidgets('confirmed 8k+5k shows minimum hint linking to recommendations', (
     tester,
   ) async {
     await _mount(tester, confirmed: true);
-    expect(find.textContaining('yana 7\u00a0000'), findsWidgets);
-    expect(
-      find.descendant(of: _primary, matching: find.text('Mahsulot qo‘shish')),
-      findsOneWidget,
-    );
-    expect(_button(tester).onPressed, isNotNull);
-    await tester.tap(_primary);
+    expect(find.textContaining('yana 7 000'), findsWidgets);
+    // Minimum is enforced in cart; the explanatory row adds products.
+    expect(_button(tester).onPressed, isNull);
+    final add = find.byKey(const ValueKey('cart-minimum-progress'));
+    await _show(tester, add);
+    await tester.tap(add);
     await tester.pumpAndSettle();
-    expect(
-      find.text('Minimumni to‘ldirish uchun').hitTestable(),
-      findsOneWidget,
-    );
     expect(
       find.byKey(const ValueKey('cart-browse-products')).hitTestable(),
       findsOneWidget,
@@ -580,7 +932,7 @@ void main() {
   });
 
   testWidgets(
-    'exact minimum enables next step but never creates an order automatically',
+    'exact minimum hides hint and never creates an order automatically',
     (tester) async {
       final h = await _mount(
         tester,
@@ -588,14 +940,8 @@ void main() {
         unitPrice: 15000,
         router: true,
       );
-      expect(
-        find.descendant(
-          of: _primary,
-          matching: find.text('Buyurtmani davom ettirish'),
-        ),
-        findsOneWidget,
-      );
       expect(find.text('Compact checkout'), findsNothing);
+      expect(find.byKey(const ValueKey('cart-minimum-progress')), findsNothing);
       await tester.tap(_primary);
       await tester.pumpAndSettle();
       expect(find.text('Compact checkout'), findsOneWidget);
@@ -606,109 +952,65 @@ void main() {
     },
   );
 
-  testWidgets(
-    'explicit address change still opens selector; back retains saved selection',
-    (tester) async {
-      final h = await _mount(tester, router: true, savedAddress: true);
-      await tester.tap(find.byKey(const ValueKey('cart-address')));
-      await tester.pumpAndSettle();
-      expect(find.byType(DeliveryAddressScreen), findsOneWidget);
-      expect(
-        h.cart.log.indexOf('merge'),
-        lessThan(h.cart.log.indexOf('quote')),
-      );
-      await tester.binding.handlePopRoute();
-      await tester.pumpAndSettle();
-      expect(
-        h.container.read(orderDraftProvider(StoreType.household)).selection,
-        isNotNull,
-      );
-      expect(
-        find.descendant(of: _primary, matching: find.text('Mahsulot qo‘shish')),
-        findsOneWidget,
-      );
-    },
-  );
+  testWidgets('40k products with unknown fee shows no minimum alert', (
+    tester,
+  ) async {
+    await _mount(tester, unitPrice: 40000);
+    expect(find.byKey(const ValueKey('cart-minimum-progress')), findsNothing);
+    expect(_button(tester).onPressed, isNotNull);
+  });
+
+  testWidgets('increasing and decreasing quantity toggles minimum hint', (
+    tester,
+  ) async {
+    final h = await _mount(tester, confirmed: true);
+    final minimum = find.byKey(const ValueKey('cart-minimum-progress'));
+    expect(minimum, findsOneWidget);
+    h.container
+        .read(orderDraftProvider(StoreType.household).notifier)
+        .setNotice('minimum_not_met');
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('cart-flow-notice')), findsNothing);
+    final add = find.descendant(
+      of: find.byType(CartQuantityStepper),
+      matching: find.byIcon(Icons.add),
+    );
+    await _show(tester, add);
+    await tester.tap(add);
+    await tester.pumpAndSettle();
+    expect(minimum, findsNothing);
+    expect(
+      _button(tester).style!.backgroundColor!.resolve({}),
+      AppColors.primary,
+    );
+    final remove = find.descendant(
+      of: find.byType(CartQuantityStepper),
+      matching: find.byIcon(Icons.remove),
+    );
+    await _show(tester, remove);
+    await tester.tap(remove);
+    await tester.pumpAndSettle();
+    expect(minimum, findsOneWidget);
+    expect(find.textContaining('yana 7 000'), findsOneWidget);
+  });
 
   testWidgets(
-    'pickup ignores delivery minimum and selects only eligible single branch',
+    'checkout pickup selects the only eligible branch without a quote',
     (tester) async {
-      final h = await _mount(tester);
-      await tester.tap(find.text('Olib ketish'));
+      final h = await _mount(tester, router: true, realCheckout: true);
+      await tester.tap(find.byKey(const ValueKey('household-cart-pickup')));
       await tester.pumpAndSettle();
-      expect(
-        h.container
-            .read(orderDraftProvider(StoreType.household))
-            .pickupBranchId,
-        'branch-0',
-      );
+      final draft = h.container.read(orderDraftProvider(StoreType.household));
+      expect(draft.fulfillment, FulfillmentType.pickup);
+      expect(draft.pickupBranchId, 'branch-0');
       expect(
         find.byKey(const ValueKey('checkout-delivery-minimum')),
         findsNothing,
       );
-      expect(
-        find.descendant(
-          of: _primary,
-          matching: find.text('Buyurtmani davom ettirish'),
-        ),
-        findsOneWidget,
-      );
       expect(h.api.requests, 0);
-    },
-  );
-
-  testWidgets(
-    'guest pickup survives login and merge without selecting delivery address',
-    (tester) async {
-      final h = await _mount(tester, guest: true, router: true);
-      await tester.tap(find.text('Olib ketish'));
-      await tester.pumpAndSettle();
       await tester.tap(_primary);
       await tester.pumpAndSettle();
-      expect(find.text('Compact checkout'), findsOneWidget);
-      final draft = h.container.read(orderDraftProvider(StoreType.household));
-      expect(draft.fulfillment, FulfillmentType.pickup);
-      expect(draft.pickupBranchId, 'branch-0');
-      expect(draft.addressId, isNull);
-      expect(
-        h.cart.log.indexOf('login'),
-        lessThan(h.cart.log.indexOf('merge')),
-      );
-      expect(h.api.requests, 0);
-    },
-  );
-
-  testWidgets(
-    'multiple pickup branches require explicit selection via footer',
-    (tester) async {
-      final h = await _mount(tester, branchCount: 2);
-      await tester.tap(find.text('Olib ketish'));
-      await tester.pumpAndSettle();
-      expect(
-        h.container
-            .read(orderDraftProvider(StoreType.household))
-            .pickupBranchId,
-        isNull,
-      );
-      await tester.tap(_primary);
-      await tester.pumpAndSettle();
-      await tester.tap(
-        find.byKey(const ValueKey('cart-pickup-option-branch-1')),
-      );
-      await tester.pumpAndSettle();
-      expect(
-        h.container
-            .read(orderDraftProvider(StoreType.household))
-            .pickupBranchId,
-        'branch-1',
-      );
-      expect(
-        find.descendant(
-          of: _primary,
-          matching: find.text('Buyurtmani davom ettirish'),
-        ),
-        findsOneWidget,
-      );
+      expect(find.byType(CheckoutScreen), findsOneWidget);
     },
   );
 
@@ -716,21 +1018,13 @@ void main() {
     'recommendation add updates same cart and reaches minimum in place',
     (tester) async {
       final h = await _mount(tester, confirmed: true, recommendations: true);
-      await tester.tap(_primary);
-      await tester.pumpAndSettle();
       final buy = find.byKey(const ValueKey('product-card-buy-recommendation'));
       await _show(tester, buy);
       await tester.tap(buy);
       await tester.pump(const Duration(milliseconds: 300));
       await tester.pumpAndSettle();
       expect(h.cart.extra, isTrue);
-      expect(
-        find.descendant(
-          of: _primary,
-          matching: find.text('Buyurtmani davom ettirish'),
-        ),
-        findsOneWidget,
-      );
+      expect(find.byKey(const ValueKey('cart-minimum-progress')), findsNothing);
       expect(
         h.container.read(orderDraftProvider(StoreType.household)).addressId,
         'home',
@@ -762,28 +1056,26 @@ void main() {
     },
   );
 
-  testWidgets(
-    'offline optimistic quantity never confirms minimum or permits checkout',
-    (tester) async {
-      final h = await _mount(tester, confirmed: true);
-      h.cart.offline = true;
-      final add = find.descendant(
-        of: find.byType(CartQuantityStepper),
-        matching: find.byIcon(Icons.add),
-      );
-      await _show(tester, add);
-      await tester.tap(add);
-      await tester.pump(const Duration(milliseconds: 300));
-      await tester.pumpAndSettle();
-      expect(h.cart.quantity, 1);
-      expect(find.text('Minimal buyurtma summasiga yetdingiz'), findsNothing);
-      expect(
-        find.descendant(of: _primary, matching: find.text('Qayta urinish')),
-        findsOneWidget,
-      );
-      expect(find.text('Buyurtmani davom ettirish'), findsNothing);
-    },
-  );
+  testWidgets('offline optimistic quantity never permits checkout', (
+    tester,
+  ) async {
+    final h = await _mount(tester, confirmed: true);
+    h.cart.offline = true;
+    final add = find.descendant(
+      of: find.byType(CartQuantityStepper),
+      matching: find.byIcon(Icons.add),
+    );
+    await _show(tester, add);
+    await tester.tap(add);
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpAndSettle();
+    expect(h.cart.quantity, 1);
+    expect(
+      find.descendant(of: _primary, matching: find.text('Qayta urinish')),
+      findsOneWidget,
+    );
+    expect(find.text('Buyurtmani davom ettirish'), findsNothing);
+  });
 
   testWidgets(
     'shashlik row retains units, configuration and actual line total at 2x',
@@ -817,8 +1109,17 @@ void main() {
       );
       expect(find.text('2 kilogram'), findsOneWidget);
       expect(
-        find.descendant(of: row, matching: find.textContaining('16\u00a0000')),
-        findsOneWidget,
+        find.descendant(
+          of: find.byKey(const ValueKey('cart-item-price-line')),
+          matching: find.textContaining('16 000'),
+        ),
+        findsNothing,
+      );
+      expect(
+        tester
+            .widget<Text>(find.byKey(const ValueKey('cart-item-price-line')))
+            .data,
+        contains('16 000'),
       );
       expect(tester.takeException(), isNull);
     },
@@ -830,14 +1131,14 @@ void main() {
       await _mount(tester, empty: true);
       expect(_primary, findsNothing);
       expect(find.byKey(const ValueKey('empty-cart-view')), findsOneWidget);
-      expect(find.byKey(const ValueKey('cart-fulfillment')), findsNothing);
+      expect(find.byKey(const ValueKey('cart-order-summary')), findsNothing);
     },
   );
 
   for (final type in StoreType.values) {
     testWidgets('store-scoped minimum flow works for $type', (tester) async {
       final h = await _mount(tester, type: type, confirmed: true);
-      expect(find.textContaining('yana 7\u00a0000'), findsWidgets);
+      expect(find.textContaining('yana 7 000'), findsWidgets);
       expect(h.container.read(orderDraftProvider(type)).addressId, 'home');
       if (type == StoreType.shashlik) {
         expect(find.text('1 kilogram'), findsOneWidget);

@@ -51,7 +51,7 @@ DeliveryCoverageBranch? selectCoveragePreview(
   List<DeliveryCoverageBranch> branches,
   LatLng? gps,
 ) {
-  final valid = branches.where((branch) => branch.hasCoverage).toList();
+  final valid = branches.where((branch) => branch.hasCoordinates).toList();
   if (valid.isEmpty) return null;
   if (gps == null) return valid.first;
   valid.sort(
@@ -91,13 +91,6 @@ class CheckoutDeliveryMap extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          l10n.checkoutCoverageRadius(deliveryRadiusLabel(branch.radiusKm!)),
-          style: compact
-              ? Theme.of(context).textTheme.bodySmall
-              : Theme.of(context).textTheme.titleSmall,
-        ),
-        const SizedBox(height: 8),
         ClipRRect(
           borderRadius: BorderRadius.circular(20),
           child: SizedBox(
@@ -212,11 +205,9 @@ class _CoverageMapState extends State<_CoverageMap> {
   int _tileRetry = 0;
   LatLng get _centre =>
       LatLng(widget.branch.latitude!, widget.branch.longitude!);
-  late List<LatLng> _ring;
   @override
   void initState() {
     super.initState();
-    _ring = deliveryRadiusPoints(_centre, widget.branch.radiusKm!);
     widget.gps.addListener(_gpsChanged);
   }
 
@@ -231,7 +222,7 @@ class _CoverageMapState extends State<_CoverageMap> {
     _controller.fitCamera(
       CameraFit.bounds(
         bounds: LatLngBounds.fromPoints([
-          ..._ring,
+          _centre,
           if (widget.deliveryPoint != null) widget.deliveryPoint!,
           if (includeGps && widget.gps.value != null) widget.gps.value!,
         ]),
@@ -250,11 +241,6 @@ class _CoverageMapState extends State<_CoverageMap> {
     }
     if (oldWidget.branch != widget.branch ||
         oldWidget.deliveryPoint != widget.deliveryPoint) {
-      if (oldWidget.branch.latitude != widget.branch.latitude ||
-          oldWidget.branch.longitude != widget.branch.longitude ||
-          oldWidget.branch.radiusKm != widget.branch.radiusKm) {
-        _ring = deliveryRadiusPoints(_centre, widget.branch.radiusKm!);
-      }
       WidgetsBinding.instance.addPostFrameCallback(
         (_) => _fit(includeGps: widget.deliveryPoint == null),
       );
@@ -304,7 +290,7 @@ class _CoverageMapState extends State<_CoverageMap> {
             mapController: _controller,
             options: MapOptions(
               initialCenter: _centre,
-              initialZoom: 11,
+              initialZoom: 14,
               minZoom: 3,
               maxZoom: 19,
               interactionOptions: InteractionOptions(
@@ -322,7 +308,7 @@ class _CoverageMapState extends State<_CoverageMap> {
               },
             ),
             children: [
-              // Tile failures are visual only: pins and the radius still work.
+              // Tile failures are visual only: address/store pins still work.
               NeutralMapTiles(
                 key: ValueKey('checkout-map-tiles-$_tileRetry'),
                 neutralize: false,
@@ -336,23 +322,6 @@ class _CoverageMapState extends State<_CoverageMap> {
                       }
                     });
                   }
-                },
-              ),
-              Builder(
-                builder: (context) {
-                  final camera = MapCamera.of(context);
-                  if (!camera.nonRotatedSize.isFinite) {
-                    return const SizedBox.shrink();
-                  }
-                  return IgnorePointer(
-                    child: CustomPaint(
-                      size: Size.infinite,
-                      painter: DeliveryCoveragePainter(
-                        camera: camera,
-                        points: _ring,
-                      ),
-                    ),
-                  );
                 },
               ),
               MarkerLayer(

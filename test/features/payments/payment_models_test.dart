@@ -27,6 +27,12 @@ void main() {
   group('PaymentStatus.fromWire', () {
     test('barcha backend qiymatlari parse qilinadi', () {
       expect(PaymentStatus.fromWire('pending'), PaymentStatus.pending);
+      expect(PaymentStatus.fromWire('unpaid'), PaymentStatus.pending);
+      expect(
+        PaymentStatus.fromWire('refund_pending'),
+        PaymentStatus.refundPending,
+      );
+      expect(PaymentStatus.fromWire('refunded'), PaymentStatus.refunded);
       expect(PaymentStatus.fromWire('paid'), PaymentStatus.paid);
       expect(PaymentStatus.fromWire('failed'), PaymentStatus.failed);
       expect(PaymentStatus.fromWire('cancelled'), PaymentStatus.cancelled);
@@ -40,6 +46,21 @@ void main() {
   });
 
   group('PaymePaymentCreateResult.fromJson', () {
+    test('terminal results do not require a checkout URL', () {
+      for (final status in [
+        'paid',
+        'cancelled',
+        'refund_pending',
+        'refunded',
+      ]) {
+        final result = PaymePaymentCreateResult.fromJson({
+          'status': status,
+          'payment_url': '',
+        });
+        expect(result.status, isNot(PaymentStatus.unknown));
+        expect(result.paymentUrl, isEmpty);
+      }
+    });
     test('happy path parse qilinadi', () {
       final result = PaymePaymentCreateResult.fromJson(const {
         'payment_id': 'pay-1',

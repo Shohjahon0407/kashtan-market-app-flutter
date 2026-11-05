@@ -1,4 +1,5 @@
 import 'package:beshkashtan_customer/core/localization/locale_controller.dart';
+import 'package:beshkashtan_customer/core/network/api_failure.dart';
 import 'package:beshkashtan_customer/core/storage/prefs_store.dart';
 import 'package:beshkashtan_customer/core/store_scope/store_type.dart';
 import 'package:beshkashtan_customer/features/orders/data/order_models.dart';
@@ -13,6 +14,57 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  testWidgets(
+    'rejected stale cancel refreshes detail and switches to courier call',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await PrefsStore.load();
+      final api = _DepartingOrdersApi();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            prefsStoreProvider.overrideWithValue(prefs),
+            ordersApiProvider.overrideWithValue(api),
+            orderRealtimeProvider.overrideWith(_NoopRealtimeController.new),
+          ],
+          child: const MaterialApp(
+            locale: Locale('uz'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: OrderDetailScreen(
+              storeType: StoreType.grocery,
+              orderId: 'order-1',
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.scrollUntilVisible(
+        find.text('Buyurtmani bekor qilish'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(find.text('Buyurtmani bekor qilish'));
+      await tester.pump(const Duration(milliseconds: 300));
+      final yes = AppLocalizations.of(
+        tester.element(find.byType(AlertDialog)),
+      ).commonYes;
+      await tester.tap(find.text(yes));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+      final call = find.byKey(const ValueKey('order-cancel-call-courier'));
+      await tester.scrollUntilVisible(
+        call,
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.text('Buyurtmani bekor qilish'), findsNothing);
+      expect(api.cancelCalls, 1);
+      expect(api.detailCalls, greaterThanOrEqualTo(2));
+      expect(tester.takeException(), isNull);
+    },
+  );
   testWidgets('detail minimal: delivered hero bor, QR/timeline/confirm yo‘q', (
     tester,
   ) async {
@@ -80,6 +132,36 @@ class _NoopRealtimeController extends OrderRealtimeController {
   @override
   OrderRealtimeState build() =>
       const OrderRealtimeState(status: OrderSocketStatus.disconnected);
+}
+
+class _DepartingOrdersApi extends Fake implements OrdersApi {
+  bool departed = false;
+  int cancelCalls = 0;
+  int detailCalls = 0;
+  Map<String, dynamic> get data => {
+    'id': 'order-1',
+    'store_type': 'grocery',
+    'fulfillment_type': 'delivery',
+    'status': departed ? 'out_for_delivery' : 'ready_for_pickup',
+    'user_status': departed ? 'on_way' : 'accepted',
+    'can_cancel': !departed,
+    'courier_phone': '+998901234567',
+  };
+  @override
+  Future<OrderData> detail(String id) async {
+    detailCalls++;
+    return OrderData.fromJson(data);
+  }
+
+  @override
+  Future<OrderTrackingData> tracking(String id) async =>
+      OrderTrackingData.fromJson(data);
+  @override
+  Future<OrderData> cancel(String id) async {
+    cancelCalls++;
+    departed = true;
+    throw const ValidationFailure('This order can no longer be cancelled.', {});
+  }
 }
 
 class _DeliveredOrdersApi extends Fake implements OrdersApi {

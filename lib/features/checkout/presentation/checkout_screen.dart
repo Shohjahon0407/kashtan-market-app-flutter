@@ -15,6 +15,9 @@ import '../../../core/ui/offline/offline_banner.dart';
 import '../../../core/ui/theme/app_colors.dart';
 import '../../../core/ui/theme/app_dimens.dart';
 import '../../../generated/l10n/app_localizations.dart';
+import '../../auth/domain/auth_controller.dart';
+import '../../auth/domain/uzbek_phone.dart';
+import '../../auth/presentation/widgets/phone_field.dart';
 import '../../cart/data/cart_models.dart';
 import '../../cart/domain/cart_controller.dart';
 import '../../catalog/presentation/widgets/product_image.dart';
@@ -27,9 +30,14 @@ import '../domain/checkout_controller.dart';
 import '../domain/checkout_rules.dart';
 import '../domain/order_draft_controller.dart';
 import 'address_display.dart';
+import 'delivery_address_navigation.dart';
 import 'widgets/checkout_receipt_paper.dart';
+import 'widgets/delivery_minimum_progress.dart';
 
-/// Final review only: fulfillment, location and minimum are prepared in cart.
+/// Rasmiylashtirish (2-bosqich, Uzum uslubi): olish usuli (kuryer standart),
+/// manzil/filial, oluvchi, yetkazish vaqti, to'lov turi va xulosa — hammasi
+/// shu ekranda tanlanadi; savatga faqat bo'sh savat yoki minimal summa uchun
+/// qaytiladi.
 class CheckoutScreen extends ConsumerStatefulWidget {
   const CheckoutScreen({required this.storeType, super.key});
   final StoreType storeType;
@@ -85,14 +93,17 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
 
   Future<void> _prepareCheckout() async {
     if (!mounted || _preparing) return;
+    ref.invalidate(paymentCapabilitiesProvider);
     setState(() {
       _preparing = true;
       _entryCheckComplete = false;
     });
     try {
+      // Kuryer standart: manzil tanlanmagan bo'lsa saqlangan standart manzil
+      // olinadi (GPS so'ralmaydi).
       await ref
           .read(orderDraftProvider(widget.storeType).notifier)
-          .prepare(revalidateQuote: true);
+          .prepare(revalidateQuote: true, useSavedAddress: true);
       if (!mounted) return;
       final draft = ref.read(orderDraftProvider(widget.storeType));
       final cart = ref
@@ -147,7 +158,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
     return _submittingPreflight ||
         _orderOpened ||
         submission.isSubmitting ||
-        submission.lastOrder != null;
+        submission.lastOrder != null ||
+        ref.read(checkoutIdempotencyStoreProvider).pending(widget.storeType) !=
+            null;
   }
 
   void _openCreatedOrder(OrderData order, PaymentMethod method) {
@@ -155,13 +168,19 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
     _orderOpened = true;
     final router = GoRouter.maybeOf(context);
     final autoPay =
-        ref.read(paymeEnabledProvider) && method == PaymentMethod.payme;
+        order.paymentMethod == 'payme' && method == PaymentMethod.payme;
     ref.read(orderDraftProvider(widget.storeType).notifier).clear();
     if (router != null) {
       AppBackCoordinator.of(router).discardCheckout();
       router.go(
         Routes.orderDetail(widget.storeType.wire, order.id, autoPay: autoPay),
       );
+      unawaited(
+        ref
+            .read(checkoutIdempotencyStoreProvider)
+            .acknowledge(widget.storeType),
+      );
+      ref.invalidate(pendingCheckoutProvider);
     }
   }
 
@@ -286,19 +305,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
         cartState?.unconfirmedKeys.isNotEmpty != true) {
       if (cart == null || cart.items.isEmpty) {
         _scheduleCart('cart_empty', 'products');
-      } else if (pickup) {
-        if (!CheckoutRules.pickupAllowed(cart) ||
-            (!branches.isLoading && !branches.hasError && branch == null)) {
-          _scheduleCart('pickup_branch_missing', 'fulfillment');
-        }
-      } else if (!addressesAsync.isLoading && !addressesAsync.hasError) {
-        if (selected == null) {
-          _scheduleCart('address_missing', 'location');
-        } else if (quote == null) {
-          _scheduleCart(draft.notice ?? 'delivery_unavailable', 'location');
-        } else if (!cart.meetsDeliveryMinimumIncluding(quote.deliveryPrice)) {
-          _scheduleCart('minimum_not_met', 'products');
-        }
+      } else if (!pickup &&
+          quote != null &&
+          !cart.meetsDeliveryMinimumIncluding(quote.deliveryPrice)) {
+        _scheduleCart('minimum_not_met', 'recommendations');
       }
     }
 
@@ -313,6 +323,31 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
           branch?.id,
           branchesReady: !pickup || (!branches.isLoading && !branches.hasError),
         );
+
+    if (widget.storeType == StoreType.shashlik ||
+        widget.storeType == StoreType.meat) {
+      if (!pending &&
+          !ready &&
+          !checkout.isSubmitting &&
+          !_orderHandoffActive) {
+        _scheduleCart(
+          OrderDraftNotice.cartNotReady,
+          !pickup && selected == null ? 'address' : 'products',
+        );
+      }
+      return _shashlikCheckout(
+        l10n,
+        cart: cart,
+        draft: draft,
+        quote: quote,
+        pending: pending,
+        failure: failure,
+        ready: ready,
+        selected: selected,
+        branch: branch,
+        total: total,
+      );
+    }
 
     return ScaffoldMessenger(
       key: _messengerKey,
@@ -359,132 +394,82 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
                     ),
                     const SizedBox(height: 14),
                   ],
-                  _CheckoutPanel(
-                    key: const ValueKey('checkout-address-panel'),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(
-                              pickup
-                                  ? Icons.store_mall_directory_outlined
-                                  : Icons.location_on_outlined,
-                              color: AppColors.primary,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: _SectionTitle(
-                                text: pickup
-                                    ? l10n.checkoutPickup
-                                    : l10n.checkoutAddress,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          pickup
-                              ? branch?.name ?? l10n.checkoutSelectBranch
-                              : selected?.displayTitle(l10n) ??
-                                    l10n.checkoutSelectAddress,
-                          key: const ValueKey('checkout-location-summary'),
-                          style: Theme.of(context).textTheme.titleSmall
-                              ?.copyWith(fontWeight: FontWeight.w700),
-                        ),
-                        if ((pickup
-                                    ? branch?.address
-                                    : selected?.formattedAddress)
-                                ?.trim()
-                                .isNotEmpty ==
-                            true)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 4),
-                            child: Text(
-                              pickup
-                                  ? branch!.address
-                                  : selected!.formattedAddress,
-                            ),
+                  _ReceiveMethodPanel(
+                    fulfillment: draft.fulfillment,
+                    pickupAllowed:
+                        cart != null && CheckoutRules.pickupAllowed(cart),
+                    deliveryFee: quote?.deliveryPrice,
+                    enabled: !checkout.isSubmitting,
+                    onChanged: (value) {
+                      ref
+                          .read(orderDraftProvider(widget.storeType).notifier)
+                          .setFulfillment(value);
+                      if (value == FulfillmentType.delivery) {
+                        unawaited(_prepareCheckout());
+                      }
+                    },
+                    location: pickup
+                        ? _LocationRow(
+                            key: const ValueKey('checkout-location'),
+                            icon: Icons.storefront_rounded,
+                            caption: l10n.checkoutPickupStoreLabel,
+                            title: branch?.name ?? l10n.checkoutSelectBranch,
+                            subtitle: branch?.address,
+                            status: branches.isLoading
+                                ? l10n.checkoutQuoteCalculating
+                                : null,
+                          )
+                        : _LocationRow(
+                            key: const ValueKey('checkout-location'),
+                            icon: Icons.local_shipping_rounded,
+                            caption: l10n.checkoutDeliveryAddressLabel,
+                            title:
+                                selected?.formattedAddress.trim().isNotEmpty ==
+                                    true
+                                ? selected!.formattedAddress
+                                : selected?.displayTitle(l10n) ??
+                                      l10n.checkoutSelectAddress,
+                            subtitle:
+                                selected != null &&
+                                    selected.formattedAddress.trim().isNotEmpty
+                                ? selected.displayTitle(l10n)
+                                : null,
+                            status: draft.estimating
+                                ? l10n.checkoutQuoteCalculating
+                                : null,
+                            error:
+                                selected != null &&
+                                    !draft.estimating &&
+                                    !pending &&
+                                    quote == null
+                                ? _quoteError(draft.estimate, l10n)
+                                : null,
                           ),
-                        if (!pickup && quote?.deliveryPrice != null)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 8),
-                            child: Text(
-                              '${l10n.cartDeliveryFee}: ${Uzs.format(quote!.deliveryPrice)}',
-                              style: const TextStyle(
-                                color: AppColors.primary,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        TextButton.icon(
-                          key: const ValueKey('checkout-edit-location'),
-                          onPressed: checkout.isSubmitting
-                              ? null
-                              : () => _returnToCart(
-                                  pickup ? 'fulfillment' : 'location',
-                                ),
-                          icon: const Icon(
-                            Icons.edit_location_alt_outlined,
-                            size: 18,
-                          ),
-                          label: Text(l10n.commonEdit),
-                        ),
-                      ],
-                    ),
+                    actionLabel: pickup || selected != null
+                        ? l10n.checkoutChangeOther
+                        : l10n.checkoutChooseAddressAction,
+                    onAction: checkout.isSubmitting
+                        ? null
+                        : pickup
+                        ? () => _choosePickup(eligible, branches.hasError)
+                        : () => unawaited(_chooseAddress()),
+                    mixedStoreHint:
+                        cart != null && !CheckoutRules.pickupAllowed(cart)
+                        ? l10n.checkoutMixedStorePickup
+                        : null,
+                  ),
+                  const SizedBox(height: 14),
+                  _RecipientPanel(
+                    name: draft.recipientName ?? _profileName(),
+                    phone: draft.recipientPhone ?? _profilePhone(),
+                    onTap: checkout.isSubmitting ? null : _editRecipient,
                   ),
                   const SizedBox(height: 14),
                   if (cart != null && cart.items.isNotEmpty) ...[
-                    _CheckoutPanel(
-                      key: const ValueKey('checkout-products-panel'),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          InkWell(
-                            key: const ValueKey('checkout-open-receipt'),
-                            borderRadius: BorderRadius.circular(12),
-                            onTap: () => _showReceipt(cart),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 10),
-                              child: Row(
-                                children: [
-                                  const Icon(
-                                    Icons.receipt_long_outlined,
-                                    color: AppColors.primary,
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          l10n.checkoutProductsSummary(
-                                            cart.items.length,
-                                          ),
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(Uzs.format(cart.subtotal)),
-                                      ],
-                                    ),
-                                  ),
-                                  const Icon(Icons.chevron_right),
-                                ],
-                              ),
-                            ),
-                          ),
-                          TextButton(
-                            key: const ValueKey('checkout-edit-cart'),
-                            onPressed: checkout.isSubmitting
-                                ? null
-                                : () => _returnToCart('products'),
-                            child: Text(l10n.checkoutEditCart),
-                          ),
-                        ],
-                      ),
+                    _DeliveryTimePanel(
+                      cart: cart,
+                      pickup: pickup,
+                      onOpen: () => _showReceipt(cart),
                     ),
                     const SizedBox(height: 14),
                   ],
@@ -493,12 +478,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _PanelHeading(
-                          title: l10n.checkoutPaymentMethod,
-                          caption: l10n.checkoutPaymentHint,
-                        ),
+                        _SectionTitle(text: l10n.checkoutPaymentType),
                         const SizedBox(height: 12),
                         _PaymentMethodSelector(
+                          storeType: widget.storeType,
                           selected: draft.paymentMethod,
                           fulfillment: draft.fulfillment,
                           onChanged: (method) => ref
@@ -527,86 +510,340 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
                   ],
                 ],
               ),
-        bottomNavigationBar: DecoratedBox(
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
-            border: Border(
-              top: BorderSide(
-                color: Theme.of(
-                  context,
-                ).colorScheme.outlineVariant.withValues(alpha: .5),
-              ),
-            ),
-          ),
-          child: SafeArea(
-            top: false,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
-              child: FilledButton(
-                key: const ValueKey('checkout-submit'),
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size(double.infinity, 56),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 14,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
+        bottomNavigationBar: _CheckoutBottomBar(
+          minimum: cart == null || pickup
+              ? null
+              : DeliveryMinimumProgress(
+                  cart: cart,
+                  deliveryFee: quote?.deliveryPrice,
+                  isConfirmed:
+                      !pending &&
+                      !checkout.isSubmitting &&
+                      failure == null &&
+                      cartState?.hasPendingMutation == false &&
+                      cartState?.unconfirmedKeys.isEmpty == true,
+                  onAddProducts: () => _returnToCart('recommendations'),
                 ),
-                onPressed: ready && !checkout.isSubmitting
-                    ? () => _submit(branch?.id)
-                    : null,
-                child: checkout.isSubmitting
-                    ? const SizedBox.square(
-                        dimension: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : LayoutBuilder(
-                        builder: (context, constraints) {
-                          final label = Text(
-                            l10n.checkoutSubmit,
-                            style: const TextStyle(fontWeight: FontWeight.w700),
-                          );
-                          final price = total == null
-                              ? null
-                              : Text(
-                                  Uzs.format(total),
-                                  key: const ValueKey('checkout-submit-total'),
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                );
-                          if (constraints.maxWidth < 350 &&
-                              MediaQuery.textScalerOf(context).scale(14) > 20) {
-                            return Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                label,
-                                if (price != null) ...[
-                                  const SizedBox(height: 4),
-                                  price,
-                                ],
-                              ],
-                            );
-                          }
-                          return Row(
-                            children: [
-                              Expanded(child: label),
-                              if (price != null) ...[
-                                const SizedBox(width: 10),
-                                Flexible(child: price),
-                              ],
-                            ],
-                          );
-                        },
-                      ),
-              ),
-            ),
-          ),
+          total: total,
+          submitting: checkout.isSubmitting,
+          label:
+              draft.paymentMethod == PaymentMethod.payme &&
+                  ref.watch(paymeAvailableProvider(widget.storeType))
+              ? l10n.checkoutPayWithPayme
+              : l10n.checkoutSubmit,
+          onSubmit:
+              (ready ||
+                      ref
+                              .read(checkoutIdempotencyStoreProvider)
+                              .pending(widget.storeType) !=
+                          null) &&
+                  !checkout.isSubmitting
+              ? () => _submit(branch?.id)
+              : null,
         ),
       ),
     );
+  }
+
+  Widget _shashlikCheckout(
+    AppLocalizations l10n, {
+    required CartData? cart,
+    required OrderDraftState draft,
+    required DeliveryEstimate? quote,
+    required bool pending,
+    required ApiFailure? failure,
+    required bool ready,
+    required UserAddress? selected,
+    required StoreBranch? branch,
+    required String? total,
+  }) {
+    final pickup = draft.fulfillment == FulfillmentType.pickup;
+    final checkout = ref.watch(checkoutControllerProvider(widget.storeType));
+    final locked = checkout.isSubmitting || _submittingPreflight;
+    final canResolve =
+        ref.read(checkoutIdempotencyStoreProvider).pending(widget.storeType) !=
+        null;
+    return ScaffoldMessenger(
+      key: _messengerKey,
+      child: Scaffold(
+        appBar: _checkoutAppBar(l10n, cart: cart),
+        body: ListView(
+          key: ValueKey('${widget.storeType.wire}-checkout-content'),
+          padding: const EdgeInsets.all(16),
+          children: [
+            if (pending) const LinearProgressIndicator(),
+            if (failure != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Text(
+                  failure.localize(l10n),
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+              ),
+            _CheckoutPanel(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    pickup ? l10n.checkoutPickup : l10n.checkoutDelivery,
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  Text(
+                    pickup
+                        ? branch?.name ?? l10n.checkoutSelectBranch
+                        : selected?.displayTitle(l10n) ??
+                              l10n.checkoutSelectAddress,
+                  ),
+                  if ((pickup ? branch?.address : selected?.formattedAddress)
+                          ?.isNotEmpty ==
+                      true)
+                    Text(
+                      (pickup ? branch?.address : selected?.formattedAddress)!,
+                    ),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton(
+                      key: ValueKey(
+                        '${widget.storeType.wire}-checkout-edit-address',
+                      ),
+                      onPressed: locked ? null : () => _returnToCart('address'),
+                      child: Text(l10n.commonEdit),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            if (cart != null)
+              _CheckoutPanel(
+                child: Column(
+                  children: [
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(l10n.cartItemsLine(cart.totalQuantity)),
+                      subtitle: Text(Uzs.format(cart.subtotal)),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: locked ? null : () => _showReceipt(cart),
+                    ),
+                    TextButton(
+                      key: ValueKey(
+                        '${widget.storeType.wire}-checkout-edit-cart',
+                      ),
+                      onPressed: locked
+                          ? null
+                          : () => _returnToCart('products'),
+                      child: Text(l10n.checkoutEditCart),
+                    ),
+                  ],
+                ),
+              ),
+            const SizedBox(height: 12),
+            _CheckoutPanel(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    l10n.checkoutPaymentType,
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 8),
+                  if (ref.watch(paymeAvailableProvider(widget.storeType)))
+                    _PaymentMethodSelector(
+                      storeType: widget.storeType,
+                      selected: draft.paymentMethod,
+                      fulfillment: draft.fulfillment,
+                      onChanged: (method) => ref
+                          .read(orderDraftProvider(widget.storeType).notifier)
+                          .setPaymentMethod(method),
+                    )
+                  else
+                    Text(
+                      pickup
+                          ? l10n.checkoutPayCashStore
+                          : l10n.checkoutPayCashCourier,
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            _CheckoutPanel(
+              child: ExpansionTile(
+                tilePadding: EdgeInsets.zero,
+                title: Text(l10n.checkoutRecipient),
+                subtitle: Text(
+                  '${draft.recipientName ?? _profileName()} · ${draft.recipientPhone ?? _profilePhone()}',
+                ),
+                children: [
+                  TextButton(
+                    onPressed: locked ? null : _editRecipient,
+                    child: Text(l10n.commonEdit),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            _CheckoutPanel(
+              child: ExpansionTile(
+                tilePadding: EdgeInsets.zero,
+                maintainState: true,
+                title: Text(l10n.checkoutNote),
+                children: [
+                  TextField(
+                    controller: _noteController,
+                    enabled: !locked,
+                    maxLength: _noteMaxLength,
+                    maxLines: 3,
+                    decoration: InputDecoration(
+                      hintText: l10n.checkoutNotePlaceholder,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (cart != null) ...[
+              const SizedBox(height: 12),
+              _SummaryCard(
+                cart: cart,
+                estimate: quote,
+                fulfillment: draft.fulfillment,
+                total: total,
+              ),
+            ],
+          ],
+        ),
+        bottomNavigationBar: _CheckoutBottomBar(
+          minimum: cart == null || pickup
+              ? null
+              : DeliveryMinimumProgress(
+                  cart: cart,
+                  deliveryFee: quote?.deliveryPrice,
+                  isConfirmed:
+                      !pending &&
+                      !locked &&
+                      failure == null &&
+                      ref
+                              .watch(cartControllerProvider(widget.storeType))
+                              .value
+                              ?.hasPendingMutation ==
+                          false &&
+                      ref
+                              .watch(cartControllerProvider(widget.storeType))
+                              .value
+                              ?.unconfirmedKeys
+                              .isEmpty ==
+                          true,
+                  onAddProducts: () => _returnToCart('recommendations'),
+                ),
+          total: total,
+          submitting: locked,
+          label: l10n.checkoutSubmit,
+          onSubmit: !locked && (ready || canResolve)
+              ? () => _submit(branch?.id)
+              : null,
+        ),
+      ),
+    );
+  }
+
+  String _profileName() =>
+      ref.read(authControllerProvider).user?.fullName ?? '';
+
+  String _profilePhone() =>
+      ref.read(authControllerProvider).user?.phoneNumber ?? '';
+
+  String _quoteError(DeliveryEstimate? quote, AppLocalizations l10n) =>
+      switch (quote?.reasonCode) {
+        'outside_delivery_radius' => l10n.cartDeliveryNotAvailable,
+        'delivery_tariff_unavailable' => l10n.checkoutTariffUnavailable,
+        _ => l10n.checkoutEstimateUnavailable,
+      };
+
+  /// "Boshqasini tanlash" — manzil xaritasi/ro'yxati; tanlangach narx shu
+  /// ekranda qayta hisoblanadi.
+  Future<void> _chooseAddress() async {
+    final controller = ref.read(orderDraftProvider(widget.storeType).notifier);
+    final result = await pickCartDeliveryAddress(
+      context,
+      ref,
+      widget.storeType,
+      initialAddressId: ref
+          .read(orderDraftProvider(widget.storeType))
+          .addressId,
+    );
+    if (!mounted || result == null) return;
+    await controller.acceptAddress(result);
+  }
+
+  Future<void> _choosePickup(List<StoreBranch> branches, bool failed) async {
+    if (failed) {
+      final cart = ref
+          .read(cartControllerProvider(widget.storeType))
+          .value
+          ?.cart;
+      final id = cart == null
+          ? null
+          : CheckoutRules.physicalStoreIds(cart).firstOrNull;
+      if (id != null) ref.invalidate(storeBranchesProvider(id));
+      return;
+    }
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (context) => ListView(
+        shrinkWrap: true,
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+        children: [
+          Text(
+            AppLocalizations.of(context).cartChoosePickup,
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 12),
+          if (branches.isEmpty)
+            Text(AppLocalizations.of(context).checkoutEstimateUnavailable),
+          for (final branch in branches)
+            ListTile(
+              key: ValueKey('checkout-pickup-option-${branch.id}'),
+              leading: const Icon(Icons.storefront_outlined),
+              title: Text(branch.name),
+              subtitle: Text(branch.address),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.pop(context, branch.id),
+            ),
+        ],
+      ),
+    );
+    if (mounted && selected != null) {
+      ref
+          .read(orderDraftProvider(widget.storeType).notifier)
+          .setPickupBranch(selected);
+    }
+  }
+
+  Future<void> _editRecipient() async {
+    final draft = ref.read(orderDraftProvider(widget.storeType));
+    final result = await showModalBottomSheet<({String name, String phone})>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (context) => RecipientSheet(
+        initialName: draft.recipientName ?? _profileName(),
+        initialPhone: draft.recipientPhone ?? _profilePhone(),
+        profileName: _profileName(),
+        profilePhone: _profilePhone(),
+      ),
+    );
+    if (!mounted || result == null) return;
+    final sameAsProfile =
+        result.name == _profileName() && result.phone == _profilePhone();
+    ref
+        .read(orderDraftProvider(widget.storeType).notifier)
+        .setRecipient(
+          name: sameAsProfile ? null : result.name,
+          phone: sameAsProfile ? null : result.phone,
+        );
   }
 
   Future<void> _showReceipt(CartData cart) async {
@@ -645,7 +882,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
     );
     final painter =
         TextPainter(
-          text: TextSpan(text: l10n.checkoutReviewTitle, style: titleStyle),
+          text: TextSpan(text: l10n.checkoutTitle, style: titleStyle),
           textDirection: Directionality.of(context),
           textScaler: MediaQuery.textScalerOf(context),
         )..layout(
@@ -671,7 +908,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            l10n.checkoutReviewTitle,
+            l10n.checkoutTitle,
             softWrap: true,
             overflow: TextOverflow.visible,
             textAlign: TextAlign.center,
@@ -715,6 +952,18 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
     if (!OfflineGate.check(ref)) return;
     _submittingPreflight = true;
     try {
+      if (ref
+              .read(checkoutIdempotencyStoreProvider)
+              .pending(widget.storeType) !=
+          null) {
+        final order = await ref
+            .read(checkoutControllerProvider(widget.storeType).notifier)
+            .retryPending();
+        if (mounted && order != null) {
+          _openCreatedOrder(order, PaymentMethod.cash);
+        }
+        return;
+      }
       await _prepareCheckout();
       if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
       final draft = ref.read(orderDraftProvider(widget.storeType));
@@ -751,6 +1000,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
             addressId: draft.addressId,
             pickupBranchId: pickupBranchId,
             note: _noteController.text,
+            recipientName: draft.recipientName,
+            recipientPhone: draft.recipientPhone,
           );
       if (!mounted || order == null) return;
       _openCreatedOrder(order, draft.paymentMethod);
@@ -770,14 +1021,19 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
               .read(orderDraftProvider(widget.storeType).notifier)
               .prepare(revalidateQuote: true);
           if (!mounted) return;
-          _returnToCart(
-            reason == 'minimum_delivery_order_not_met'
-                ? 'products'
-                : 'location',
-            notice: reason == 'minimum_delivery_order_not_met'
-                ? 'minimum_not_met'
-                : 'cart_changed',
-          );
+          if (reason == 'minimum_delivery_order_not_met') {
+            _returnToCart('recommendations', notice: 'minimum_not_met');
+            return;
+          }
+          // Manzil/hudud muammosi — shu ekranda kartada ko'rinadi.
+          _messenger
+            ..hideCurrentSnackBar()
+            ..showSnackBar(
+              SnackBar(
+                behavior: SnackBarBehavior.floating,
+                content: Text(failure.localize(AppLocalizations.of(context))),
+              ),
+            );
           return;
         }
       }
@@ -802,12 +1058,15 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
 /// tanlanganda to'liq brend rangi + oq matn va ✓ belgisi.
 class _PaymentMethodSelector extends ConsumerWidget {
   const _PaymentMethodSelector({
+    required this.storeType,
     required this.selected,
     required this.fulfillment,
     required this.onChanged,
   });
 
   static const _paymeColor = Color(0xFF33CCCC);
+
+  final StoreType storeType;
 
   final PaymentMethod selected;
   final FulfillmentType fulfillment;
@@ -816,41 +1075,43 @@ class _PaymentMethodSelector extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (ref.watch(paymeEnabledProvider)) ...[
-            Expanded(
-              child: _PaymentMethodCard(
-                key: const ValueKey('checkout-payment-payme'),
-                label: l10n.checkoutPayPayme,
-                caption: l10n.checkoutPayOnline,
-                icon: Icons.account_balance_wallet_outlined,
-                accent: _paymeColor,
-                selected: selected == PaymentMethod.payme,
-                onTap: () => onChanged(PaymentMethod.payme),
-              ),
-            ),
-            const SizedBox(width: AppSpacing.md),
-          ],
-          Expanded(
-            child: _PaymentMethodCard(
-              key: const ValueKey('checkout-payment-cash'),
-              label: fulfillment == FulfillmentType.delivery
-                  ? l10n.checkoutPayCashCourier
-                  : l10n.checkoutPayCashStore,
-              caption: fulfillment == FulfillmentType.delivery
-                  ? l10n.checkoutPayOnReceipt
-                  : l10n.checkoutPayOnPickup,
-              icon: Icons.payments_outlined,
-              accent: AppColors.success,
-              selected: selected == PaymentMethod.cash,
-              onTap: () => onChanged(PaymentMethod.cash),
-            ),
+    final paymeAvailable = ref.watch(paymeAvailableProvider(storeType));
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (selected == PaymentMethod.payme &&
+            !paymeAvailable &&
+            ref.watch(paymentCapabilitiesProvider).hasValue)
+          Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+            child: Text(l10n.paymeUnavailable),
           ),
+        if (paymeAvailable) ...[
+          _PaymentMethodCard(
+            key: const ValueKey('checkout-payment-payme'),
+            label: l10n.checkoutPayPayme,
+            caption: l10n.checkoutPayOnlineCaption,
+            icon: Icons.credit_card_rounded,
+            accent: _paymeColor,
+            selected: selected == PaymentMethod.payme,
+            onTap: () => onChanged(PaymentMethod.payme),
+          ),
+          const SizedBox(height: AppSpacing.sm),
         ],
-      ),
+        _PaymentMethodCard(
+          key: const ValueKey('checkout-payment-cash'),
+          label: fulfillment == FulfillmentType.delivery
+              ? l10n.checkoutPayCashCourier
+              : l10n.checkoutPayCashStore,
+          caption: fulfillment == FulfillmentType.delivery
+              ? l10n.checkoutPayOnReceipt
+              : l10n.checkoutPayOnPickup,
+          icon: Icons.account_balance_wallet_rounded,
+          accent: AppColors.success,
+          selected: selected == PaymentMethod.cash,
+          onTap: () => onChanged(PaymentMethod.cash),
+        ),
+      ],
     );
   }
 }
@@ -880,71 +1141,63 @@ class _PaymentMethodCard extends StatelessWidget {
       button: true,
       selected: selected,
       child: Material(
-        color: selected ? AppColors.primarySoft : theme.colorScheme.surface,
+        color: theme.colorScheme.surface,
         clipBehavior: Clip.antiAlias,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppRadius.md),
+          borderRadius: BorderRadius.circular(12),
           side: BorderSide(
             color: selected
                 ? AppColors.primary
                 : theme.colorScheme.outlineVariant,
-            width: selected ? 1.5 : 1,
+            width: selected ? 2 : 1,
           ),
         ),
         child: InkWell(
           onTap: onTap,
-          child: Stack(
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 16,
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(9),
+                  decoration: BoxDecoration(
+                    color: accent,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(icon, color: Colors.white, size: 22),
                 ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: accent,
-                        borderRadius: BorderRadius.circular(10),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        label,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
-                      child: Icon(icon, color: Colors.white, size: 22),
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    Text(
-                      label,
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.labelLarge?.copyWith(
-                        color: selected
-                            ? AppColors.primary
-                            : theme.colorScheme.onSurface,
-                        fontWeight: FontWeight.w800,
+                      const SizedBox(height: 2),
+                      Text(
+                        caption,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      caption,
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        fontSize: 11,
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              if (selected)
-                const Positioned(
-                  top: 6,
-                  right: 6,
-                  child: Icon(
-                    Icons.check_circle,
-                    size: 16,
-                    color: AppColors.primary,
+                    ],
                   ),
                 ),
-            ],
+                const SizedBox(width: 8),
+                Icon(
+                  selected
+                      ? Icons.radio_button_checked
+                      : Icons.radio_button_unchecked,
+                  color: selected
+                      ? AppColors.primary
+                      : theme.colorScheme.outline,
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -982,57 +1235,47 @@ class _SummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final deliveryValue = fulfillment == FulfillmentType.pickup
+        ? l10n.checkoutDeliveryFree
+        : estimate?.available == true && estimate?.deliveryPrice != null
+        ? ((double.tryParse(estimate!.deliveryPrice!) ?? 0) <= 0
+              ? l10n.checkoutDeliveryFree
+              : Uzs.format(estimate!.deliveryPrice))
+        : '—';
     return _CheckoutPanel(
       key: const ValueKey('checkout-summary'),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            l10n.checkoutCostBreakdown,
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
+          _SectionTitle(text: l10n.checkoutOrderSummary),
           const SizedBox(height: 12),
           _SummaryRow(
-            label: '${l10n.cartSubtotal} (${cart.items.length})',
-            value: Uzs.format(cart.subtotal),
+            label: l10n.cartItemsLine(cart.totalQuantity),
+            value: Uzs.format(cart.originalSubtotal),
           ),
+          if (cart.hasDiscount) ...[
+            const SizedBox(height: 8),
+            _SummaryRow(
+              label: l10n.cartDiscount,
+              value: '−${Uzs.format(cart.discountTotal)}',
+              color: AppColors.danger,
+            ),
+          ],
           const SizedBox(height: 8),
-          _SummaryRow(
-            label: l10n.cartDeliveryFee,
-            value: fulfillment == FulfillmentType.pickup
-                ? Uzs.format('0')
-                : estimate?.available == true && estimate?.deliveryPrice != null
-                ? Uzs.format(estimate!.deliveryPrice)
-                : '—',
-          ),
+          _SummaryRow(label: l10n.cartDeliveryFee, value: deliveryValue),
           const Divider(height: 26),
           _SummaryRow(
-            label: l10n.checkoutGrandTotal,
+            label: l10n.checkoutTotal,
             value: total == null ? '—' : Uzs.format(total),
             prominent: true,
           ),
           const SizedBox(height: 12),
-          Row(
-            children: [
-              const Icon(
-                Icons.verified_user_outlined,
-                size: 15,
-                color: AppColors.primary,
-              ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  l10n.checkoutReviewHint,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    fontSize: 11,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ),
-            ],
+          Text(
+            l10n.checkoutReviewHint,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
           ),
         ],
       ),
@@ -1045,11 +1288,13 @@ class _SummaryRow extends StatelessWidget {
     required this.label,
     required this.value,
     this.prominent = false,
+    this.color,
   });
 
   final String label;
   final String value;
   final bool prominent;
+  final Color? color;
 
   @override
   Widget build(BuildContext context) => Row(
@@ -1058,8 +1303,8 @@ class _SummaryRow extends StatelessWidget {
         child: Text(
           label,
           style: TextStyle(
-            fontSize: 13,
-            fontWeight: prominent ? FontWeight.w800 : FontWeight.w400,
+            fontSize: prominent ? 18 : 14,
+            fontWeight: prominent ? FontWeight.w900 : FontWeight.w400,
           ),
         ),
       ),
@@ -1069,8 +1314,8 @@ class _SummaryRow extends StatelessWidget {
           value,
           textAlign: TextAlign.end,
           style: TextStyle(
-            fontSize: prominent ? 16 : 13,
-            color: prominent ? AppColors.primary : null,
+            fontSize: prominent ? 18 : 14,
+            color: color ?? (prominent ? AppColors.primary : null),
             fontWeight: FontWeight.w800,
           ),
         ),
@@ -1270,7 +1515,7 @@ class _CheckoutPanel extends StatelessWidget {
     padding: const EdgeInsets.all(14),
     decoration: BoxDecoration(
       color: Theme.of(context).colorScheme.surface,
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(12),
       border: Border.all(
         color: Theme.of(
           context,
@@ -1393,14 +1638,615 @@ class _CheckoutNoteCard extends StatelessWidget {
                         backgroundColor: Theme.of(
                           context,
                         ).scaffoldBackgroundColor,
-                        selectedColor: AppColors.primarySoft,
-                        side: BorderSide.none,
+                        selectedColor: Colors.white,
+                        checkmarkColor: AppColors.primary,
+                        side: BorderSide(
+                          color: selected
+                              ? AppColors.primary
+                              : Theme.of(context).colorScheme.outlineVariant,
+                        ),
                       );
                     },
                   ),
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// "Olish usuli": Kuryer | Olib ketish + tanlangan manzil/filial va
+/// "Boshqasini tanlash".
+class _ReceiveMethodPanel extends StatelessWidget {
+  const _ReceiveMethodPanel({
+    required this.fulfillment,
+    required this.pickupAllowed,
+    required this.deliveryFee,
+    required this.enabled,
+    required this.onChanged,
+    required this.location,
+    required this.actionLabel,
+    required this.onAction,
+    this.mixedStoreHint,
+  });
+
+  final FulfillmentType fulfillment;
+  final bool pickupAllowed;
+  final String? deliveryFee;
+  final bool enabled;
+  final ValueChanged<FulfillmentType> onChanged;
+  final Widget location;
+  final String actionLabel;
+  final VoidCallback? onAction;
+  final String? mixedStoreHint;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    Widget segment(String title, String caption, FulfillmentType value) =>
+        Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                color: fulfillment == value
+                    ? Colors.white
+                    : theme.colorScheme.onSurface,
+              ),
+            ),
+            Text(
+              caption,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 12,
+                color: fulfillment == value
+                    ? Colors.white
+                    : theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        );
+    final fee = deliveryFee;
+    final feeText = fee == null
+        ? l10n.checkoutChooseAddressHint
+        : (double.tryParse(fee) ?? 0) <= 0
+        ? l10n.checkoutPickupFree
+        : Uzs.format(fee);
+    return _CheckoutPanel(
+      key: const ValueKey('checkout-address-panel'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _SectionTitle(text: l10n.checkoutReceiveMethod),
+          const SizedBox(height: 12),
+          SegmentedButton<FulfillmentType>(
+            key: const ValueKey('checkout-fulfillment'),
+            showSelectedIcon: true,
+            selectedIcon: const Icon(Icons.check_circle_rounded, size: 18),
+            expandedInsets: EdgeInsets.zero,
+            segments: [
+              ButtonSegment(
+                value: FulfillmentType.delivery,
+                label: segment(
+                  l10n.checkoutCourier,
+                  feeText,
+                  FulfillmentType.delivery,
+                ),
+              ),
+              ButtonSegment(
+                value: FulfillmentType.pickup,
+                enabled: pickupAllowed,
+                label: segment(
+                  l10n.checkoutPickup,
+                  l10n.checkoutPickupFree,
+                  FulfillmentType.pickup,
+                ),
+              ),
+            ],
+            selected: {fulfillment},
+            onSelectionChanged: enabled
+                ? (values) => onChanged(values.single)
+                : null,
+            style:
+                SegmentedButton.styleFrom(
+                  backgroundColor: theme.colorScheme.surface,
+                  selectedBackgroundColor: AppColors.primary,
+                  selectedForegroundColor: Colors.white,
+                  foregroundColor: theme.colorScheme.onSurface,
+                  side: BorderSide(color: theme.colorScheme.outlineVariant),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 10,
+                  ),
+                ).copyWith(
+                  // Loading must not erase which method was selected.
+                  backgroundColor: WidgetStateProperty.resolveWith(
+                    (states) => states.contains(WidgetState.selected)
+                        ? AppColors.primary
+                        : theme.colorScheme.surface,
+                  ),
+                  foregroundColor: WidgetStateProperty.resolveWith(
+                    (states) => states.contains(WidgetState.selected)
+                        ? Colors.white
+                        : theme.colorScheme.onSurface,
+                  ),
+                ),
+          ),
+          if (mixedStoreHint != null) ...[
+            const SizedBox(height: 8),
+            Text(mixedStoreHint!, style: theme.textTheme.bodySmall),
+          ],
+          const SizedBox(height: 16),
+          location,
+          const SizedBox(height: 12),
+          OutlinedButton(
+            key: const ValueKey('checkout-change-location'),
+            onPressed: onAction,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.primary,
+              backgroundColor: theme.colorScheme.surface,
+              side: const BorderSide(color: AppColors.primary),
+              minimumSize: const Size.fromHeight(48),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: Text(actionLabel),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LocationRow extends StatelessWidget {
+  const _LocationRow({
+    required this.icon,
+    required this.caption,
+    required this.title,
+    this.subtitle,
+    this.status,
+    this.error,
+    super.key,
+  });
+
+  final IconData icon;
+  final String caption;
+  final String title;
+  final String? subtitle;
+  final String? status;
+  final String? error;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _RoundIcon(icon: icon),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                caption,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                title,
+                key: const ValueKey('checkout-location-summary'),
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              if (subtitle?.trim().isNotEmpty == true)
+                Text(
+                  subtitle!,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              if (status != null) ...[
+                const SizedBox(height: 6),
+                Text(status!, style: theme.textTheme.bodySmall),
+              ],
+              if (error != null) ...[
+                const SizedBox(height: 6),
+                Text(
+                  error!,
+                  key: const ValueKey('checkout-location-error'),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.error,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _RoundIcon extends StatelessWidget {
+  const _RoundIcon({required this.icon});
+
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: 44,
+    height: 44,
+    decoration: const BoxDecoration(
+      color: AppColors.primary,
+      borderRadius: BorderRadius.all(Radius.circular(10)),
+    ),
+    child: Icon(icon, color: Colors.white, size: 22),
+  );
+}
+
+class _RecipientPanel extends StatelessWidget {
+  const _RecipientPanel({
+    required this.name,
+    required this.phone,
+    required this.onTap,
+  });
+
+  final String name;
+  final String phone;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final formatted = UzbekPhone.isNormalized(phone)
+        ? UzbekPhone.formatFull(phone)
+        : phone;
+    return _CheckoutPanel(
+      key: const ValueKey('checkout-recipient'),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: Row(
+          children: [
+            const _RoundIcon(icon: Icons.person_rounded),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    l10n.checkoutRecipient,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  if (name.trim().isNotEmpty)
+                    Text(
+                      name,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  Text(formatted, style: theme.textTheme.bodyMedium),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right_rounded),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Yetkazish vaqti + mahsulot rasmchalari (bosilsa to'liq chek).
+class _DeliveryTimePanel extends StatelessWidget {
+  const _DeliveryTimePanel({
+    required this.cart,
+    required this.pickup,
+    required this.onOpen,
+  });
+
+  final CartData cart;
+  final bool pickup;
+  final VoidCallback onOpen;
+
+  static const _maxThumbs = 6;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final items = cart.items;
+    final extra = items.length - _maxThumbs;
+    return _CheckoutPanel(
+      key: const ValueKey('checkout-delivery-time'),
+      child: InkWell(
+        key: const ValueKey('checkout-open-receipt'),
+        borderRadius: BorderRadius.circular(14),
+        onTap: onOpen,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: _SectionTitle(
+                    text: pickup
+                        ? l10n.checkoutPickupReadyHint
+                        : l10n.deliveryEstimateTitle,
+                  ),
+                ),
+                const Icon(Icons.chevron_right_rounded),
+              ],
+            ),
+            if (!pickup) ...[
+              const SizedBox(height: 4),
+              Text(
+                l10n.deliveryEstimateAvailabilityHint,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final item in items.take(_maxThumbs))
+                  ClipRRect(
+                    key: ValueKey('checkout-thumb-${item.id}'),
+                    borderRadius: BorderRadius.circular(12),
+                    child: SizedBox.square(
+                      dimension: 64,
+                      child: ExcludeSemantics(
+                        child: ProductImageView(
+                          imageUrl: item.product.imageUrl,
+                          iconSize: 24,
+                          memCacheWidth: 192,
+                        ),
+                      ),
+                    ),
+                  ),
+                if (extra > 0)
+                  Container(
+                    width: 64,
+                    height: 64,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: AppColors.lightSunken,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      '+$extra',
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CheckoutBottomBar extends StatelessWidget {
+  const _CheckoutBottomBar({
+    required this.total,
+    required this.submitting,
+    required this.label,
+    required this.onSubmit,
+    this.minimum,
+  });
+
+  final String? total;
+  final bool submitting;
+  final String label;
+  final VoidCallback? onSubmit;
+  final Widget? minimum;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        border: Border(
+          top: BorderSide(
+            color: theme.colorScheme.outlineVariant.withValues(alpha: .5),
+          ),
+        ),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              ?minimum,
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      l10n.checkoutTotal,
+                      style: theme.textTheme.titleMedium,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Flexible(
+                    flex: 2,
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerRight,
+                      child: Text(
+                        total == null ? '—' : Uzs.format(total),
+                        key: const ValueKey('checkout-submit-total'),
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w900,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              FilledButton(
+                key: const ValueKey('checkout-submit'),
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 56),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                onPressed: onSubmit,
+                child: submitting
+                    ? const SizedBox.square(
+                        dimension: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Text(
+                        label,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 16,
+                        ),
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Oluvchini o'zgartirish: ism + telefon (boshqa odamga buyurtma).
+@visibleForTesting
+class RecipientSheet extends StatefulWidget {
+  const RecipientSheet({
+    required this.initialName,
+    required this.initialPhone,
+    required this.profileName,
+    required this.profilePhone,
+    super.key,
+  });
+
+  final String initialName;
+  final String initialPhone;
+  final String profileName;
+  final String profilePhone;
+
+  @override
+  State<RecipientSheet> createState() => _RecipientSheetState();
+}
+
+class _RecipientSheetState extends State<RecipientSheet> {
+  late final _name = TextEditingController(text: widget.initialName);
+  late final _phone = TextEditingController(
+    text: UzbekPhone.formatLocal(UzbekPhone.localDigits(widget.initialPhone)),
+  );
+  String? _phoneError;
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _phone.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    final normalized = UzbekPhone.normalize(_phone.text);
+    if (normalized == null) {
+      setState(
+        () => _phoneError = AppLocalizations.of(
+          context,
+        ).checkoutRecipientPhoneInvalid,
+      );
+      return;
+    }
+    Navigator.pop(context, (name: _name.text.trim(), phone: normalized));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        20,
+        0,
+        20,
+        20 + MediaQuery.viewInsetsOf(context).bottom,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            l10n.checkoutRecipient,
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            key: const ValueKey('recipient-name'),
+            controller: _name,
+            maxLength: 120,
+            textCapitalization: TextCapitalization.words,
+            decoration: InputDecoration(labelText: l10n.checkoutRecipientName),
+          ),
+          const SizedBox(height: 8),
+          PhoneField(
+            key: const ValueKey('recipient-phone'),
+            controller: _phone,
+            errorText: _phoneError,
+            onChanged: (_) {
+              if (_phoneError != null) setState(() => _phoneError = null);
+            },
+            onSubmitted: _save,
+          ),
+          const SizedBox(height: 16),
+          FilledButton(
+            key: const ValueKey('recipient-save'),
+            onPressed: _save,
+            style: FilledButton.styleFrom(
+              minimumSize: const Size.fromHeight(52),
+            ),
+            child: Text(l10n.checkoutRecipientSave),
+          ),
+          if (widget.profilePhone.isNotEmpty)
+            TextButton(
+              key: const ValueKey('recipient-reset'),
+              onPressed: () => Navigator.pop(context, (
+                name: widget.profileName,
+                phone: widget.profilePhone,
+              )),
+              child: Text(l10n.checkoutRecipientReset),
+            ),
         ],
       ),
     );

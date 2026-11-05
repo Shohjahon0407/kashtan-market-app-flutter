@@ -24,6 +24,7 @@ class ProductCard extends ConsumerWidget {
     required this.storeType,
     this.compact = false,
     this.catalogStyle = false,
+    this.restaurantListStyle = false,
     this.onTap,
     super.key,
   });
@@ -32,12 +33,20 @@ class ProductCard extends ConsumerWidget {
   final StoreType storeType;
   final bool compact;
   final bool catalogStyle;
+  final bool restaurantListStyle;
   final VoidCallback? onTap;
+
+  Widget _imageFrame(Widget child) => restaurantListStyle
+      ? AspectRatio(aspectRatio: 16 / 9, child: child)
+      : Expanded(child: child);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
+    final imageFit = storeType == StoreType.household
+        ? BoxFit.contain
+        : BoxFit.cover;
     // Faqat shu kartaga tegishli qismlar kuzatiladi — aks holda bitta "+"
     // bosilganda grid'dagi ~40 karta ikki marta qayta quriladi.
     final favoriteBusy = ref.watch(
@@ -74,16 +83,18 @@ class ProductCard extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: Stack(
+            _imageFrame(
+              Stack(
                 fit: StackFit.expand,
                 children: [
                   ProductImageView(
+                    persistent: storeType == StoreType.restaurant,
                     imageUrl: product.imageUrl,
+                    fit: imageFit,
                     imageBuilder: (context, imageProvider) =>
                         ProductImageMagnifier(
                           key: ValueKey('product-card-magnifier-${product.id}'),
-                          child: Image(image: imageProvider, fit: BoxFit.cover),
+                          child: Image(image: imageProvider, fit: imageFit),
                         ),
                   ),
                   if (showReportButton)
@@ -255,7 +266,11 @@ class ProductCard extends ConsumerWidget {
             ),
             Padding(
               padding: EdgeInsets.all(
-                compact || catalogStyle ? AppSpacing.sm : AppSpacing.md,
+                restaurantListStyle
+                    ? 10
+                    : compact || catalogStyle
+                    ? AppSpacing.sm
+                    : AppSpacing.md,
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -268,21 +283,27 @@ class ProductCard extends ConsumerWidget {
                         (compact || catalogStyle
                                 ? theme.textTheme.labelLarge
                                 : theme.textTheme.bodyMedium)
-                            ?.copyWith(fontWeight: FontWeight.w700),
+                            ?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              fontSize: restaurantListStyle ? 16 : null,
+                            ),
                   ),
                   SizedBox(height: compact || catalogStyle ? 3 : AppSpacing.xs),
-                  if (catalogStyle)
+                  if (catalogStyle || restaurantListStyle)
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
                         Expanded(
                           child: Text(
                             Uzs.format(product.price),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                            maxLines: restaurantListStyle ? null : 1,
+                            overflow: restaurantListStyle
+                                ? TextOverflow.visible
+                                : TextOverflow.ellipsis,
                             style: theme.textTheme.labelMedium?.copyWith(
                               color: theme.colorScheme.primary,
                               fontWeight: FontWeight.w900,
+                              fontSize: restaurantListStyle ? 16 : null,
                             ),
                           ),
                         ),
@@ -294,6 +315,7 @@ class ProductCard extends ConsumerWidget {
                           inReview: inReview,
                           iconOnlyWhenEmpty: true,
                           inlineCompact: true,
+                          large: restaurantListStyle,
                         ),
                       ],
                     )
@@ -378,6 +400,9 @@ class ProductCartControl extends ConsumerWidget {
     this.iconOnlyWhenEmpty = false,
     this.inlineCompact = false,
     this.quantityLabelBuilder,
+    this.large = false,
+    this.onAdded,
+    this.cornerWhenEmpty = false,
     super.key,
   });
 
@@ -388,6 +413,11 @@ class ProductCartControl extends ConsumerWidget {
   final bool iconOnlyWhenEmpty;
   final bool inlineCompact;
   final String Function(int quantity)? quantityLabelBuilder;
+  final bool large;
+  final VoidCallback? onAdded;
+
+  /// Empty mini tiles show a corner add button; populated tiles keep a stepper.
+  final bool cornerWhenEmpty;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -412,7 +442,9 @@ class ProductCartControl extends ConsumerWidget {
     final simpleLine = view.line;
     final controller = ref.read(provider.notifier);
     final waitingForCart = view.waiting;
-    final height = inlineCompact
+    final height = large
+        ? 48.0
+        : inlineCompact
         ? 34.0
         : compact
         ? 32.0
@@ -424,28 +456,46 @@ class ProductCartControl extends ConsumerWidget {
         key: ValueKey('product-card-stepper-${product.id}'),
         width: inlineCompact
             ? quantityLabelBuilder == null
-                  ? 104
+                  ? large
+                        ? 144
+                        : 104
                   : 156
             : double.infinity,
         height: height,
         child: DecoratedBox(
           decoration: BoxDecoration(
-            color: colors.primaryContainer,
+            color: cornerWhenEmpty ? colors.surface : colors.primaryContainer,
+            border: cornerWhenEmpty
+                ? Border.all(color: colors.outlineVariant)
+                : null,
             borderRadius: BorderRadius.circular(AppRadius.md),
           ),
           child: Row(
             children: [
-              Expanded(
-                flex: 1,
-                child: _SmallStepButton(
-                  icon: Icons.remove,
-                  onPressed: () => _runMutation(
-                    context,
-                    ref,
-                    () => controller.decrement(simpleLine),
+              if (cornerWhenEmpty)
+                SizedBox(
+                  width: 48,
+                  child: _SmallStepButton(
+                    icon: Icons.remove,
+                    onPressed: () => _runMutation(
+                      context,
+                      ref,
+                      () => controller.decrement(simpleLine),
+                    ),
+                  ),
+                )
+              else
+                Expanded(
+                  flex: 1,
+                  child: _SmallStepButton(
+                    icon: Icons.remove,
+                    onPressed: () => _runMutation(
+                      context,
+                      ref,
+                      () => controller.decrement(simpleLine),
+                    ),
                   ),
                 ),
-              ),
               Expanded(
                 flex: quantityLabelBuilder == null ? 1 : 2,
                 child: Center(
@@ -463,17 +513,30 @@ class ProductCartControl extends ConsumerWidget {
                   ),
                 ),
               ),
-              Expanded(
-                flex: 1,
-                child: _SmallStepButton(
-                  icon: Icons.add,
-                  onPressed: () => _runMutation(
-                    context,
-                    ref,
-                    () => controller.increment(simpleLine),
+              if (cornerWhenEmpty)
+                SizedBox(
+                  width: 48,
+                  child: _SmallStepButton(
+                    icon: Icons.add,
+                    onPressed: () => _runMutation(
+                      context,
+                      ref,
+                      () => controller.increment(simpleLine),
+                    ),
+                  ),
+                )
+              else
+                Expanded(
+                  flex: 1,
+                  child: _SmallStepButton(
+                    icon: Icons.add,
+                    onPressed: () => _runMutation(
+                      context,
+                      ref,
+                      () => controller.increment(simpleLine),
+                    ),
                   ),
                 ),
-              ),
             ],
           ),
         ),
@@ -481,7 +544,7 @@ class ProductCartControl extends ConsumerWidget {
     }
 
     final child = iconOnlyWhenEmpty
-        ? const Icon(Icons.add, size: 18)
+        ? Icon(Icons.add, size: large ? 24 : 18, semanticLabel: l10n.productBuy)
         : Text(
             inReview ? l10n.productInReview : l10n.productBuy,
             maxLines: 1,
@@ -494,8 +557,10 @@ class ProductCartControl extends ConsumerWidget {
         ? () => openStoreProduct(context, storeType, product.id)
         : () => _addProduct(context, ref, controller);
 
-    return SizedBox(
-      width: inlineCompact ? 36 : double.infinity,
+    final button = SizedBox(
+      width: inlineCompact || cornerWhenEmpty
+          ? (large ? 48 : 36)
+          : double.infinity,
       height: height,
       child: SmoothPress(
         enabled: onPressed != null,
@@ -505,9 +570,36 @@ class ProductCartControl extends ConsumerWidget {
                 onPressed: onPressed,
                 style: FilledButton.styleFrom(
                   padding: EdgeInsets.zero,
-                  shape: const RoundedRectangleBorder(),
+                  backgroundColor: cornerWhenEmpty ? Colors.transparent : null,
+                  disabledBackgroundColor: cornerWhenEmpty
+                      ? Colors.transparent
+                      : null,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(large ? 12 : 0),
+                  ),
                 ),
-                child: child,
+                child: cornerWhenEmpty
+                    ? Container(
+                        key: ValueKey('product-card-add-visual-${product.id}'),
+                        width: 30,
+                        height: 30,
+                        decoration: BoxDecoration(
+                          color: onPressed == null
+                              ? colors.surfaceContainerHighest
+                              : colors.primary,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: colors.surface, width: 1.5),
+                        ),
+                        child: Icon(
+                          Icons.add,
+                          size: 19,
+                          color: onPressed == null
+                              ? colors.onSurfaceVariant
+                              : colors.onPrimary,
+                          semanticLabel: l10n.productBuy,
+                        ),
+                      )
+                    : child,
               )
             : FilledButton.tonal(
                 key: ValueKey('product-card-buy-${product.id}'),
@@ -526,6 +618,9 @@ class ProductCartControl extends ConsumerWidget {
               ),
       ),
     );
+    return cornerWhenEmpty
+        ? Align(alignment: Alignment.centerRight, child: button)
+        : button;
   }
 
   CartItem? _simpleLine(List<CartItem> items) {
@@ -548,7 +643,11 @@ class ProductCartControl extends ConsumerWidget {
     final success = await controller.addProduct(product);
     if (!context.mounted) return;
     if (success) {
-      showProductAddedSnackBar(context);
+      if (onAdded != null) {
+        onAdded!();
+      } else {
+        showProductAddedSnackBar(context);
+      }
       return;
     }
     final failure = ref

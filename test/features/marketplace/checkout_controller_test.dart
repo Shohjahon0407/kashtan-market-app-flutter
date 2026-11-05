@@ -84,7 +84,10 @@ void main() {
   test(
     'cart cleanup failure cannot turn a created order into a failed submission',
     () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await PrefsStore.load();
       final ordersApi = _MockOrdersApi();
+      when(() => ordersApi.byCheckoutKey(any())).thenAnswer((_) async => null);
       when(
         () => ordersApi.create(
           storeType: 'household',
@@ -98,8 +101,9 @@ void main() {
       ).thenAnswer((_) async => _order);
       final container = ProviderContainer(
         overrides: [
+          prefsStoreProvider.overrideWithValue(prefs),
           ordersApiProvider.overrideWithValue(ordersApi),
-        cartControllerProvider.overrideWith2(_CleanupFailureCart.new),
+          cartControllerProvider.overrideWith2(_CleanupFailureCart.new),
         ],
       );
       addTearDown(container.dispose);
@@ -119,6 +123,61 @@ void main() {
     },
   );
 
+  test('oluvchi ism/telefoni buyurtma payload\'iga tushadi', () async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await PrefsStore.load();
+    final ordersApi = _MockOrdersApi();
+    when(() => ordersApi.byCheckoutKey(any())).thenAnswer((_) async => null);
+    when(
+      () => ordersApi.create(
+        storeType: 'household',
+        fulfillmentType: FulfillmentType.delivery,
+        paymentMethod: any(named: 'paymentMethod'),
+        addressId: any(named: 'addressId'),
+        pickupBranchId: any(named: 'pickupBranchId'),
+        note: any(named: 'note'),
+        recipientName: any(named: 'recipientName'),
+        recipientPhone: any(named: 'recipientPhone'),
+        idempotencyKey: any(named: 'idempotencyKey'),
+        expectedCartRevision: any(named: 'expectedCartRevision'),
+      ),
+    ).thenAnswer((_) async => _order);
+    final container = ProviderContainer(
+      overrides: [
+        prefsStoreProvider.overrideWithValue(prefs),
+        ordersApiProvider.overrideWithValue(ordersApi),
+        cartControllerProvider.overrideWith2(_CleanupFailureCart.new),
+      ],
+    );
+    addTearDown(container.dispose);
+    final provider = checkoutControllerProvider(StoreType.household);
+    final subscription = container.listen(provider, (_, _) {});
+    addTearDown(subscription.close);
+    await container
+        .read(provider.notifier)
+        .submit(
+          fulfillmentType: FulfillmentType.delivery,
+          paymentMethod: PaymentMethod.cash,
+          addressId: 'address-1',
+          recipientName: 'Ona',
+          recipientPhone: '+998901234567',
+        );
+    verify(
+      () => ordersApi.create(
+        storeType: 'household',
+        fulfillmentType: FulfillmentType.delivery,
+        paymentMethod: any(named: 'paymentMethod'),
+        addressId: 'address-1',
+        pickupBranchId: null,
+        note: '',
+        recipientName: 'Ona',
+        recipientPhone: '+998901234567',
+        idempotencyKey: any(named: 'idempotencyKey'),
+        expectedCartRevision: any(named: 'expectedCartRevision'),
+      ),
+    ).called(1);
+  });
+
   _paymentMethodTests();
   test(
     'double-submit bloklanadi va success’dan keyin aynan store cart refetch',
@@ -127,6 +186,7 @@ void main() {
       final prefs = await PrefsStore.load();
       final cartApi = _MockCartApi();
       final ordersApi = _MockOrdersApi();
+      when(() => ordersApi.byCheckoutKey(any())).thenAnswer((_) async => null);
       var fetchCount = 0;
       final reconciliation = Completer<CartData>();
       when(() => cartApi.fetch('household')).thenAnswer((_) async {
@@ -167,13 +227,13 @@ void main() {
 
       final first = controller.submit(
         fulfillmentType: FulfillmentType.delivery,
-        paymentMethod: PaymentMethod.payme,
+        paymentMethod: PaymentMethod.cash,
         addressId: 'address-1',
         note: 'tezroq',
       );
       final duplicate = await controller.submit(
         fulfillmentType: FulfillmentType.delivery,
-        paymentMethod: PaymentMethod.payme,
+        paymentMethod: PaymentMethod.cash,
         addressId: 'address-1',
         note: 'tezroq',
       );
@@ -230,6 +290,9 @@ void _paymentMethodTests() {
         final cartApi = _MockCartApi();
         final ordersApi = _MockOrdersApi();
         when(
+          () => ordersApi.byCheckoutKey(any()),
+        ).thenAnswer((_) async => null);
+        when(
           () => cartApi.fetch('household'),
         ).thenAnswer((_) async => cart(false));
         when(
@@ -247,6 +310,9 @@ void _paymentMethodTests() {
         final container = ProviderContainer(
           overrides: [
             if (enabled) paymeEnabledProvider.overrideWithValue(true),
+            paymentCapabilitiesProvider.overrideWith(
+              (_) async => {'household': enabled},
+            ),
             prefsStoreProvider.overrideWithValue(prefs),
             cartApiProvider.overrideWithValue(cartApi),
             ordersApiProvider.overrideWithValue(ordersApi),
@@ -260,11 +326,19 @@ void _paymentMethodTests() {
         addTearDown(subscription.close);
         final controller = container.read(checkoutProvider.notifier);
 
-        await controller.submit(
+        final firstSubmit = controller.submit(
           fulfillmentType: FulfillmentType.delivery,
           paymentMethod: PaymentMethod.payme,
           addressId: 'address-1',
         );
+        if (enabled) {
+          await firstSubmit;
+        } else {
+          await expectLater(firstSubmit, throwsA(isA<ValidationFailure>()));
+        }
+        await container
+            .read(checkoutIdempotencyStoreProvider)
+            .acknowledge(StoreType.household);
         await controller.submit(
           fulfillmentType: FulfillmentType.delivery,
           paymentMethod: PaymentMethod.cash,
@@ -285,12 +359,16 @@ void _paymentMethodTests() {
 
         // captured = [payme, key1, cash_to_courier, key2]
         expect(captured[0], enabled ? 'payme' : 'cash_to_courier');
-        expect(captured[2], 'cash_to_courier');
-        expect(
-          captured[1],
-          isNot(captured[3]),
-          reason: "usul o'zgardi — kalit ham yangilanishi kerak",
-        );
+        if (enabled) {
+          expect(captured[2], 'cash_to_courier');
+          expect(
+            captured[1],
+            isNot(captured[3]),
+            reason: "usul o'zgardi — kalit ham yangilanishi kerak",
+          );
+        } else {
+          expect(captured.length, 2, reason: 'No silent fallback to cash');
+        }
       },
     );
   }

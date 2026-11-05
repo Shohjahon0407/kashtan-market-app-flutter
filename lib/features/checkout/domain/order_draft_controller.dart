@@ -35,9 +35,17 @@ class OrderDraftState {
     this.quoteInvalidated = false,
     this.failure,
     this.notice,
+    this.recipientName,
+    this.recipientPhone,
   });
 
   final FulfillmentType fulfillment;
+
+  /// Oluvchi (boshqa odamga buyurtma). `null` — profildagi ism/raqam.
+  final String? recipientName;
+
+  /// `+998XXXXXXXXX`; `null` — profildagi raqam.
+  final String? recipientPhone;
   final DeliveryAddressSelection? selection;
   final String? pickupBranchId;
   final String note;
@@ -90,6 +98,8 @@ class OrderDraftState {
     bool? quoteInvalidated,
     ApiFailure? Function()? failure,
     String? Function()? notice,
+    String? Function()? recipientName,
+    String? Function()? recipientPhone,
   }) => OrderDraftState(
     fulfillment: fulfillment ?? this.fulfillment,
     selection: selection == null ? this.selection : selection(),
@@ -103,6 +113,10 @@ class OrderDraftState {
     quoteInvalidated: quoteInvalidated ?? this.quoteInvalidated,
     failure: failure == null ? this.failure : failure(),
     notice: notice == null ? this.notice : notice(),
+    recipientName: recipientName == null ? this.recipientName : recipientName(),
+    recipientPhone: recipientPhone == null
+        ? this.recipientPhone
+        : recipientPhone(),
   );
 }
 
@@ -546,6 +560,13 @@ class OrderDraftController extends Notifier<OrderDraftState> {
   }
 
   void setNote(String note) => state = state.copyWith(note: note);
+
+  /// Bo'sh qiymat — profildagi ma'lumotga qaytadi.
+  void setRecipient({String? name, String? phone}) => state = state.copyWith(
+    recipientName: () =>
+        name == null || name.trim().isEmpty ? null : name.trim(),
+    recipientPhone: () => phone == null || phone.isEmpty ? null : phone,
+  );
 
   void setPaymentMethod(PaymentMethod method) =>
       state = state.copyWith(paymentMethod: method);

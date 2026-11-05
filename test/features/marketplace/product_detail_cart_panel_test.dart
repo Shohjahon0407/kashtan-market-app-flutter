@@ -1,4 +1,5 @@
 import 'package:beshkashtan_customer/core/localization/locale_controller.dart';
+import 'package:beshkashtan_customer/core/storage/prefs_store.dart';
 import 'package:beshkashtan_customer/core/store_scope/store_type.dart';
 import 'package:beshkashtan_customer/features/cart/data/cart_api.dart';
 import 'package:beshkashtan_customer/features/cart/data/cart_models.dart';
@@ -14,6 +15,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class _MockCatalogApi extends Mock implements CatalogApi {}
 
@@ -69,7 +71,13 @@ CartData _cart(int quantity) => CartData(
   subtotal: '${120000 * quantity}.00',
 );
 
+late PrefsStore _reliabilityPrefs;
+
 void main() {
+  setUp(() async {
+    SharedPreferences.setMockInitialValues({});
+    _reliabilityPrefs = await PrefsStore.load();
+  });
   setUpAll(() {
     registerFallbackValue(
       const CartConfiguration(productId: 'fallback-product'),
@@ -99,6 +107,7 @@ void main() {
         storeType: any(named: 'storeType'),
         configuration: any(named: 'configuration'),
         quantity: any(named: 'quantity'),
+        idempotencyKey: any(named: 'idempotencyKey'),
       ),
     ).thenAnswer((invocation) async {
       serverQuantity += invocation.namedArguments[#quantity] as int;
@@ -133,6 +142,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          prefsStoreProvider.overrideWithValue(_reliabilityPrefs),
           apiLangProvider.overrideWithValue('uz'),
           catalogApiProvider.overrideWithValue(catalogApi),
           cartApiProvider.overrideWithValue(cartApi),
@@ -191,6 +201,7 @@ void main() {
         storeType: 'household',
         configuration: any(named: 'configuration'),
         quantity: 1,
+        idempotencyKey: any(named: 'idempotencyKey'),
       ),
     ).called(1);
 

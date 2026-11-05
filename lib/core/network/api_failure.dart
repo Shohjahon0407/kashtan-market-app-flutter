@@ -64,7 +64,10 @@ sealed class ApiFailure implements Exception {
 
 /// Internet yo'q, taymaut yoki DNS xatosi. Qayta urinish mantiqli.
 final class NetworkFailure extends ApiFailure {
-  const NetworkFailure([super.message = '']);
+  const NetworkFailure([super.message = '']) : isTimeout = false;
+  const NetworkFailure.timeout([super.message = '']) : isTimeout = true;
+
+  final bool isTimeout;
 }
 
 /// 400 — maydonlarga bog'langan validatsiya xatosi.
@@ -122,7 +125,7 @@ final class UnknownFailure extends ApiFailure {
   const UnknownFailure([super.message = '']) : isDiagnostic = false;
 
   /// Ilova kutgan javob shakli kelmadi (dekod xatosi). Matn dasturchi uchun —
-  /// foydalanuvchiga umumiy xato ko'rsatiladi (debug'da matn qo'shiladi).
+  /// foydalanuvchiga faqat umumiy xato ko'rsatiladi, debug build'da ham.
   const UnknownFailure.malformed(super.message) : isDiagnostic = true;
 
   final bool isDiagnostic;

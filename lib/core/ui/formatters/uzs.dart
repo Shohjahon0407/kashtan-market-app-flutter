@@ -35,6 +35,20 @@ abstract final class Uzs {
     return '$grouped${cents == '00' ? '' : '.$cents'} $suffix';
   }
 
+  /// Multiply a public unit price without floating-point rounding. Invalid
+  /// prices stay unknown rather than becoming a fabricated zero total.
+  static String? multiply(String? raw, int quantity) {
+    final match = RegExp(
+      r'^(\d+)(?:\.(\d{1,2}))?$',
+    ).firstMatch(raw?.trim() ?? '');
+    if (match == null || quantity < 1) return null;
+    final minor =
+        BigInt.parse(match[1]!) * BigInt.from(100) +
+        BigInt.parse((match[2] ?? '').padRight(2, '0'));
+    final total = minor * BigInt.from(quantity);
+    return '${total ~/ BigInt.from(100)}.${(total % BigInt.from(100)).toString().padLeft(2, '0')}';
+  }
+
   /// Valyutasiz: `"15000.00"` → `15 000`.
   static String groupDigits(String? raw) {
     final value = raw?.trim();

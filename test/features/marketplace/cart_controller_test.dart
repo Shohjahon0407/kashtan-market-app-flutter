@@ -97,6 +97,94 @@ void main() {
   });
 
   test(
+    'absolute quantity changes 10 to 20; no-op and invalid edits send nothing',
+    () async {
+      final api = _MockCartApi();
+      var quantity = 10;
+      when(
+        () => api.fetch('household'),
+      ).thenAnswer((_) async => _cartWithQuantity(quantity));
+      when(() => api.updateQuantity('item-1', any())).thenAnswer((
+        invocation,
+      ) async {
+        quantity = invocation.positionalArguments[1] as int;
+      });
+      final container = await containerWith(api);
+      final provider = cartControllerProvider(StoreType.household);
+      final sub = container.listen(provider, (_, _) {});
+      addTearDown(sub.close);
+      await container.read(provider.future);
+      final controller = container.read(provider.notifier);
+      final item = container.read(provider).value!.cart.items.single;
+      expect(await controller.setQuantity(item, 10), isTrue);
+      verifyNever(() => api.updateQuantity(any(), any()));
+      expect(await controller.setQuantity(item, 20), isTrue);
+      expect(container.read(provider).value!.cart.items.single.quantity, 20);
+      verify(() => api.updateQuantity('item-1', 20)).called(1);
+      verifyNever(
+        () => api.addItem(
+          storeType: any(named: 'storeType'),
+          configuration: any(named: 'configuration'),
+          quantity: any(named: 'quantity'),
+          idempotencyKey: any(named: 'idempotencyKey'),
+        ),
+      );
+      expect(await controller.setQuantity(item, 0), isFalse);
+      expect(await controller.setQuantity(item, 1000000), isFalse);
+      verifyNever(() => api.updateQuantity(any(), any()));
+    },
+  );
+
+  test(
+    'absolute quantity failure rolls back and keeps the original configuration',
+    () async {
+      final api = _MockCartApi();
+      final first = _cartWithQuantity(10).items.single;
+      const addon = SelectedAddon(id: 'sauce', name: 'Sauce', price: '1000');
+      final configured = CartItem(
+        id: 'configured',
+        product: _product,
+        quantity: 3,
+        variant: ProductVariant.fromJson({
+          'id': 'variant',
+          'name': 'Variant',
+          'price': '12000',
+        }),
+        selectedAddons: const [addon],
+        note: 'Leave at gate',
+        subtotal: '39000',
+      );
+      final fixture = _cartWithQuantity(
+        10,
+      ).copyWith(items: [first, configured]);
+      when(() => api.fetch('household')).thenAnswer((_) async => fixture);
+      when(
+        () => api.updateQuantity('configured', 20),
+      ).thenThrow(const ServerFailure('no', 500));
+      final container = await containerWith(api);
+      final provider = cartControllerProvider(StoreType.household);
+      final sub = container.listen(provider, (_, _) {});
+      addTearDown(sub.close);
+      await container.read(provider.future);
+      expect(
+        await container.read(provider.notifier).setQuantity(configured, 20),
+        isFalse,
+      );
+      final items = container.read(provider).value!.cart.items;
+      expect(items.first.quantity, 10);
+      expect(items.last.quantity, 3);
+      expect(items.last.note, 'Leave at gate');
+      expect(items.last.variant?.id, 'variant');
+      expect(items.last.selectedAddons.single.id, 'sauce');
+      expect(
+        container.read(provider).value!.mutationFailure,
+        isA<ServerFailure>(),
+      );
+      verifyNever(() => api.updateQuantity('item-1', any()));
+    },
+  );
+
+  test(
     'successful add followed by failed GET is NOT queued for another add',
     () async {
       final api = _MockCartApi();
@@ -110,6 +198,7 @@ void main() {
           storeType: 'household',
           configuration: any(named: 'configuration'),
           quantity: 1,
+          idempotencyKey: any(named: 'idempotencyKey'),
         ),
       ).thenAnswer((_) async {});
       final container = await containerWith(api);
@@ -139,6 +228,7 @@ void main() {
           storeType: 'household',
           configuration: any(named: 'configuration'),
           quantity: 1,
+          idempotencyKey: any(named: 'idempotencyKey'),
         ),
       ).called(1);
     },
@@ -209,6 +299,7 @@ void main() {
           storeType: any(named: 'storeType'),
           configuration: any(named: 'configuration'),
           quantity: any(named: 'quantity'),
+          idempotencyKey: any(named: 'idempotencyKey'),
         ),
       );
     },
@@ -223,6 +314,7 @@ void main() {
         storeType: 'household',
         configuration: any(named: 'configuration'),
         quantity: any(named: 'quantity'),
+        idempotencyKey: any(named: 'idempotencyKey'),
       ),
     ).thenAnswer((invocation) async {
       final quantity = invocation.namedArguments[#quantity] as int;
@@ -248,6 +340,7 @@ void main() {
         storeType: 'household',
         configuration: any(named: 'configuration'),
         quantity: 5,
+        idempotencyKey: any(named: 'idempotencyKey'),
       ),
     ).called(1);
     verifyNever(() => api.updateQuantity(any(), any()));

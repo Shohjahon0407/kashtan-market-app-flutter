@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 
 import '../../../core/localization/failure_l10n.dart';
 import '../../../core/network/api_failure.dart';
+import '../../../core/routing/back_navigation.dart';
 import '../../../core/routing/routes.dart';
 import '../../../core/store_scope/store_type.dart';
 import '../../../core/ui/formatters/uzs.dart';
@@ -20,6 +21,7 @@ import '../../home/data/home_models.dart';
 import '../../home/domain/home_controller.dart';
 import '../../recommendations/domain/recommendations_controller.dart';
 import '../../store/presentation/widgets/store_state_views.dart';
+import '../../store/presentation/widgets/store_switch_button.dart';
 import '../data/order_models.dart';
 import '../domain/orders_controller.dart';
 import 'widgets/order_status_badge.dart';
@@ -38,7 +40,11 @@ class OrdersScreen extends StatelessWidget {
       length: OrdersPeriod.values.length,
       child: Scaffold(
         appBar: AppBar(
+          leading: const AppBackButton(),
           title: Text(l10n.ordersTitle),
+          actions: [
+            if (storeType != null) StoreSwitchButton(storeType: storeType!),
+          ],
           bottom: TabBar(
             tabs: [
               Tab(text: l10n.ordersToday),

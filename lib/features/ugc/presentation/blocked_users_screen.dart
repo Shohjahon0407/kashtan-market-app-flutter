@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/localization/failure_l10n.dart';
 import '../../../core/network/api_failure.dart';
+import '../../../core/routing/back_navigation.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../data/ugc_api.dart';
 
@@ -14,7 +15,10 @@ class BlockedUsersScreen extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     final state = ref.watch(blockedUsersProvider);
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.ugcBlockedUsers)),
+      appBar: AppBar(
+        leading: const AppBackButton(),
+        title: Text(l10n.ugcBlockedUsers),
+      ),
       body: state.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) => Center(

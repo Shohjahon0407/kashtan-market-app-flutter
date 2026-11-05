@@ -4,6 +4,77 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
 
 void main() {
+  test('cancellation uses server capability and safe legacy fallback', () {
+    for (final mode in ['delivery', 'pickup']) {
+      for (final status in [
+        'pending',
+        'accepted',
+        'preparing',
+        'ready_for_pickup',
+        'out_for_delivery',
+        'cancelled',
+        'delivered',
+        'completed',
+      ]) {
+        for (final pickedUp in [null, '2026-10-23T10:00:00Z']) {
+          final json = <String, dynamic>{
+            'id': '1',
+            'status': status,
+            'fulfillment_type': mode,
+            'picked_up_at': pickedUp,
+          };
+          final order = OrderData.fromJson(json);
+          final expected =
+              [
+                'pending',
+                'accepted',
+                'preparing',
+                'ready_for_pickup',
+              ].contains(status) &&
+              !(mode == 'delivery' && pickedUp != null);
+          expect(order.canCancel, expected, reason: '$mode $status $pickedUp');
+          expect(
+            OrderData.fromJson({...json, 'can_cancel': false}).canCancel,
+            false,
+          );
+          // A stale true must never expose cancel after departure or completion.
+          expect(
+            OrderData.fromJson({...json, 'can_cancel': true}).canCancel,
+            expected,
+          );
+        }
+      }
+    }
+  });
+
+  test('tracking and live patches update cancellation capability', () {
+    final order = OrderData.fromJson({
+      'id': '1',
+      'status': 'pending',
+      'fulfillment_type': 'delivery',
+      'can_cancel': true,
+    });
+    final tracking = OrderTrackingData.fromJson({
+      'status': 'preparing',
+      'can_cancel': false,
+    });
+    expect(order.withTracking(tracking).canCancel, false);
+    final departed = order.copyWith(
+      status: 'out_for_delivery',
+      pickedUpAt: DateTime(2026),
+    );
+    expect(departed.canCancel, false);
+    expect(departed.cancellationRequiresCall, true);
+    expect(
+      departed.copyWith(status: 'cancelled').cancellationRequiresCall,
+      false,
+    );
+    expect(
+      departed.copyWith(status: 'delivered').cancellationRequiresCall,
+      false,
+    );
+  });
+
   test(
     'tracking deadline va latest courier locationni tolerant parse qiladi',
     () {
