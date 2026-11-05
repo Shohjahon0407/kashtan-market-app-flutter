@@ -63,7 +63,7 @@ dependencies:
   image_picker: ^1.2.3
   record: ^7.1.1
   path_provider: ^2.1.6
-  intl: 0.20.2 # flutter_localizations SDK tomonidan qadalgan
+  intl: ^0.20.3 # Flutter 3.47.x flutter_localizations bilan mos
   cupertino_icons: ^1.0.8
 
   # ── Diagnostika ────────────────────────────────────────────────────────────
