@@ -10,10 +10,12 @@ import '../../../core/routing/back_navigation.dart';
 import '../../../core/routing/routes.dart';
 import '../../../core/routing/store_navigation.dart';
 import '../../../core/store_scope/store_type.dart';
+import '../../../core/ui/theme/app_colors.dart';
 import '../../../core/ui/theme/app_dimens.dart';
 import '../../../core/ui/theme/contrast.dart';
 import '../../../core/utils/debouncer.dart';
 import '../../../generated/l10n/app_localizations.dart';
+import '../../cart/data/cart_models.dart';
 import '../../cart/domain/cart_controller.dart';
 import '../../recommendations/domain/interaction_tracker.dart';
 import '../../recommendations/presentation/similar_products_rail.dart';
@@ -26,6 +28,7 @@ import '../data/product_models.dart';
 import '../domain/catalog_controller.dart';
 import '../domain/household_category_previews.dart';
 import '../domain/restaurant_offline_sync.dart';
+import '../domain/restaurant_search_keywords.dart';
 import 'widgets/catalog_loading_skeleton.dart';
 import 'widgets/category_product_banners.dart';
 import 'widgets/household_catalog_navigation.dart';
@@ -39,6 +42,7 @@ import 'widgets/restaurant_category_landing.dart';
 import 'widgets/restaurant_offline_status.dart';
 import 'widgets/shashlik_cart_bar.dart';
 import 'widgets/shashlik_catalog.dart';
+import 'widgets/shashlik_charcoal_nudge.dart';
 
 class CatalogScreen extends ConsumerStatefulWidget {
   const CatalogScreen({
@@ -68,6 +72,18 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
       widget.initialCategoryId?.isNotEmpty == true;
   var _initialCategoryLoading = false;
   var _shashlikSection = ShashlikSection.kebabs;
+
+  /// Restoran qidiruvidagi tanlangan #kalit so'z (null — oddiy qidiruv).
+  RestaurantKeyword? _keyword;
+
+  bool get _isRestaurantSearch =>
+      widget.storeType == StoreType.restaurant && widget.searchOnly;
+
+  /// Ko'mir tavsiyasi: har shashlik qo'shilganda "Ko'mir" qutisi tebranadi,
+  /// tepadagi bildirishnoma esa shu ekran davomida bir marta chiqadi.
+  var _charcoalNudge = 0;
+  var _charcoalBannerShown = false;
+  ShashlikCharcoalNudge? _charcoalBanner;
   String? _householdCategoryId;
 
   /// User ochib qaytgan mahsulotlar — grid'da shu mahsulot qatoridan keyin
@@ -140,7 +156,14 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
   }
 
   Widget _gridChunk(List<ProductSummary> items, int start, int end) {
-    if (_isRestaurantCategory) {
+    if (_isRestaurantCategory) return _restaurantListChunk(items, start, end);
+    return _productGridChunk(items, start, end);
+  }
+
+  /// Restoran ovqatlari: bitta ustunli ro'yxat (kategoriya sahifasi va
+  /// qidiruvdagi #kalit so'z natijalari).
+  Widget _restaurantListChunk(List<ProductSummary> items, int start, int end) {
+    {
       return SliverPadding(
         padding: EdgeInsets.fromLTRB(
           AppSpacing.screenH,
@@ -174,6 +197,9 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
         ),
       );
     }
+  }
+
+  Widget _productGridChunk(List<ProductSummary> items, int start, int end) {
     return SliverPadding(
       padding: EdgeInsets.fromLTRB(
         AppSpacing.screenH,
@@ -293,7 +319,46 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
       ..dispose();
     _searchController.dispose();
     _debouncer.dispose();
+    _charcoalBanner?.remove();
     super.dispose();
+  }
+
+  static int _kebabQuantity(CartData cart) => cart.items
+      .where((item) => isShashlikKebab(item.product))
+      .fold(0, (sum, item) => sum + item.quantity);
+
+  /// Shashlik qo'shildi, savatda ko'mir yo'q → ko'mirni tavsiya qilamiz:
+  /// odam marinadlangan go'sht oldimi, pishirish uchun ko'mir ham kerak.
+  void _maybeSuggestCharcoal(CartData? previous, CartData? next) {
+    if (!mounted || previous == null || next == null) return;
+    if (_kebabQuantity(next) <= _kebabQuantity(previous)) return;
+    if (next.items.any((item) => isShashlikCharcoal(item.product))) return;
+    final catalog = ref
+        .read(catalogControllerProvider(StoreType.shashlik))
+        .value;
+    if (catalog == null || !catalog.items.any(isShashlikCharcoal)) {
+      return;
+    }
+    setState(() => _charcoalNudge++);
+    if (_charcoalBannerShown) return;
+    _charcoalBannerShown = true;
+    _charcoalBanner = ShashlikCharcoalNudge.show(
+      context,
+      onAction: _openCharcoalSection,
+    );
+  }
+
+  void _openCharcoalSection() {
+    if (!mounted) return;
+    final route = ModalRoute.of(context);
+    if (route != null && !route.isCurrent) {
+      Navigator.of(context).popUntil((other) => other == route);
+    }
+    if (_shashlikSection == ShashlikSection.charcoal) return;
+    ref
+        .read(catalogControllerProvider(StoreType.shashlik).notifier)
+        .hideImageless();
+    setState(() => _shashlikSection = ShashlikSection.charcoal);
   }
 
   void _onScroll() {
@@ -356,7 +421,9 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
   }
 
   void _onSearchChanged(String value) {
-    setState(() {});
+    setState(() {
+      if (value.trim().isNotEmpty) _keyword = null;
+    });
     _debouncer(() {
       _applySearch(value);
     });
@@ -364,6 +431,7 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
 
   void _submitSearch([String? value]) {
     _debouncer.cancel();
+    if (_keyword != null) setState(() => _keyword = null);
     _applySearch(value ?? _searchController.text);
   }
 
@@ -399,6 +467,105 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
 
   void _goBack() => appBack(context);
 
+  /// #kalit so'z: qidiruv matni tozalanadi, qayta bosilsa tanlov bekor.
+  void _selectKeyword(RestaurantKeyword keyword) {
+    _debouncer.cancel();
+    final hadText = _searchController.text.isNotEmpty;
+    _searchController.clear();
+    _debouncer.cancel();
+    FocusScope.of(context).unfocus();
+    setState(() => _keyword = _keyword == keyword ? null : keyword);
+    if (hadText) _applySearch('');
+  }
+
+  /// Teglar yonga aylanmaydi — sig'magani keyingi qatorga tushadi.
+  Widget _keywordChips() => Padding(
+    key: const ValueKey('restaurant-keyword-chips'),
+    padding: const EdgeInsets.fromLTRB(
+      AppSpacing.screenH,
+      AppSpacing.xs,
+      AppSpacing.screenH,
+      AppSpacing.sm,
+    ),
+    child: Wrap(
+      spacing: AppSpacing.sm,
+      runSpacing: AppSpacing.sm,
+      children: [
+        for (final keyword in restaurantSearchKeywords)
+          _keywordChip(keyword, selected: keyword == _keyword),
+      ],
+    ),
+  );
+
+  Widget _keywordChip(RestaurantKeyword keyword, {required bool selected}) =>
+      Semantics(
+        button: true,
+        selected: selected,
+        child: Material(
+          color: selected ? AppColors.primary : const Color(0xFFF2F4F3),
+          shape: StadiumBorder(
+            side: BorderSide(
+              color: selected ? AppColors.primary : AppColors.lightBorder,
+            ),
+          ),
+          child: InkWell(
+            key: ValueKey('restaurant-keyword-${keyword.label}'),
+            customBorder: const StadiumBorder(),
+            onTap: () => _selectKeyword(keyword),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 40),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
+                child: Text(
+                  keyword.label,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: selected ? Colors.white : AppColors.lightTextPrimary,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+  List<Widget> _keywordSlivers(
+    BuildContext context,
+    RestaurantKeyword keyword,
+  ) {
+    final l10n = AppLocalizations.of(context);
+    return switch (ref.watch(restaurantKeywordResultsProvider(keyword))) {
+      AsyncData(:final value) when value.isNotEmpty => [
+        _restaurantListChunk(value, 0, value.length),
+      ],
+      AsyncData() => [
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.only(top: AppSpacing.xxl),
+            child: StoreEmptyView(
+              icon: Icons.search_off,
+              title: l10n.searchEmpty,
+            ),
+          ),
+        ),
+      ],
+      AsyncError() => [
+        SliverToBoxAdapter(
+          child: StoreErrorView(
+            message: l10n.errorUnknown,
+            onRetry: () =>
+                ref.invalidate(restaurantKeywordResultsProvider(keyword)),
+          ),
+        ),
+      ],
+      _ => [const RestaurantProductListSkeletonSliver()],
+    };
+  }
+
   void _openCategorySearch() {
     context.push(Routes.storeCatalogSearch(widget.storeType.wire));
   }
@@ -420,6 +587,13 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
       lastProductViewProvider,
       (_, next) => _onProductViewed(next),
     );
+    if (_isShashlikCatalog) {
+      ref.listen(
+        cartControllerProvider(StoreType.shashlik),
+        (previous, next) =>
+            _maybeSuggestCharcoal(previous?.value?.cart, next.value?.cart),
+      );
+    }
     final l10n = AppLocalizations.of(context);
     final landing = ref.watch(storeLandingProvider(widget.storeType));
     final cart = ref
@@ -652,9 +826,18 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
                     ),
                   ),
                 ],
+                if (_isRestaurantSearch)
+                  SliverToBoxAdapter(child: _keywordChips()),
                 if (!isSearching && !_supportsPhotoCategoryLanding)
                   ..._landingSlivers(context, landing),
-                ..._catalogSlivers(context, catalog, isSearching: isSearching),
+                if (_isRestaurantSearch && _keyword != null)
+                  ..._keywordSlivers(context, _keyword!)
+                else
+                  ..._catalogSlivers(
+                    context,
+                    catalog,
+                    isSearching: isSearching,
+                  ),
                 SliverToBoxAdapter(
                   child: SizedBox(
                     height: cartQuantity > 0 ? AppSpacing.huge : AppSpacing.xxl,
@@ -827,6 +1010,7 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
         children: [
           ShashlikSectionSelector(
             selected: _shashlikSection,
+            charcoalNudge: _charcoalNudge,
             onSelected: (value) {
               if (value != _shashlikSection) {
                 ref
@@ -958,14 +1142,8 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
                             : title,
                       ),
                 actions: [
+                  // Restoran qidiruvi — pastki-o'ngdagi yashil tugmada.
                   StoreSwitchButton(storeType: widget.storeType),
-                  if (widget.storeType != StoreType.household)
-                    IconButton(
-                      key: ValueKey('${widget.storeType.wire}-search-button'),
-                      tooltip: l10n.commonSearch,
-                      onPressed: _openCategorySearch,
-                      icon: const Icon(Icons.search),
-                    ),
                   IconButton(
                     key: const ValueKey('catalog-cart-button'),
                     tooltip: l10n.navCart,
@@ -1053,6 +1231,33 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
             ],
           ),
         ),
+        // Restoran: pastki-o'ng burchakdagi yashil lupa — qidiruv sahifasiga bitta
+        // bosishda. Scaffold uni savat paneli va snackbar'dan yuqorida tutadi.
+        floatingActionButton: widget.storeType == StoreType.restaurant
+            ? FloatingActionButton.extended(
+                key: const ValueKey('restaurant-search-fab'),
+                heroTag: 'restaurant-search-fab',
+                tooltip: l10n.commonSearch,
+                onPressed: _openCategorySearch,
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                elevation: 8,
+                extendedPadding: const EdgeInsets.symmetric(horizontal: 22),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: const BorderSide(color: Colors.white, width: 2),
+                ),
+                icon: const Icon(Icons.search, size: 26),
+                label: Text(
+                  l10n.commonSearch,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              )
+            : null,
+        floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
         bottomNavigationBar: ShashlikCartBar(
           key: ValueKey('${widget.storeType.wire}-cart-bar'),
           storeType: widget.storeType,

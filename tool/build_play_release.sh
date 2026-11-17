@@ -138,13 +138,13 @@ SYMBOLS_DIR="$PROJECT_DIR/build/play-symbols/$SAFE_VERSION"
 ARTIFACTS_DIR="$PROJECT_DIR/build/play-release/$SAFE_VERSION"
 
 log "Resolve Flutter dependencies"
-flutter pub get
+flutter --suppress-analytics pub get --offline
 
 log "Static analysis"
-flutter analyze --no-pub
+flutter --suppress-analytics analyze --no-pub
 
 log "Flutter tests"
-flutter test --no-pub --concurrency=2
+flutter --suppress-analytics test --no-pub --concurrency=2
 
 log "Android release lint"
 (
@@ -159,21 +159,22 @@ BUILD_DEFINES=(
   "--dart-define=BACKEND_ORIGIN=$BACKEND_ORIGIN_VALUE"
   "--dart-define=MAPBOX_ACCESS_TOKEN=$MAPBOX_TOKEN_VALUE"
   "--dart-define=VERBOSE_NETWORK_LOG=false"
-  "--dart-define=PAYME_ENABLED=false"
+  "--dart-define=PAYME_ENABLED=true"
+  "--dart-define=PAYME_ALLOW_SANDBOX=false"
 )
 if [[ "${ALLOW_OSM_TILES:-}" == "1" ]]; then
   BUILD_DEFINES+=("--dart-define=ALLOW_OSM_TILES=true")
 fi
 
 log "Signed release AAB"
-flutter build appbundle \
+flutter --suppress-analytics build appbundle \
   --release \
   --no-pub \
   --split-debug-info="$SYMBOLS_DIR" \
   "${BUILD_DEFINES[@]}"
 
 log "Signed release APK for device and 16 KB checks"
-flutter build apk \
+flutter --suppress-analytics build apk \
   --release \
   --no-pub \
   --split-debug-info="$SYMBOLS_DIR" \
@@ -268,7 +269,9 @@ printf '%s\n' \
   "version=$VERSION" \
   "version_code=$VERSION_CODE" \
   "target_sdk=$TARGET_SDK" \
-  'payme_enabled=false' \
+  'payme_enabled=true' \
+  'payme_allow_sandbox=false' \
+  'payme_mode=backend_controlled_production_readiness_required' \
   'firebase_project=kashtan-5feea' \
   "map_provider=$MAP_PROVIDER" \
   "backend_origin=$BACKEND_ORIGIN_VALUE" \

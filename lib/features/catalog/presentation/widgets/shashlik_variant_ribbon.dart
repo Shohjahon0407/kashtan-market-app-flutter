@@ -218,9 +218,12 @@ class _ShashlikVariantRibbonState extends State<ShashlikVariantRibbon>
             WidgetsBinding.instance.addPostFrameCallback((_) => old.dispose());
           }
         }
+        // Give shashlik photos a little more vertical room without changing
+        // the shared meat/hardware ribbons or their custom card layouts.
+        final imageAspectRatio = widget.family != null ? 1.6 : 2.0;
         final height =
             widget.heightFor?.call(context, width) ??
-            width / 2 +
+            width / imageAspectRatio +
                 math.max(
                   100.0,
                   MediaQuery.textScalerOf(context).scale(16) * 6.5,
@@ -298,7 +301,7 @@ class _ShashlikVariantRibbonState extends State<ShashlikVariantRibbon>
                                     ClipRRect(
                                       borderRadius: BorderRadius.circular(18),
                                       child: AspectRatio(
-                                        aspectRatio: 2,
+                                        aspectRatio: imageAspectRatio,
                                         child:
                                             widget.imageFor?.call(product) ??
                                             ProductImageView(

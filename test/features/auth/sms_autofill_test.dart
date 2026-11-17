@@ -13,6 +13,7 @@ import 'package:beshkashtan_customer/features/auth/presentation/screens/phone_sc
 import 'package:beshkashtan_customer/features/auth/presentation/widgets/otp_code_field.dart';
 import 'package:beshkashtan_customer/features/auth/presentation/widgets/phone_field.dart';
 import 'package:beshkashtan_customer/generated/l10n/app_localizations.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -60,7 +61,11 @@ void main() {
   late FakeSmsAutofillService autofill;
   late ProviderContainer container;
 
-  Future<void> pumpLogin(WidgetTester tester, {bool smsAppHash = false}) async {
+  Future<void> pumpLogin(
+    WidgetTester tester, {
+    bool smsAppHash = false,
+    Future<void> Function()? afterLogin,
+  }) async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await PrefsStore.load();
     api = _MockAuthApi();
@@ -88,6 +93,8 @@ void main() {
         tokenStoreProvider.overrideWithValue(InMemoryTokenStore()),
         authApiProvider.overrideWithValue(api),
         smsAutofillServiceProvider.overrideWithValue(autofill),
+        if (afterLogin != null)
+          onAfterLoginProvider.overrideWithValue(afterLogin),
       ],
     );
     addTearDown(container.dispose);
@@ -133,6 +140,42 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(OtpCodeField), findsOneWidget);
   }
+
+  testWidgets('iOS: kod bosqichiga o\'tganda telefon bosqichi qolmaydi', (
+    tester,
+  ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    try {
+      await pumpLogin(tester);
+      await enterPhoneAndSend(tester);
+      expect(find.byType(PhoneField), findsNothing);
+      expect(find.byKey(const ValueKey('auth-phone-step')), findsNothing);
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
+  });
+
+  testWidgets(
+    'kod tasdiqlangach (savat merge kutilayotganda) telefon bosqichi qaytmaydi',
+    (tester) async {
+      final merge = Completer<void>();
+      await pumpLogin(tester, afterLogin: () => merge.future);
+      await enterPhoneAndSend(tester);
+
+      autofill.emit('482913');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+
+      expect(container.read(authControllerProvider).isAuthenticated, isTrue);
+      expect(find.byKey(const ValueKey('auth-phone-step')), findsNothing);
+      expect(find.byKey(const ValueKey('auth-otp-step')), findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+      merge.complete();
+      await tester.pumpAndSettle();
+      expect(find.text('home'), findsOneWidget);
+    },
+  );
 
   testWidgets('SMS kodi maydonga yoziladi va BIR marta tasdiqlanadi', (
     tester,

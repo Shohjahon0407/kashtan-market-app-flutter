@@ -113,6 +113,103 @@ void main() {
     await tester.pump();
   }
 
+  test('karusel maydonlari o‘qiladi, noto‘g‘ri burchak 0 bo‘ladi', () {
+    final category = ProductCategory.fromJson({
+      'id': '1',
+      'name': 'Oshlar',
+      'preview_products': [
+        {'id': 'a', 'name': 'A', 'image': '/a.jpg', 'carousel_rotation': 90},
+        {
+          'id': 'b',
+          'name': 'B',
+          'image': '/b.jpg',
+          'carousel_image': '/products/carousel/b.jpg',
+          'carousel_rotation': 270,
+        },
+        {'id': 'c', 'name': 'C', 'image': '/c.jpg', 'carousel_rotation': 45},
+        {'id': 'd', 'name': 'D', 'image': '/d.jpg'},
+      ],
+    });
+    final rows = category.previewProducts;
+    expect(rows[0].carouselRotation, 90);
+    expect(rows[0].carouselImageUrl, isNull);
+    expect(rows[1].carouselImageUrl, endsWith('/products/carousel/b.jpg'));
+    expect(rows[2].carouselRotation, 0);
+    expect(rows[3].carouselRotation, 0);
+  });
+
+  testWidgets(
+    'odatiy rasm burilmaydi, admin burchagi va karusel rasmi ishlaydi',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(360, 800);
+      addTearDown(tester.view.reset);
+
+      Future<CachedNetworkImage> activeImage() async {
+        final controller = tester
+            .widget<PageView>(find.byType(PageView))
+            .controller!;
+        final page = controller.page!.round();
+        return tester.widget<CachedNetworkImage>(
+          find.descendant(
+            of: find.byKey(ValueKey('restaurant-dish-image-test-$page')),
+            matching: find.byType(CachedNetworkImage),
+          ),
+        );
+      }
+
+      await pump(tester, reduced: true);
+      expect(
+        find.byKey(const ValueKey('restaurant-dish-rotated')),
+        findsNothing,
+      );
+      expect(
+        (await activeImage()).imageUrl,
+        'https://example.invalid/osh.webp',
+      );
+
+      await pump(
+        tester,
+        reduced: true,
+        category: _category(
+          products: const [
+            CategoryProductPreview(
+              id: 'osh',
+              name: 'To‘y oshi',
+              imageUrl: 'https://example.invalid/osh.webp',
+              carouselRotation: 90,
+            ),
+            CategoryProductPreview(
+              id: 'manti',
+              name: 'Manti',
+              imageUrl: 'https://example.invalid/manti.webp',
+              carouselImageUrl: 'https://example.invalid/manti-wide.jpg',
+              carouselRotation: 270,
+            ),
+          ],
+        ),
+      );
+      final rotated = tester.widget<RotatedBox>(
+        find.byKey(const ValueKey('restaurant-dish-rotated')).first,
+      );
+      expect(rotated.quarterTurns, 1);
+      final first = await activeImage();
+      // Burilganda dekod bo'yi bo'yicha (bo'yi kartochka eniga tushadi).
+      expect(first.memCacheHeight, isNotNull);
+      expect(first.memCacheWidth, isNull);
+      // Alohida karusel rasmi bo'lsa — o'sha va burilmagan.
+      final manti = tester
+          .widgetList<CachedNetworkImage>(find.byType(CachedNetworkImage))
+          .where((image) => image.imageUrl.contains('manti'));
+      expect(manti.single.imageUrl, 'https://example.invalid/manti-wide.jpg');
+      expect(
+        find.byKey(const ValueKey('restaurant-dish-rotated')),
+        findsOneWidget,
+      );
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
   test('new preview is typed and independent of legacy photo order', () {
     final category = ProductCategory.fromJson({
       'id': '1',
@@ -205,7 +302,7 @@ void main() {
         );
         final imageRect = tester.getRect(image);
         expect(imageRect.width, lessThanOrEqualTo(380));
-        expect(imageRect.height, closeTo(imageRect.width / 2, .01));
+        expect(imageRect.height, closeTo(imageRect.width / 1.6, .01));
         final nextImage = tester.getRect(
           find.byKey(
             ValueKey(
@@ -220,7 +317,7 @@ void main() {
     }
   }
 
-  testWidgets('normal font cards are compact and retain dish name and price', (
+  testWidgets('normal font cards match shashlik size and keep name and price', (
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;
@@ -230,7 +327,8 @@ void main() {
     final rect = tester.getRect(
       find.byKey(const ValueKey('photo-category-card-test')),
     );
-    expect(rect.height, lessThan(230));
+    // Shashlik kartochkasidek: rasm 1.6:1, karta ≈ 240 px (360 px ekranda).
+    expect(rect.height, inInclusiveRange(220, 260));
     final controller = tester
         .widget<PageView>(find.byType(PageView))
         .controller!;
@@ -239,7 +337,7 @@ void main() {
         ValueKey('restaurant-dish-image-test-${controller.page!.round()}'),
       ),
     );
-    expect(imageRect.height, lessThan(145));
+    expect(imageRect.height, inInclusiveRange(160, 175));
     expect(find.text(_products[0].name), findsOneWidget);
     expect(find.text(Uzs.format(_products[0].price)), findsOneWidget);
     expect(

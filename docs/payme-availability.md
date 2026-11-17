@@ -1,20 +1,39 @@
 # Payme availability
 
-Payme is disabled by default in all customer app builds until the integration
-is ready. Checkout shows only cash (courier for delivery, store for pickup).
-Order tracking hides Payme actions, including automatic payment initiation
-from an old `autoPay` route. Existing order payment methods and statuses are
-not rewritten.
+Play release 1.1.7+10 includes Payme support with `PAYME_ENABLED=true` and
+`PAYME_ALLOW_SANDBOX=false`. Ordinary local builds still default to disabled.
+Public releases show Payme only for Xozmak and only when the backend explicitly
+reports production readiness. Until then checkout keeps cash available.
+Existing order payment methods and statuses are never rewritten.
 
 One shared `paymeEnabledProvider` reads `AppConfig.paymeEnabled`. Checkout
 submission also enforces cash when disabled; payment initiation never calls
 the API or URL launcher. Payme implementation and its enabled-path tests
 remain intact.
 
-Controlled end-to-end tests can enable `--dart-define=PAYME_ENABLED=true`.
-Do not enable this define in public releases until acceptance is complete.
-The backend capability must also allow `household`; the customer app keeps
-Payme hidden for every other store even if an old backend advertises it.
+Controlled debug tests can enable `--dart-define=PAYME_ENABLED=true`.
+The backend capability must also allow `household`; other stores stay hidden.
+
+## Backend-controlled production readiness
+
+The existing availability response adds `payme_production_ready`, a boolean.
+It is true only with enabled, configured Xozmak payments and
+`PAYME_MODE=production`. It exposes no keys and is sent with
+`Cache-Control: no-store`. A missing field (older backend), test mode, an
+unreachable endpoint or disabled payment configuration fails closed in the Play
+build. Sandbox/debug tooling is unchanged.
+
+Release payment attempts recheck readiness before creating a checkout, and
+refuse `test.paycom.uz` even if the server changes mode between requests.
+The checkout screen refreshes capabilities on entry/resume; payment actions
+also refresh them before each attempt. No timers, keys or URLs are embedded to
+guess approval. After Payme approval, deploy the additive availability change
+and configure the backend's production mode/keys. The same AAB then works;
+do not rebuild merely to switch environments.
+
+Preparing this bundle did not deploy the backend, change its environment or
+perform a real payment. Do not publish a listing promising active Payme payment
+until provider acceptance and fiscalisation are actually confirmed.
 
 ## Phone acceptance test (no release APK required)
 

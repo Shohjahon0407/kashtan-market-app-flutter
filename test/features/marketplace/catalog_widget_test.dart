@@ -2,6 +2,7 @@ import 'package:beshkashtan_customer/core/localization/locale_controller.dart';
 import 'package:beshkashtan_customer/core/network/paginated.dart';
 import 'package:beshkashtan_customer/core/storage/prefs_store.dart';
 import 'package:beshkashtan_customer/core/store_scope/store_type.dart';
+import 'package:beshkashtan_customer/core/ui/theme/app_colors.dart';
 import 'package:beshkashtan_customer/features/cart/data/cart_api.dart';
 import 'package:beshkashtan_customer/features/cart/data/cart_models.dart';
 import 'package:beshkashtan_customer/features/cart/domain/cart_controller.dart';
@@ -9,6 +10,7 @@ import 'package:beshkashtan_customer/features/catalog/data/catalog_api.dart';
 import 'package:beshkashtan_customer/features/catalog/data/category_banners.dart';
 import 'package:beshkashtan_customer/features/catalog/data/product_models.dart';
 import 'package:beshkashtan_customer/features/catalog/domain/catalog_controller.dart';
+import 'package:beshkashtan_customer/features/catalog/domain/restaurant_search_keywords.dart';
 import 'package:beshkashtan_customer/features/catalog/presentation/catalog_screen.dart';
 import 'package:beshkashtan_customer/features/catalog/presentation/widgets/category_product_banners.dart';
 import 'package:beshkashtan_customer/features/catalog/presentation/widgets/household_category_landing.dart';
@@ -829,7 +831,7 @@ void main() {
       expect(find.byType(ProductCard), findsNothing);
       expect(
         find.byKey(const ValueKey('restaurant-search-button')),
-        findsOneWidget,
+        findsNothing,
       );
       expect(find.byKey(const ValueKey('catalog-search-field')), findsNothing);
       verifyNever(
@@ -1765,4 +1767,378 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  group('ko‘mir tavsiyasi', () {
+    CartData cartWith(List<(ProductSummary, int)> lines) => CartData(
+      id: 'cart',
+      storeTypeWire: 'shashlik',
+      items: [
+        for (final (product, quantity) in lines)
+          CartItem(
+            id: 'line-${product.id}',
+            product: product,
+            quantity: quantity,
+            selectedAddons: const [],
+            note: '',
+            subtotal: '0',
+          ),
+      ],
+      totalItems: lines.length,
+      totalQuantity: lines.fold(0, (sum, line) => sum + line.$2),
+      subtotal: '0',
+    );
+
+    Future<void> setServerCart(WidgetTester tester, CartData cart) async {
+      final context = tester.element(find.byType(ShashlikSectionSelector));
+      final container = ProviderScope.containerOf(context, listen: false);
+      when(
+        () => container.read(cartApiProvider).fetch('shashlik'),
+      ).thenAnswer((_) async => cart);
+      await container
+          .read(cartControllerProvider(StoreType.shashlik).notifier)
+          .refresh();
+      await tester.pump();
+    }
+
+    final kebab = _product(
+      'beef-stick',
+      storeType: StoreType.shashlik,
+      name: 'Mol jazz',
+    );
+    final coal = _product(
+      'coal',
+      storeType: StoreType.shashlik,
+      name: 'Tosh ko‘mir',
+    );
+
+    testWidgets(
+      'shashlik qo‘shilganda Ko‘mir qutisi yonadi va tepadan tavsiya chiqadi',
+      (tester) async {
+        await pumpCatalog(
+          tester,
+          ThemeMode.light,
+          storeType: StoreType.shashlik,
+          landing: _landingFor(StoreType.shashlik),
+          catalogProducts: [kebab, coal],
+        );
+        expect(
+          find.byKey(const ValueKey('shashlik-charcoal-nudge')),
+          findsNothing,
+        );
+
+        await setServerCart(tester, cartWith([(kebab, 10)]));
+        await tester.pump(const Duration(milliseconds: 900));
+        expect(
+          tester
+              .widget<ShashlikSectionSelector>(
+                find.byType(ShashlikSectionSelector),
+              )
+              .charcoalNudge,
+          1,
+        );
+        expect(
+          find.byKey(const ValueKey('shashlik-charcoal-nudge')),
+          findsOneWidget,
+        );
+        expect(find.text('Ko‘mir ham kerakmi?'), findsOneWidget);
+
+        await tester.tap(
+          find.byKey(const ValueKey('shashlik-charcoal-nudge-action')),
+        );
+        await tester.pumpAndSettle();
+        expect(
+          find.byKey(const ValueKey('shashlik-charcoal-nudge')),
+          findsNothing,
+        );
+        expect(
+          tester
+              .widget<ShashlikCatalogList>(find.byType(ShashlikCatalogList))
+              .section,
+          ShashlikSection.charcoal,
+        );
+        expect(find.byType(ShashlikProductRow), findsOneWidget);
+
+        // Bildirishnoma bir marta: keyingi qo'shishda faqat quti yonadi.
+        await setServerCart(tester, cartWith([(kebab, 20)]));
+        await tester.pumpAndSettle();
+        expect(
+          find.byKey(const ValueKey('shashlik-charcoal-nudge')),
+          findsNothing,
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets('savatda ko‘mir bo‘lsa tavsiya chiqmaydi', (tester) async {
+      await pumpCatalog(
+        tester,
+        ThemeMode.light,
+        storeType: StoreType.shashlik,
+        landing: _landingFor(StoreType.shashlik),
+        catalogProducts: [kebab, coal],
+        cart: cartWith([(coal, 1)]),
+      );
+      await setServerCart(tester, cartWith([(coal, 1), (kebab, 10)]));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('shashlik-charcoal-nudge')),
+        findsNothing,
+      );
+      expect(
+        tester
+            .widget<ShashlikSectionSelector>(
+              find.byType(ShashlikSectionSelector),
+            )
+            .charcoalNudge,
+        0,
+      );
+    });
+
+    testWidgets('bo‘limlar ikonali qutida chiqadi', (tester) async {
+      await pumpCatalog(
+        tester,
+        ThemeMode.light,
+        storeType: StoreType.shashlik,
+        landing: _landingFor(StoreType.shashlik),
+        catalogProducts: [kebab, coal],
+      );
+      for (final icon in [
+        Icons.outdoor_grill,
+        Icons.local_fire_department,
+        Icons.restaurant_menu,
+      ]) {
+        expect(
+          find.descendant(
+            of: find.byType(ShashlikSectionSelector),
+            matching: find.byIcon(icon),
+          ),
+          findsOneWidget,
+        );
+      }
+    });
+  });
+
+  group('restoran qidiruvi', () {
+    ProductSummary dish(String id, String name, String categoryId) =>
+        ProductSummary.fromJson({
+          'id': id,
+          'name': name,
+          'description': '',
+          'price': '30000.00',
+          'main_image': 'https://example.test/products/$id.jpg',
+          'unit_display': 'porsiya',
+          'is_purchasable': true,
+          'store_type': 'restaurant',
+          'category': {'id': categoryId, 'name': categoryId},
+          'store': {
+            'id': 'store-r',
+            'name': 'Ofiyat',
+            'store_type': 'restaurant',
+          },
+          'variants': <Map<String, dynamic>>[],
+        });
+
+    const landing = StoreLandingData(
+      header: StoreHeader(
+        storeTypeWire: 'restaurant',
+        label: 'Restoran',
+        subtitle: '',
+        isEnabled: true,
+        showHeader: false,
+      ),
+      categories: [
+        ProductCategory(
+          id: 'first-courses',
+          name: '1-TAOMLAR',
+          canonicalName: '1-TAOMLAR',
+          storeTypeWire: 'restaurant',
+          productCount: 3,
+        ),
+        ProductCategory(
+          id: 'fish',
+          name: 'Baliq',
+          canonicalName: 'Baliq',
+          storeTypeWire: 'restaurant',
+          productCount: 1,
+        ),
+        ProductCategory(
+          id: 'plov',
+          name: 'Oshlar',
+          canonicalName: 'Oshlar',
+          storeTypeWire: 'restaurant',
+          productCount: 1,
+        ),
+      ],
+      stores: [],
+      banners: [],
+      sections: [],
+    );
+
+    final menu = [
+      dish('soup', 'Mol sho‘rva', 'first-courses'),
+      dish('meat', 'Qo‘y go‘sht dimlama', 'first-courses'),
+      dish('salmon', 'Qizil ikra', 'fish'),
+      dish('plov', 'To‘y oshi', 'plov'),
+      dish('plov-2', 'Go‘shtli osh', 'first-courses'),
+    ];
+
+    Set<String> shownDishes(WidgetTester tester) => tester
+        .widgetList<ProductCard>(find.byType(ProductCard))
+        .map((card) => card.product.id)
+        .toSet();
+
+    testWidgets('bosh sahifada pastki-o‘ng yashil qidiruv tugmasi bor', (
+      tester,
+    ) async {
+      await pumpCatalog(
+        tester,
+        ThemeMode.light,
+        storeType: StoreType.restaurant,
+        landing: landing,
+        searchOnly: false,
+      );
+      final fab = find.byKey(const ValueKey('restaurant-search-fab'));
+      expect(fab, findsOneWidget);
+      final rect = tester.getRect(fab);
+      final screen = tester.view.physicalSize / tester.view.devicePixelRatio;
+      expect(rect.center.dx, greaterThan(screen.width / 2));
+      // To'rtburchak, yonga cho'zilgan.
+      expect(rect.width, greaterThan(rect.height * 1.8));
+      expect(
+        tester.widget<FloatingActionButton>(fab).backgroundColor,
+        AppColors.primary,
+      );
+      expect(rect.center.dy, greaterThan(screen.height / 2));
+      expect(find.byIcon(Icons.search), findsWidgets);
+    });
+
+    testWidgets('household bosh sahifasida qidiruv tugmasi yo‘q', (
+      tester,
+    ) async {
+      await pumpCatalog(
+        tester,
+        ThemeMode.light,
+        storeType: StoreType.household,
+        landing: _landing,
+        searchOnly: false,
+      );
+      expect(find.byKey(const ValueKey('restaurant-search-fab')), findsNothing);
+    });
+
+    testWidgets('#kalit so‘zlar tartibda chiqadi va kategoriya + nom bo‘yicha '
+        'ovqatlarni ro‘yxatlaydi', (tester) async {
+      final harness = await pumpCatalog(
+        tester,
+        ThemeMode.light,
+        storeType: StoreType.restaurant,
+        landing: landing,
+        searchOnly: true,
+        catalogProducts: menu,
+      );
+      when(
+        () => harness.catalogApi.fetchAllProducts(storeType: 'restaurant'),
+      ).thenAnswer((_) async => menu);
+
+      expect(
+        find.byKey(const ValueKey('restaurant-keyword-chips')),
+        findsOneWidget,
+      );
+      final labels = [
+        '#baliq',
+        '#halim',
+        '#osh',
+        '#shashlik',
+        "#sho'rva",
+        '#jizz',
+        '#hasib',
+      ];
+      // Yonga aylanmaydi: hammasi ekran ichida, o'qish tartibida qatorlanadi.
+      final rects = [
+        for (final label in labels)
+          tester.getRect(find.byKey(ValueKey('restaurant-keyword-$label'))),
+      ];
+      final width =
+          tester.view.physicalSize.width / tester.view.devicePixelRatio;
+      for (var i = 0; i < rects.length; i++) {
+        expect(rects[i].right, lessThanOrEqualTo(width));
+        if (i > 0) {
+          final previous = rects[i - 1];
+          final sameRow = (rects[i].top - previous.top).abs() < 1;
+          expect(
+            sameRow
+                ? rects[i].left > previous.left
+                : rects[i].top > previous.top,
+            isTrue,
+          );
+        }
+      }
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('restaurant-keyword-chips')),
+          matching: find.byType(Scrollable),
+        ),
+        findsNothing,
+      );
+
+      await tester.tap(find.byKey(const ValueKey('restaurant-keyword-#baliq')));
+      await tester.pumpAndSettle();
+      expect(shownDishes(tester), {'salmon'});
+
+      await tester.tap(find.byKey(const ValueKey('restaurant-keyword-#osh')));
+      await tester.pumpAndSettle();
+      // Oshlar kategoriyasi + nomida "osh" so'zi; "go‘sht" mos kelmaydi.
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(CatalogScreen)),
+      );
+      final oshResults = container
+          .read(
+            restaurantKeywordResultsProvider(
+              restaurantSearchKeywords.firstWhere((k) => k.label == '#osh'),
+            ),
+          )
+          .value!;
+      expect(oshResults.map((p) => p.id), ['plov', 'plov-2']);
+      expect(shownDishes(tester), contains('plov'));
+
+      await tester.tap(
+        find.byKey(const ValueKey("restaurant-keyword-#sho'rva")),
+      );
+      await tester.pumpAndSettle();
+      expect(shownDishes(tester), {'soup'});
+
+      // Qayta bosish tanlovni bekor qiladi.
+      await tester.tap(
+        find.byKey(const ValueKey("restaurant-keyword-#sho'rva")),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('restaurant-product-soup')),
+        findsNothing,
+      );
+
+      await tester.tap(find.byKey(const ValueKey('restaurant-keyword-#halim')));
+      await tester.pumpAndSettle();
+      expect(find.byType(ProductCard), findsNothing);
+      expect(find.text('#halim'), findsOneWidget);
+
+      // Qidiruvga yozish kalit so'zni bekor qiladi.
+      await tester.enterText(
+        find.byKey(const ValueKey('catalog-search-field')),
+        'ikra',
+      );
+      await tester.pump();
+      final halim = tester.widget<Material>(
+        find
+            .ancestor(
+              of: find.byKey(const ValueKey('restaurant-keyword-#halim')),
+              matching: find.byType(Material),
+            )
+            .first,
+      );
+      expect(halim.color, isNot(equals(AppColors.primary)));
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+    });
+  });
 }

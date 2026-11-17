@@ -21,6 +21,7 @@ class RestaurantDishPager extends ConsumerStatefulWidget {
     required this.onChanged,
     this.categoryId,
     this.onNearbyChanged,
+    this.onImageTap,
     super.key,
   });
 
@@ -29,6 +30,9 @@ class RestaurantDishPager extends ConsumerStatefulWidget {
   final ValueChanged<ProductSummary> onChanged;
   final String? categoryId;
   final ValueChanged<List<ProductSummary>>? onNearbyChanged;
+
+  /// Markazdagi (tanlangan) rasm bosilganda — rasm to'liq ekranda ochiladi.
+  final VoidCallback? onImageTap;
 
   @override
   ConsumerState<RestaurantDishPager> createState() =>
@@ -126,11 +130,14 @@ class _RestaurantDishPagerState extends ConsumerState<RestaurantDishPager> {
         if (!urls.contains(url)) _warmImages.remove(url)?.dispose();
       }
       final configuration = createLocalImageConfiguration(context);
+      // Widget bilan AYNAN bir xil dekod o'lchami — aks holda kesh topilmaydi.
+      final decodeWidth = restaurantImageDecodeWidth(context);
       for (final url in urls) {
         _warmImages.putIfAbsent(url, () {
           final stream = ProductImageView.decodedProvider(
             url,
             persistent: true,
+            memCacheWidth: decodeWidth,
           ).resolve(configuration);
           final listener = ImageStreamListener(
             (image, _) => image.dispose(),
@@ -320,9 +327,14 @@ class _RestaurantDishPagerState extends ConsumerState<RestaurantDishPager> {
                                 ),
                                 child: Semantics(
                                   label: product.name,
-                                  button: !active,
+                                  button: !active || widget.onImageTap != null,
                                   child: GestureDetector(
-                                    onTap: active ? null : () => _move(page),
+                                    key: ValueKey(
+                                      'dish-photo-tap-${product.id}',
+                                    ),
+                                    onTap: active
+                                        ? widget.onImageTap
+                                        : () => _move(page),
                                     child: RepaintBoundary(
                                       child: DecoratedBox(
                                         key: ValueKey(
@@ -357,6 +369,10 @@ class _RestaurantDishPagerState extends ConsumerState<RestaurantDishPager> {
                                                   ? widget.imageUrl
                                                   : product.imageUrl,
                                               fit: BoxFit.cover,
+                                              memCacheWidth:
+                                                  restaurantImageDecodeWidth(
+                                                    context,
+                                                  ),
                                             ),
                                           ),
                                         ),

@@ -1,4 +1,4 @@
-• Xozmak kategoriyalarida mahsulot reklamasi bannerlari qo‘shildi.
-• Har kategoriyada qidiruv: topilmasa Xozmakning boshqa kategoriyalaridan izlaydi.
-• Shu kategoriya mahsulotlaridan shaxsiy tavsiyalar ko‘rsatiladi.
-• Bannerlar yumshoq almashadi, mahsulotni tez ochish mumkin.
+• Katalog va qidiruvda mahsulot rasmlari to‘liqroq ko‘rinadi.
+• Savat, miqdor tanlash va buyurtma berish qulaylashtirildi.
+• Manzil tanlash va yetkazish narxini hisoblash yangilandi.
+• Ishlash barqarorligi va katta shriftga moslashuv yaxshilandi.

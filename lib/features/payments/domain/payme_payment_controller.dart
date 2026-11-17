@@ -69,6 +69,21 @@ class PaymePaymentController extends Notifier<PaymePaymentState> {
     final epoch = _epoch;
     state = const PaymePaymentState(phase: PaymePhase.creating);
     try {
+      final allowSandbox = ref.read(paymeAllowsSandboxProvider);
+      if (!allowSandbox) {
+        // Re-read capabilities on each explicit attempt: a backend rollout or
+        // kill-switch change must not require another customer app release.
+        ref.invalidate(paymentCapabilitiesProvider);
+        final capabilities = await ref.read(paymentCapabilitiesProvider.future);
+        if (!_current(epoch)) return;
+        if (capabilities['household'] != true) {
+          state = const PaymePaymentState(
+            failure: UnknownFailure(),
+            serviceUnavailable: true,
+          );
+          return;
+        }
+      }
       final result = await ref
           .read(paymentsApiProvider)
           .createPaymePayment(orderId);
@@ -88,6 +103,13 @@ class PaymePaymentController extends Notifier<PaymePaymentState> {
       }
 
       final uri = Uri.tryParse(result.paymentUrl);
+      if (uri?.host == 'test.paycom.uz' && !allowSandbox) {
+        state = const PaymePaymentState(
+          failure: UnknownFailure(),
+          serviceUnavailable: true,
+        );
+        return;
+      }
       // Faqat https ochiladi — boshqa scheme'lar (shu jumladan http) rad etiladi.
       if (uri == null ||
           uri.scheme != 'https' ||

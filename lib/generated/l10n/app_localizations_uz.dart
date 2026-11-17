@@ -623,6 +623,16 @@ class AppLocalizationsUz extends AppLocalizations {
   String get shashlikSectionOther => 'Boshqa';
 
   @override
+  String get shashlikCharcoalNudgeTitle => 'Ko‘mir ham kerakmi?';
+
+  @override
+  String get shashlikCharcoalNudgeBody =>
+      'Shashlikni pishirish uchun ko‘mirni ham qo‘shib qo‘ying.';
+
+  @override
+  String get shashlikCharcoalNudgeAction => 'Ko‘mir tanlash';
+
+  @override
   String get shashlikFamilyBeefJazz => 'Mol jazz';
 
   @override
@@ -2554,6 +2564,16 @@ class AppLocalizationsUzCyrl extends AppLocalizationsUz {
 
   @override
   String get shashlikSectionOther => 'Бошқа';
+
+  @override
+  String get shashlikCharcoalNudgeTitle => 'Кўмир ҳам керакми?';
+
+  @override
+  String get shashlikCharcoalNudgeBody =>
+      'Шашликни пишириш учун кўмирни ҳам қўшиб қўйинг.';
+
+  @override
+  String get shashlikCharcoalNudgeAction => 'Кўмир танлаш';
 
   @override
   String get shashlikFamilyBeefJazz => 'Мол жазз';

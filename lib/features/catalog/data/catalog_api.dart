@@ -87,6 +87,33 @@ class CatalogApi {
     return PageDecoder.cursor(data, ProductSummary.fromJson);
   }
 
+  /// Filtrga mos BARCHA mahsulotlar (cursor sahifalari ketma-ket yig'iladi).
+  /// Restoranda offline menyu hammasini bitta sahifada beradi.
+  Future<List<ProductSummary>> fetchAllProducts({
+    required String storeType,
+    String? categoryId,
+    String query = '',
+    int maxPages = 10,
+  }) async {
+    final seen = <String>{};
+    final items = <ProductSummary>[];
+    String? next;
+    for (var page = 0; page < maxPages; page++) {
+      final result = await fetchProducts(
+        storeType: storeType,
+        categoryId: categoryId,
+        query: query,
+        nextUrl: next,
+      );
+      for (final product in result.items) {
+        if (seen.add(product.id)) items.add(product);
+      }
+      next = result.nextUrl;
+      if (next == null || next.isEmpty) break;
+    }
+    return items;
+  }
+
   /// Sanoqli mahsulotli maxsus kataloglar UI'da bir martada guruhlanadi, ammo
   /// backend rasmli/rasmsiz mahsulotlarni alohida cursor bosqichida qaytaradi.
   /// Disk keshi ham to'liq bo'lishi uchun cursorlar atomik yig'iladi: keyingi

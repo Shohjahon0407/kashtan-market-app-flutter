@@ -1,6 +1,6 @@
 # Besh Kashtan — Google Play release checklist
 
-Release: `1.1.6 (9)` · package: `uz.beshkashtan.customer` · category:
+Release: `1.1.7 (10)` · package: `uz.beshkashtan.customer` · category:
 `Shopping` · region: Uzbekistan · target audience: 13+.
 
 ## Release gate
@@ -15,14 +15,18 @@ ALLOW_OSM_TILES=1 ./tool/build_play_release.sh
 
 Gate analyzer, tests, Android lint, Firebase package, upload signing, target API,
 signed AAB, 16 KB alignment va SHA-256 checksumni tekshiradi. Play’ga faqat
-gate muvaffaqiyatli tugagach `build/play-release/1.1.6-9/` ichiga ko‘chirilgan
+gate muvaffaqiyatli tugagach `build/play-release/1.1.7-10/` ichiga ko‘chirilgan
 `.aab` yuklanadi. `build/app/outputs/` ichida oldingi builddan qolgan fayl bo‘lsa
 u release artefakti hisoblanmaydi. Play App Signing birinchi upload vaqtida
 yoqiladi. Upload keystore va parollar repo/log ichiga kiritilmaydi va ikki
 xavfsiz joyda zaxiralanadi.
 
-Bu paketda Mapbox xaritalari, yangilangan Shashlik/Ofiyat/Go‘sht do‘koni
-rasmlari va vaqtincha faqat naqd to‘lov mavjud (`PAYME_ENABLED=false`).
+Bu paketda Mapbox xaritalari, yangilangan katalog/savat/manzil oqimlari
+va backenddan boshqariladigan Xozmak Payme qo‘llovi mavjud
+(`PAYME_ENABLED=true`, `PAYME_ALLOW_SANDBOX=false`).
+Backend `payme_production_ready=true` qaytarmaguncha Payme yashirin;
+naqd to‘lov ishlashda davom etadi. Payme tasdig‘igacha server test rejimi
+o‘zgartirilmaydi; tafsilotlar `docs/payme-availability.md`da.
 Xozmak kategoriya reklamasi va qidiruvi uchun avval backend migration/API,
 keyin admin, so‘ng app chiqariladi; `docs/category-product-banners.md`ga qarang.
 Mapbox public token README’dagi vaqtinchalik yozuvdan build muhitiga olinadi;
@@ -30,8 +34,9 @@ token release manifesti yoki loglarga yozilmaydi. Keyingi buildlarda tokenni
 CI konfiguratsiyasi orqali berish tavsiya etiladi.
 
 **Upload oldidan:** Play Console’dagi barcha track va draftlarda ishlatilgan
-eng katta versionCode `9`dan kichik ekanini tekshiring. Console raqami hozircha
-tasdiqlanmagan; agar `9` yoki kattaroq ishlatilgan bo‘lsa, build raqamini
+eng katta versionCode `10`dan kichik ekanini tekshiring. Foydalanuvchi
+ikkinchi chiqarilish `1.0.01` ekanini aytdi; Console ichidagi aniq versionCode
+lokaldan tekshirilmagan. Agar `10` yoki kattaroq ishlatilgan bo‘lsa, build raqamini
 oshirib qayta gate bajaring. Lokal tekshiruv Play Console holatini isbotlamaydi.
 Paket tayyorlash uni avtomatik upload yoki publish qilmaydi.
 

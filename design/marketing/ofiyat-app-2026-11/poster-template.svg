@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="297mm" height="420mm" viewBox="0 0 2970 4200">
+  <title>Ofiyat — Besh Kashtan ilovasida taom buyurtma qiling</title>
+  <desc>A3 restoran reklamasi. QR kod Android uchun Google Play, iPhone uchun App Store sahifasini ochadi.</desc>
+  <defs>
+    <clipPath id="hero"><rect x="160" y="1250" width="2650" height="1325" rx="80"/></clipPath>
+  </defs>
+  <rect width="2970" height="4200" fill="#ffffff"/>
+  <rect x="160" y="155" width="32" height="335" rx="16" fill="#087c5c"/>
+  <g font-family="DejaVu Sans, sans-serif">
+    <text x="240" y="360" font-size="220" font-weight="700" fill="#087c5c" letter-spacing="-10">Ofiyat</text>
+    <text x="246" y="465" font-size="69" font-weight="700" fill="#087c5c">milliy taomlari</text>
+    <rect x="1830" y="236" width="980" height="180" rx="90" fill="#087c5c"/>
+    <text x="2320" y="349" text-anchor="middle" font-size="61" font-weight="700" fill="#fff">Besh Kashtan ilovasida</text>
+    <text x="160" y="795" font-size="151" font-weight="700" fill="#111827" letter-spacing="-5">Sevimli taomlaringiz —</text>
+    <text x="160" y="980" font-size="151" font-weight="700" fill="#111827" letter-spacing="-5">endi ilovada!</text>
+    <text x="165" y="1140" font-size="65" fill="#374151">Ofiyat taomlarini telefoningizdan buyurtma qiling.</text>
+    <image x="160" y="1250" width="2650" height="1325" clip-path="url(#hero)" preserveAspectRatio="xMidYMid meet" xlink:href="__HERO_DATA_URI__"/>
+    <rect x="160" y="2700" width="2650" height="1180" rx="85" fill="#087c5c"/>
+    <rect x="260" y="2800" width="960" height="960" rx="42" fill="#ffffff"/>
+    <image x="300" y="2840" width="880" height="880" xlink:href="__QR_DATA_URI__"/>
+    <text x="1340" y="3005" font-size="109" font-weight="700" fill="#fff" letter-spacing="-3">QR kodni</text>
+    <text x="1340" y="3140" font-size="109" font-weight="700" fill="#fff" letter-spacing="-3">skanerlang</text>
+    <text x="1340" y="3295" font-size="61" fill="#fff">Ilovani yuklab oling va</text>
+    <text x="1340" y="3380" font-size="61" fill="#fff">taom buyurtma qiling.</text>
+    <line x1="1340" y1="3480" x2="2680" y2="3480" stroke="#fff" stroke-opacity=".45" stroke-width="2"/>
+    <text x="1340" y="3600" font-size="56" font-weight="700" fill="#fff">Google Play · App Store</text>
+    <text x="1340" y="3690" font-size="49" fill="#fff">Bitta QR — Android va iPhone uchun</text>
+    <text x="1485" y="4040" text-anchor="middle" font-size="55" font-weight="700" fill="#111827">api.beshkashtan.uz/app/</text>
+  </g>
+</svg>

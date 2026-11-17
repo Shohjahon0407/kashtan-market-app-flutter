@@ -2,6 +2,26 @@ import '../../../core/network/api_failure.dart';
 import '../../../core/network/json_read.dart';
 import '../../checkout/data/checkout_models.dart';
 
+class PaymentCapabilities {
+  const PaymentCapabilities({
+    this.stores = const {},
+    this.productionReady = false,
+  });
+
+  factory PaymentCapabilities.fromJson(Map<String, dynamic> json) {
+    final values = JsonRead.map(json['payme']) ?? const <String, dynamic>{};
+    return PaymentCapabilities(
+      stores: {
+        for (final entry in values.entries) entry.key: entry.value == true,
+      },
+      productionReady: json['payme_production_ready'] == true,
+    );
+  }
+
+  final Map<String, bool> stores;
+  final bool productionReady;
+}
+
 /// To'lov provayderi. Hozircha faqat Payme; kelajakda `click` qo'shiladi.
 enum PaymentProvider {
   payme('payme');

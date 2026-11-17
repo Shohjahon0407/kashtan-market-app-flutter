@@ -4,6 +4,27 @@ import 'package:beshkashtan_customer/features/payments/data/payment_models.dart'
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('legacy/unknown capability cannot enable production payments', () {
+    expect(
+      PaymentCapabilities.fromJson({
+        'payme': {'household': true},
+      }).productionReady,
+      isFalse,
+    );
+    expect(
+      PaymentCapabilities.fromJson({
+        'payme': {'household': true},
+        'payme_production_ready': 'true',
+      }).productionReady,
+      isFalse,
+    );
+    final value = PaymentCapabilities.fromJson({
+      'payme': {'household': true, 'restaurant': 'true'},
+      'payme_production_ready': true,
+    });
+    expect(value.productionReady, isTrue);
+    expect(value.stores, {'household': true, 'restaurant': false});
+  });
   group('PaymentMethod.wireFor', () {
     test('payme har ikkala fulfillment uchun ham payme yuboradi', () {
       expect(PaymentMethod.payme.wireFor(FulfillmentType.delivery), 'payme');

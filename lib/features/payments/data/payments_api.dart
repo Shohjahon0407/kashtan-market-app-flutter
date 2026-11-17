@@ -16,13 +16,9 @@ class PaymentsApi {
 
   final ApiClient _client;
 
-  Future<Map<String, bool>> availability() async {
+  Future<PaymentCapabilities> availability() async {
     final raw = JsonRead.map(await _client.get('/payments/availability/'));
-    final values = JsonRead.map(raw?['payme']);
-    return {
-      for (final entry in (values ?? <String, dynamic>{}).entries)
-        entry.key: entry.value == true,
-    };
+    return PaymentCapabilities.fromJson(raw ?? const {});
   }
 
   /// Backend'da Payme to'lovini yaratadi va checkout URL qaytaradi.

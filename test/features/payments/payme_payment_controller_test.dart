@@ -57,6 +57,7 @@ const _createResult = PaymePaymentCreateResult(
 
 Future<ProviderContainer> _container({
   bool paymeEnabled = true,
+  bool allowSandbox = true,
   required PaymentsApi paymentsApi,
   required OrdersApi ordersApi,
   required PaymentUrlLauncher launcher,
@@ -66,6 +67,7 @@ Future<ProviderContainer> _container({
   final container = ProviderContainer(
     overrides: [
       paymeEnabledProvider.overrideWithValue(paymeEnabled),
+      paymeAllowsSandboxProvider.overrideWithValue(allowSandbox),
       prefsStoreProvider.overrideWithValue(prefs),
       paymentsApiProvider.overrideWithValue(paymentsApi),
       ordersApiProvider.overrideWithValue(ordersApi),
@@ -77,6 +79,50 @@ Future<ProviderContainer> _container({
 }
 
 void main() {
+  for (final ready in [false, true]) {
+    for (final host in ['checkout.paycom.uz', 'test.paycom.uz']) {
+      test('public release readiness=$ready checkout=$host', () async {
+        final api = _MockPaymentsApi();
+        when(() => api.availability()).thenAnswer(
+          (_) async => PaymentCapabilities(
+            stores: const {'household': true},
+            productionReady: ready,
+          ),
+        );
+        when(() => api.createPaymePayment('order-1')).thenAnswer(
+          (_) async => PaymePaymentCreateResult(
+            paymentId: 'p',
+            paymentUrl: 'https://$host/payment',
+            status: PaymentStatus.pending,
+          ),
+        );
+        var launches = 0;
+        final container = await _container(
+          paymentsApi: api,
+          ordersApi: _MockOrdersApi(),
+          allowSandbox: false,
+          launcher:
+              (uri, {LaunchMode mode = LaunchMode.platformDefault}) async {
+                launches++;
+                expect(uri.host, 'checkout.paycom.uz');
+                expect(mode, LaunchMode.externalNonBrowserApplication);
+                return true;
+              },
+        );
+        final provider = paymePaymentControllerProvider('order-1');
+        final subscription = container.listen(provider, (_, _) {});
+        addTearDown(subscription.close);
+        await container.read(provider.notifier).startPayment();
+        expect(launches, ready && host == 'checkout.paycom.uz' ? 1 : 0);
+        if (!ready) verifyNever(() => api.createPaymePayment(any()));
+        expect(
+          container.read(provider).serviceUnavailable,
+          !(ready && host == 'checkout.paycom.uz'),
+        );
+      });
+    }
+  }
+
   _autoStartTests();
   for (final store in ['restaurant', 'shashlik', 'grocery', 'meat']) {
     testWidgets('non-Xozmak order has no Payme start action: $store', (

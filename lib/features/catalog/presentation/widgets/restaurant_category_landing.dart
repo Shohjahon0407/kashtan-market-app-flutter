@@ -107,6 +107,13 @@ class OfiyatBrandTitle extends StatelessWidget {
   );
 }
 
+/// Shashlik kartochkasidagi (`ShashlikVariantRibbon`) nisbat — bo'yiga
+/// biroz uzunroq, rasm kattaroq ko'rinadi.
+const _dishImageAspectRatio = 1.6;
+
+/// Pastki-chap qidiruv tugmasi oxirgi karuselni yopmasin.
+const _landingBottomPadding = 96.0;
+
 const _dishNameStyle = TextStyle(
   fontSize: 16,
   fontWeight: FontWeight.w700,
@@ -123,7 +130,7 @@ const _dishPriceStyle = TextStyle(
 double _cardHeight(BuildContext context, double width, {List<_Slide>? slides}) {
   final scaler = MediaQuery.textScalerOf(context);
   if (slides == null) {
-    return width / 2 + 12 + scaler.scale(16) * 3.75;
+    return width / _dishImageAspectRatio + 12 + scaler.scale(16) * 3.75;
   }
   double measure(String text, TextStyle style, {int? maxLines}) {
     final painter = TextPainter(
@@ -154,7 +161,7 @@ double _cardHeight(BuildContext context, double width, {List<_Slide>? slides}) {
         (price.isEmpty ? 0 : measure(price, _dishPriceStyle));
     metadataHeight = math.max(metadataHeight, height + 2);
   }
-  return width / 2 + metadataHeight;
+  return width / _dishImageAspectRatio + metadataHeight;
 }
 
 class RestaurantCategoryLandingSliver extends StatelessWidget {
@@ -178,7 +185,7 @@ class RestaurantCategoryLandingSliver extends StatelessWidget {
       );
     }
     return SliverPadding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, _landingBottomPadding),
       sliver: SliverList.separated(
         itemCount: items.length,
         separatorBuilder: (_, _) => const SizedBox(height: 24),
@@ -201,7 +208,7 @@ class RestaurantCategoryLandingSkeleton extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = Theme.of(context).colorScheme.surfaceContainerHighest;
     return SliverPadding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, _landingBottomPadding),
       sliver: SliverList.separated(
         itemCount: 6,
         separatorBuilder: (_, _) => const SizedBox(height: 24),
@@ -232,10 +239,19 @@ class RestaurantCategoryLandingSkeleton extends StatelessWidget {
 }
 
 class _Slide {
-  const _Slide(this.image, {this.name = '', this.price, this.productId});
+  const _Slide(
+    this.image, {
+    this.name = '',
+    this.price,
+    this.productId,
+    this.quarterTurns = 0,
+  });
   final String? image, price;
   final String? productId;
   final String name;
+
+  /// Admin paneldan belgilangan burish (karusel rasmi bo'lmaganda).
+  final int quarterTurns;
 }
 
 List<_Slide> _slides(ProductCategory category) {
@@ -243,13 +259,18 @@ List<_Slide> _slides(ProductCategory category) {
   final products = [
     for (final product in category.previewProducts)
       if (product.id.isNotEmpty &&
-          product.imageUrl?.isNotEmpty == true &&
+          (product.carouselImageUrl ?? product.imageUrl)?.isNotEmpty == true &&
           seen.add(product.id))
         _Slide(
-          product.imageUrl,
+          // Admin yuklagan yotiq karusel rasmi ustun; bo'lmasa asosiy rasm
+          // admin tanlagan burchakka buriladi (odatiy holat — burilmaydi).
+          product.carouselImageUrl ?? product.imageUrl,
           name: product.name,
           price: product.price,
           productId: product.id,
+          quarterTurns: product.carouselImageUrl != null
+              ? 0
+              : product.carouselRotation ~/ 90,
         ),
   ];
   if (products.isNotEmpty) return products.take(6).toList(growable: false);
@@ -591,7 +612,7 @@ class _DishSlide extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             AspectRatio(
-              aspectRatio: 2,
+              aspectRatio: _dishImageAspectRatio,
               child: ClipRRect(
                 key: imageKey,
                 borderRadius: BorderRadius.circular(AppRadius.xl),
@@ -600,6 +621,7 @@ class _DishSlide extends StatelessWidget {
                     child: _CategoryImageTile(
                       imageUrl: slide.image,
                       assetPath: asset,
+                      quarterTurns: slide.quarterTurns,
                     ),
                   ),
                 ),
@@ -626,10 +648,17 @@ class _DishSlide extends StatelessWidget {
 }
 
 class _CategoryImageTile extends StatelessWidget {
-  const _CategoryImageTile({this.imageUrl, this.assetPath});
+  const _CategoryImageTile({
+    this.imageUrl,
+    this.assetPath,
+    this.quarterTurns = 0,
+  });
 
   final String? imageUrl;
   final String? assetPath;
+
+  /// 1 — 90° o'ngga, 3 — 90° chapga (admin paneldagi "Karuselda burish").
+  final int quarterTurns;
 
   @override
   Widget build(BuildContext context) {
@@ -638,20 +667,30 @@ class _CategoryImageTile extends StatelessWidget {
         ? _fallback(context)
         : _placeholder(context);
     if (url == null || url.isEmpty) return fallback;
-    return CachedNetworkImage(
+    final target =
+        (MediaQuery.sizeOf(context).width *
+                MediaQuery.devicePixelRatioOf(context))
+            .round()
+            .clamp(320, 1280);
+    final rotated = quarterTurns.isOdd;
+    final image = CachedNetworkImage(
       cacheManager: ProductImageCache.persistentManager,
       imageUrl: url,
       fit: BoxFit.cover,
       fadeInDuration: Duration.zero,
       fadeOutDuration: Duration.zero,
       placeholderFadeInDuration: Duration.zero,
-      memCacheWidth:
-          (MediaQuery.sizeOf(context).width *
-                  MediaQuery.devicePixelRatioOf(context))
-              .round()
-              .clamp(320, 1280),
+      // Burilganda rasmning BO'YI kartochka eniga to'g'ri keladi.
+      memCacheWidth: rotated ? null : target,
+      memCacheHeight: rotated ? target : null,
       placeholder: (_, _) => fallback,
       errorWidget: (_, _, _) => fallback,
+    );
+    if (quarterTurns % 4 == 0) return image;
+    return RotatedBox(
+      key: const ValueKey('restaurant-dish-rotated'),
+      quarterTurns: quarterTurns,
+      child: image,
     );
   }
 

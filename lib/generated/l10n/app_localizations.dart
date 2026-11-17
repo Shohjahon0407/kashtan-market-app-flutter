@@ -1215,6 +1215,24 @@ abstract class AppLocalizations {
   /// **'Boshqa'**
   String get shashlikSectionOther;
 
+  /// No description provided for @shashlikCharcoalNudgeTitle.
+  ///
+  /// In uz, this message translates to:
+  /// **'Ko‘mir ham kerakmi?'**
+  String get shashlikCharcoalNudgeTitle;
+
+  /// No description provided for @shashlikCharcoalNudgeBody.
+  ///
+  /// In uz, this message translates to:
+  /// **'Shashlikni pishirish uchun ko‘mirni ham qo‘shib qo‘ying.'**
+  String get shashlikCharcoalNudgeBody;
+
+  /// No description provided for @shashlikCharcoalNudgeAction.
+  ///
+  /// In uz, this message translates to:
+  /// **'Ko‘mir tanlash'**
+  String get shashlikCharcoalNudgeAction;
+
   /// No description provided for @shashlikFamilyBeefJazz.
   ///
   /// In uz, this message translates to:

@@ -264,7 +264,10 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen>
   @override
   Widget build(BuildContext context) {
     final auth = ref.watch(authControllerProvider);
-    final otpStep = _isOtpStep(auth);
+    // Kod tasdiqlangach `phone` tozalanadi; oyna yopilguncha (savat merge)
+    // telefon bosqichiga qaytib, ikki bosqich ustma-ust ko'rinmasin.
+    final finishing = auth.isAuthenticated || _completed;
+    final otpStep = finishing || _isOtpStep(auth);
     final viewInsets = MediaQuery.viewInsetsOf(context);
     return PopScope(
       canPop: true,
@@ -323,7 +326,9 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen>
                                 tooltip: AppLocalizations.of(
                                   context,
                                 ).commonClose,
-                                onPressed: auth.isBusy ? null : _close,
+                                onPressed: auth.isBusy || finishing
+                                    ? null
+                                    : _close,
                                 icon: const Icon(Icons.close),
                               ),
                             ),
@@ -410,6 +415,9 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen>
     final failure = !_suppressFailure && auth.failure != null
         ? auth.failure!.localize(l10n)
         : null;
+    // Muvaffaqiyatli kirishdan keyin oyna yopilguncha "tekshirilmoqda" holati.
+    final verifying = auth.isVerifying || auth.isAuthenticated || _completed;
+    final locked = auth.isBusy || verifying;
     final expired = auth.codeSentAt != null && _expiryLeft == 0;
     return Column(
       key: const ValueKey('auth-otp-step'),
@@ -429,12 +437,12 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen>
         const SizedBox(height: AppSpacing.xl),
         OtpCodeField(
           controller: _codeController,
-          enabled: !auth.isVerifying,
+          enabled: !verifying,
           hasError: failure != null,
           onChanged: _onCodeChanged,
         ),
         const SizedBox(height: AppSpacing.md),
-        if (auth.isVerifying)
+        if (verifying)
           const Center(
             child: SizedBox.square(
               dimension: 22,
@@ -466,7 +474,7 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen>
         const SizedBox(height: AppSpacing.lg),
         TextButton(
           key: const ValueKey('auth-change-number'),
-          onPressed: auth.isBusy ? null : _editPhone,
+          onPressed: locked ? null : _editPhone,
           child: Text(l10n.authChangeNumber),
         ),
         if (_resendLeft > 0)
@@ -477,7 +485,7 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen>
           )
         else
           TextButton(
-            onPressed: auth.isBusy ? null : _resend,
+            onPressed: locked ? null : _resend,
             child: Text(l10n.authOtpResend),
           ),
       ],

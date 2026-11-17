@@ -1,0 +1,20 @@
+{
+  "mode": "built-in image_gen",
+  "prompts": [
+    {
+      "id": "1005",
+      "refs": [
+        "/home/shohjahon/MARKETPLACE/5kashtan/app_new_version/design/marketing/delivery-launch-v2-2026-11/1005-artwork.png"
+      ],
+      "prompt": "Use case: precise-object-edit.\nAsset type: portrait A3 delivery-launch poster; photographic green/yellow Besh Kashtan campaign.\nInput image 1 is the edit target. Preserve ALL existing Uzbek headings, brand name, delivery ribbon, QR blank panel on right, orange app-install CTA, household goods, green leafy background, wood table, and store badges.\nOnly change the blurred tilted phone at lower left. Replace it with a noticeably larger FRONT-FACING UPRIGHT, UNROTATED black smartphone with a completely blank, flat PURE WHITE screen. Screen must be a clean rectangle with rounded corners, no perspective tilt, no reflections across it, no blur, no invented UI, no text inside screen. We will insert an authentic screenshot afterward. Keep notch/frame visible. Phone approximately occupies left 4–33% width and vertical 47–89% height. It may move nearby merchandise slightly right so the white screen is unobstructed. Do not change other text, composition, colors or the empty QR/brand-logo placeholders. Photorealistic print-ad finish. Output PNG."
+    },
+    {
+      "id": "ofiyat",
+      "refs": [
+        "/home/shohjahon/MARKETPLACE/5kashtan/app_new_version/design/marketing/delivery-launch-v2-2026-11/pokiza-halol-artwork.png",
+        "/home/shohjahon/MARKETPLACE/5kashtan/app_new_version/design/marketing/ofiyat-app-2026-11/ofiyat-food-hero.png"
+      ],
+      "prompt": "Use case: ads-marketing.\nCreate one finished portrait restaurant delivery-launch advertisement in the SAME vivid green, yellow and orange premium photographic campaign style as reference image 1; image1 is STYLE reference only. Image2 is FOOD reference. Brand is Besh Kashtan, restaurant Ofiyat milliy taomlari. No people.\nLayout: dark emerald leafy bokeh upper background, warm wood table, premium Uzbek restaurant atmosphere and subtle carved wood. At upper left leave a small PURE WHITE rounded square for real logo to be inserted later, with crisp white brand text \"Besh Kashtan\" alongside.\nMain heading in very large bold readable letters: \"Ofiyat\" white, on next line \"milliy taomlari\" white, then \"endi ilovada!\" bright yellow. Include yellow ribbon with exact text \"Yetkazib berish xizmati ishga tushdi!\".\nRight middle: large EMPTY pure white SQUARE QR placeholder, substantial yellow/orange frame with green outer rim. Below it orange rounded CTA reading exactly \"Ilovani yuklab oling\". Do NOT invent QR pattern.\nLeft lower part: large front-facing UPRIGHT UNROTATED black smartphone with a completely blank flat PURE WHITE screen, no reflections or blur, no UI/text, about x4–31% and y49–90% of composition. We insert authentic Ofiyat app screenshot afterward. Keep phone unobstructed.\nBottom/middle food: appealing cooked Uzbek plov with beef, carrots and garlic on ornate blue ceramic plate and a bowl of halim in front, small fresh achichuk salad. Food realistic and rich, NOT raw meat. Steam subtle, never obscuring phone screen.\nSmall useful white outline icons with exact short labels \"Ilovadan buyurtma\" and \"Manzilga yetkazish\". Bottom edge show recognizable black Google Play and App Store badges, with generous margin.\nSpell every word verbatim in Uzbek. No extra slogan, discounts, ratings, certification, delivery speed guarantee, free-delivery claim or years-in-business claim. No duplicated phones or QR panels. Same polished legible campaign hierarchy as reference. Output PNG."
+    }
+  ]
+}

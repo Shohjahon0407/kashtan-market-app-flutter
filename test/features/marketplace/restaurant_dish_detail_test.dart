@@ -359,10 +359,17 @@ void main() {
       final cache = PaintingBinding.instance.imageCache;
       final image = await tester.runAsync(() => createTestImage());
       final keys = <String, Object>{};
+      // Pager restoran rasmlarini ekran piksellarida dekodlaydi
+      // (`restaurantImageDecodeWidth`): kesh kaliti ham shu o'lchamda.
+      final decodeWidth = tester.view.physicalSize.width.round().clamp(
+        720,
+        1440,
+      );
       for (final product in products) {
         final provider = ProductImageView.decodedProvider(
           product.imageUrl!,
           persistent: true,
+          memCacheWidth: decodeWidth,
         );
         final key = await provider.obtainKey(ImageConfiguration.empty);
         keys[product.id] = key;
@@ -719,6 +726,55 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('markazdagi rasm bosilsa to‘liq ekranda tiniq ochiladi', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(390, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final catalog = _Catalog([dish('a'), dish('b'), dish('c')]);
+    await _pumpDish(tester, catalog, id: 'b');
+    expect(find.byKey(const ValueKey('product-photo-viewer')), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey('dish-photo-tap-b')));
+    await settle(tester);
+    expect(find.byKey(const ValueKey('product-photo-viewer')), findsOneWidget);
+    expect(find.text('1/2'), findsOneWidget);
+    final viewerImage = tester.widget<ProductImageView>(
+      find.descendant(
+        of: find.byKey(const ValueKey('product-photo-viewer-page-0')),
+        matching: find.byType(ProductImageView),
+      ),
+    );
+    expect(viewerImage.fit, BoxFit.contain);
+    expect(viewerImage.memCacheWidth, greaterThanOrEqualTo(1080));
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('product-photo-viewer')),
+        matching: find.byType(InteractiveViewer),
+      ),
+      findsOneWidget,
+    );
+
+    await tester.drag(
+      find.byKey(const ValueKey('product-photo-viewer-pages')),
+      const Offset(-300, 0),
+    );
+    await settle(tester);
+    expect(find.text('2/2'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('product-photo-viewer-close')));
+    await settle(tester);
+    expect(find.byKey(const ValueKey('product-photo-viewer')), findsNothing);
+    // Yopilganda detail o'sha (ikkinchi) rasmda qoladi.
+    expect(
+      tester
+          .widget<ProductImageView>(find.byKey(const ValueKey('dish-photo-b')))
+          .imageUrl,
+      contains('extra-b'),
+    );
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets(
     'swipe keeps route/draft, restores photo, back pops once, no autoplay',

@@ -91,6 +91,9 @@ class ProductCard extends ConsumerWidget {
                     persistent: storeType == StoreType.restaurant,
                     imageUrl: product.imageUrl,
                     fit: imageFit,
+                    memCacheWidth: restaurantListStyle
+                        ? restaurantImageDecodeWidth(context)
+                        : 700,
                     imageBuilder: (context, imageProvider) =>
                         ProductImageMagnifier(
                           key: ValueKey('product-card-magnifier-${product.id}'),

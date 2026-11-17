@@ -31,6 +31,7 @@ import 'widgets/catalog_loading_skeleton.dart';
 import 'widgets/meat_product_image.dart';
 import 'widgets/product_detail_image_zoom.dart';
 import 'widgets/product_image.dart';
+import 'widgets/product_photo_viewer.dart';
 import 'widgets/product_rail.dart';
 import 'widgets/product_reviews_section.dart';
 import 'widgets/restaurant_dish_pager.dart';
@@ -195,6 +196,18 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen>
       _selectedProductId = widget.productId;
       _selectedSummary = null;
     }
+  }
+
+  /// Ovqat rasmi to'liq ekranda; yopilganda detail o'sha rasmda qoladi.
+  Future<void> _openPhotoViewer(List<String> photos, String? title) async {
+    final index = await showProductPhotoViewer(
+      context,
+      photos: photos,
+      initialIndex: _photoIndex.clamp(0, photos.length - 1),
+      title: title,
+    );
+    if (!mounted || index == null || index == _photoIndex) return;
+    setState(() => _photoIndex = index);
   }
 
   void _selectDish(ProductSummary product) {
@@ -469,6 +482,9 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen>
                     categoryId: widget.categoryId,
                     imageUrl: photo,
                     onChanged: _selectDish,
+                    onImageTap: photos.isEmpty
+                        ? null
+                        : () => _openPhotoViewer(photos, product?.name),
                     onNearbyChanged: (products) {
                       _nearbyDishIds = products
                           .map((product) => product.id)

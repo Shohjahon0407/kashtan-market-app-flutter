@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -262,15 +264,59 @@ String shashlikQuantityLabel(
   ShashlikMeasure.kilogram => l10n.shashlikKilogramQuantity(quantity),
 };
 
-class ShashlikSectionSelector extends StatelessWidget {
+/// Savatdagi shashlik (oila) qatori — ko'mir tavsiyasi shunga qaraydi.
+bool isShashlikKebab(ProductSummary product) =>
+    _familyForName(normalizeShashlikProductName(product.name)) != null;
+
+bool isShashlikCharcoal(ProductSummary product) =>
+    normalizeShashlikProductName(product.name).contains('komir');
+
+/// Ko'mir tavsiyasining olovrang rangi (tugma pulsi va bildirishnoma).
+const shashlikCharcoalAccent = Color(0xFFF26B1D);
+
+/// Shashliklar / Ko'mir / Boshqa — ikonali, alohida qutidagi bo'limlar.
+///
+/// [charcoalNudge] har oshganda "Ko'mir" qutisi bir marta tebranib,
+/// olovrang yog'du bilan "yonadi" (shashlik savatga qo'shilganda tavsiya).
+class ShashlikSectionSelector extends StatefulWidget {
   const ShashlikSectionSelector({
     required this.selected,
     required this.onSelected,
+    this.charcoalNudge = 0,
     super.key,
   });
 
   final ShashlikSection selected;
   final ValueChanged<ShashlikSection> onSelected;
+  final int charcoalNudge;
+
+  @override
+  State<ShashlikSectionSelector> createState() =>
+      _ShashlikSectionSelectorState();
+}
+
+class _ShashlikSectionSelectorState extends State<ShashlikSectionSelector>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulse = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1600),
+  );
+
+  @override
+  void didUpdateWidget(covariant ShashlikSectionSelector oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.charcoalNudge != oldWidget.charcoalNudge &&
+        widget.selected != ShashlikSection.charcoal &&
+        !MediaQuery.disableAnimationsOf(context)) {
+      _pulse.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -279,14 +325,10 @@ class ShashlikSectionSelector extends StatelessWidget {
       (ShashlikSection.kebabs, Icons.outdoor_grill, l10n.shashlikSectionKebabs),
       (
         ShashlikSection.charcoal,
-        Icons.local_fire_department_outlined,
+        Icons.local_fire_department,
         l10n.shashlikSectionCharcoal,
       ),
-      (
-        ShashlikSection.other,
-        Icons.inventory_2_outlined,
-        l10n.shashlikSectionOther,
-      ),
+      (ShashlikSection.other, Icons.restaurant_menu, l10n.shashlikSectionOther),
     ];
     return Padding(
       padding: const EdgeInsets.fromLTRB(
@@ -295,19 +337,25 @@ class ShashlikSectionSelector extends StatelessWidget {
         AppSpacing.screenH,
         AppSpacing.md,
       ),
-      child: Row(
-        children: [
-          for (var index = 0; index < entries.length; index++) ...[
-            if (index > 0) const SizedBox(width: AppSpacing.sm),
-            Expanded(
-              child: _SectionButton(
-                entry: entries[index],
-                selected: selected == entries[index].$1,
-                onTap: () => onSelected(entries[index].$1),
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (var index = 0; index < entries.length; index++) ...[
+              if (index > 0) const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: _SectionButton(
+                  entry: entries[index],
+                  selected: widget.selected == entries[index].$1,
+                  pulse: entries[index].$1 == ShashlikSection.charcoal
+                      ? _pulse
+                      : null,
+                  onTap: () => widget.onSelected(entries[index].$1),
+                ),
               ),
-            ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -318,44 +366,125 @@ class _SectionButton extends StatelessWidget {
     required this.entry,
     required this.selected,
     required this.onTap,
+    this.pulse,
   });
   final (ShashlikSection, IconData, String) entry;
   final bool selected;
   final VoidCallback onTap;
+  final Animation<double>? pulse;
+
   @override
-  Widget build(BuildContext context) => Semantics(
-    selected: selected,
-    child: Material(
-      color: Colors.white,
-      child: InkWell(
-        key: ValueKey('shashlik-section-${entry.$1.name}'),
-        onTap: onTap,
-        child: Container(
-          constraints: const BoxConstraints(minHeight: 48),
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
-          decoration: BoxDecoration(
-            border: Border(
-              bottom: BorderSide(
-                width: 3,
-                color: selected ? AppColors.primary : Colors.transparent,
-              ),
-            ),
+  Widget build(BuildContext context) {
+    final radius = BorderRadius.circular(16);
+    final foreground = selected ? Colors.white : AppColors.lightTextPrimary;
+    final box = Semantics(
+      selected: selected,
+      button: true,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOut,
+        decoration: BoxDecoration(
+          color: selected ? AppColors.primary : const Color(0xFFF6F7F6),
+          borderRadius: radius,
+          border: Border.all(
+            color: selected ? AppColors.primary : AppColors.lightBorder,
+            width: 1.5,
           ),
-          alignment: Alignment.center,
-          child: Text(
-            entry.$3,
-            maxLines: 2,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-              color: selected ? AppColors.primary : AppColors.lightTextPrimary,
+          boxShadow: selected
+              ? [
+                  BoxShadow(
+                    color: AppColors.primary.withValues(alpha: .28),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
+              : const [],
+        ),
+        child: Material(
+          type: MaterialType.transparency,
+          child: InkWell(
+            key: ValueKey('shashlik-section-${entry.$1.name}'),
+            onTap: onTap,
+            borderRadius: radius,
+            child: Container(
+              constraints: const BoxConstraints(minHeight: 64),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
+              alignment: Alignment.center,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 220),
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: selected
+                          ? Colors.white.withValues(alpha: .2)
+                          : Colors.white,
+                    ),
+                    child: Icon(
+                      entry.$2,
+                      size: 20,
+                      color: selected
+                          ? Colors.white
+                          : entry.$1 == ShashlikSection.charcoal
+                          ? shashlikCharcoalAccent
+                          : AppColors.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    entry.$3,
+                    maxLines: 2,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 13,
+                      height: 1.15,
+                      fontWeight: selected ? FontWeight.w800 : FontWeight.w700,
+                      color: foreground,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
       ),
-    ),
-  );
+    );
+    final animation = pulse;
+    if (animation == null) return box;
+    return AnimatedBuilder(
+      animation: animation,
+      child: box,
+      builder: (context, child) {
+        final t = animation.value;
+        if (t == 0 || t == 1) return child!;
+        // So'nib boruvchi tebranish: 3 marta silkinish, yog'du asta o'chadi.
+        final fade = 1 - t;
+        final wave = math.sin(t * math.pi * 6) * fade;
+        return Transform.rotate(
+          angle: wave * .06,
+          child: Transform.scale(
+            scale: 1 + wave.abs() * .07,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: shashlikCharcoalAccent.withValues(alpha: .55 * fade),
+                    blurRadius: 18 * fade + 4,
+                    spreadRadius: 2 * fade,
+                  ),
+                ],
+              ),
+              child: child,
+            ),
+          ),
+        );
+      },
+    );
+  }
 }
 
 class ShashlikCatalogList extends StatelessWidget {

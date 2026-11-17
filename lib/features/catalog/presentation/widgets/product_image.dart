@@ -3,6 +3,13 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/storage/product_image_cache.dart';
 
+/// Restoran rasmlari keng kartochkada (pager, ro'yxat) ekran kengligi
+/// piksellarida dekodlanadi. Standart 700 px katta telefonlarda xira edi.
+int restaurantImageDecodeWidth(BuildContext context) =>
+    (MediaQuery.sizeOf(context).width * MediaQuery.devicePixelRatioOf(context))
+        .round()
+        .clamp(720, 1440);
+
 class ProductImageView extends StatelessWidget {
   const ProductImageView({
     required this.imageUrl,

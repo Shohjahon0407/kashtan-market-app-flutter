@@ -183,6 +183,8 @@ class RestaurantOfflineSync extends Notifier<RestaurantDownloadState> {
                   'image',
                   'image_url',
                   'main_image',
+                  // Admin yuklagan restoran karusel rasmi (internetsiz ham).
+                  'carousel_image',
                 }.contains(entry.key) &&
                 entry.value is String) {
               final url = AppConfig.resolveMediaUrl(entry.value as String);

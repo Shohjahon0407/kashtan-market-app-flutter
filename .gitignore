@@ -46,3 +46,5 @@ app.*.map.json
 
 # AGP 9 built-in Kotlin build kataloglari
 android/.kotlin/
+
+token yo'li:  pk.eyJ1IjoibXVsbGFkZXYiLCJhIjoiY212NHdqNndxMTF0ZzJ3cjdqanJ5a2c5dyJ9.wECuqKkXMvDhTPVxke3WOg

@@ -71,6 +71,7 @@ class _PaymePaymentSectionState extends ConsumerState<PaymePaymentSection> {
 
   void _onResume() {
     if (!ref.read(paymeEnabledProvider)) return;
+    ref.invalidate(paymentCapabilitiesProvider);
     final controller = paymePaymentControllerProvider(widget.order.id);
     if (ref.read(controller).phase != PaymePhase.awaitingReturn) return;
     if (_resumeCheckDone) return;

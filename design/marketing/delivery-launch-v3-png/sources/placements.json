@@ -1,0 +1,23 @@
+[
+  {
+    "id": "1005",
+    "qr": [701, 443, 292],
+    "logo": [90, 50, 133],
+    "screen": [51, 744, 263, 541],
+    "capture": "marketplace-home-3x.png"
+  },
+  {
+    "id": "umumiy",
+    "qr": [680, 430, 298],
+    "logo": [90, 49, 134],
+    "screen": [50, 701, 258, 506],
+    "capture": "marketplace-home-3x.png"
+  },
+  {
+    "id": "ofiyat",
+    "qr": [662, 445, 292],
+    "logo": [73, 42, 124],
+    "screen": [56, 787, 246, 495],
+    "capture": "ofiyat-landing-3x.png"
+  }
+]

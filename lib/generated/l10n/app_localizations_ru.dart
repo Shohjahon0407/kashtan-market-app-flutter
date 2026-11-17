@@ -630,6 +630,16 @@ class AppLocalizationsRu extends AppLocalizations {
   String get shashlikSectionOther => 'Другое';
 
   @override
+  String get shashlikCharcoalNudgeTitle => 'Уголь тоже нужен?';
+
+  @override
+  String get shashlikCharcoalNudgeBody =>
+      'Добавьте уголь, чтобы пожарить шашлык.';
+
+  @override
+  String get shashlikCharcoalNudgeAction => 'Выбрать уголь';
+
+  @override
   String get shashlikFamilyBeefJazz => 'Говяжий шашлык';
 
   @override

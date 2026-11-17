@@ -236,6 +236,14 @@ void main() {
           ),
         );
         await tester.pump();
+        final photo = find.descendant(
+          of: find.byKey(const ValueKey('shashlik-preview-stick')),
+          matching: find.byType(AspectRatio),
+        );
+        expect(tester.widget<AspectRatio>(photo).aspectRatio, 1.6);
+        final photoSize = tester.getSize(photo);
+        expect(photoSize.height, closeTo(photoSize.width / 1.6, .01));
+        expect(tester.takeException(), isNull);
         final controller = tester
             .widget<PageView>(find.byType(PageView))
             .controller!;

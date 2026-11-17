@@ -9,6 +9,8 @@
 /// ```
 library;
 
+import 'package:flutter/foundation.dart';
+
 /// Ilova qaysi muhitga qarshi ishlayapti.
 enum AppFlavor {
   dev,
@@ -29,10 +31,17 @@ abstract final class AppConfig {
 
   static const String _defaultBackendOrigin = 'https://api.beshkashtan.uz';
 
-  /// Keep online payment hidden until the integration is ready for release.
+  /// Release pipeline enables the feature; backend readiness remains the gate.
   static const bool paymeEnabled = bool.fromEnvironment(
     'PAYME_ENABLED',
     defaultValue: false,
+  );
+
+  /// Public release builds must never open sandbox checkout. Private/debug
+  /// tests may opt in; no merchant key or environment is embedded in the app.
+  static const bool paymeAllowSandbox = bool.fromEnvironment(
+    'PAYME_ALLOW_SANDBOX',
+    defaultValue: !kReleaseMode,
   );
 
   static const String _originOverride = String.fromEnvironment(

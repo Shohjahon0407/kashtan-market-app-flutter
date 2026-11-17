@@ -8,6 +8,8 @@ class CategoryProductPreview {
     required this.name,
     required this.imageUrl,
     this.price,
+    this.carouselImageUrl,
+    this.carouselRotation = 0,
   });
   factory CategoryProductPreview.fromJson(Map<String, dynamic> json) =>
       CategoryProductPreview(
@@ -17,9 +19,24 @@ class CategoryProductPreview {
           JsonRead.nullableString(json['image']),
         ),
         price: JsonRead.nullableString(json['price']),
+        carouselImageUrl: AppConfig.resolveMediaUrl(
+          JsonRead.nullableString(json['carousel_image']),
+        ),
+        carouselRotation: switch (json['carousel_rotation']) {
+          90 || '90' => 90,
+          270 || '270' => 270,
+          _ => 0,
+        },
       );
   final String id, name;
   final String? imageUrl, price;
+
+  /// Restoran karuseli uchun admin yuklagan alohida yotiq rasm.
+  final String? carouselImageUrl;
+
+  /// Admin tanlagan burish: 0, 90 (o'ngga) yoki 270 (chapga). Alohida rasm
+  /// bo'lsa e'tiborga olinmaydi.
+  final int carouselRotation;
 }
 
 class ProductCategory {
